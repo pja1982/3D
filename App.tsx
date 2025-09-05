@@ -69,7 +69,7 @@ function App() {
     const subtotal = filamentCost + electricityCost + laborCost + hardwareCost;
     const costWithFailureRate = subtotal / (1 - (parameters.failureRate / 100));
     const profit = costWithFailureRate * (parameters.profitMargin / 100);
-    const quotePrice = costWithFailureRate + profit;
+    const quotePrice = parseFloat((costWithFailureRate + profit).toFixed(2));
 
     return {
       filamentCost,
