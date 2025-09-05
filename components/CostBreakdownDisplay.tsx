@@ -6,14 +6,15 @@ import SaveQuoteModal from './SaveQuoteModal';
 interface CostBreakdownDisplayProps {
   costBreakdown: CostBreakdown;
   quotePrice: number;
-  onSaveQuote: (jobName: string, customerName: string, finalQuotePrice: number) => void;
+  onSaveQuote: (jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number) => void;
+  nextJobNumber: number;
 }
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 };
 
-const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdown, quotePrice, onSaveQuote }) => {
+const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdown, quotePrice, onSaveQuote, nextJobNumber }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableQuotePrice, setEditableQuotePrice] = useState(quotePrice);
 
@@ -21,8 +22,8 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdo
     setEditableQuotePrice(quotePrice);
   }, [quotePrice]);
 
-  const handleSave = (jobName: string, customerName: string) => {
-    onSaveQuote(jobName, customerName, editableQuotePrice);
+  const handleSave = (jobName: string, customerName: string, jobNumber: number) => {
+    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice);
     setIsModalOpen(false);
   };
 
@@ -86,6 +87,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdo
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+        nextJobNumber={nextJobNumber}
       />
     </div>
   );

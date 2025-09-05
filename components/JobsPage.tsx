@@ -4,6 +4,7 @@ import { QuoteStatus } from '../types';
 import TrashIcon from './icons/TrashIcon';
 import CheckIcon from './icons/CheckIcon';
 import XIcon from './icons/XIcon';
+import SaveIcon from './icons/SaveIcon';
 
 interface JobsPageProps {
   quotes: Quote[];
@@ -21,12 +22,66 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, onDelete, onUpdateStatus })
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString();
 
+  const handleExportCSV = () => {
+    if (quotes.length === 0) return;
+
+    const headers = ["Job #", "Job Name", "Customer Name", "Date", "Price", "Status"];
+    
+    const escapeCsvField = (field: any): string => {
+      const stringField = String(field);
+      // If the field contains a comma, double quote, or newline, wrap it in double quotes
+      if (/[",\n\r]/.test(stringField)) {
+        // Within a double-quoted field, double quotes must be escaped by another double quote
+        return `"${stringField.replace(/"/g, '""')}"`;
+      }
+      return stringField;
+    };
+
+    const csvRows = quotes.map(q => 
+      [
+        q.jobNumber,
+        escapeCsvField(q.jobName),
+        escapeCsvField(q.customerName),
+        new Date(q.createdAt).toISOString().split('T')[0], // YYYY-MM-DD
+        q.quotePrice,
+        q.status
+      ].join(',')
+    );
+
+    const csvString = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    const url = URL.createObjectURL(blob);
+    const today = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `quotes_export_${today}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mt-8">
       <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
-        <h2 className="text-2xl font-semibold text-cyan-400 border-b border-slate-600 pb-2 mb-6">
-          Saved Jobs & Quotes
-        </h2>
+        <div className="flex justify-between items-center border-b border-slate-600 pb-2 mb-6">
+          <h2 className="text-2xl font-semibold text-cyan-400">
+            Saved Jobs & Quotes
+          </h2>
+          {quotes.length > 0 && (
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+              title="Export all jobs to a CSV file"
+            >
+              <SaveIcon className="w-4 h-4" />
+              <span>Export to CSV</span>
+            </button>
+          )}
+        </div>
+
         {quotes.length === 0 ? (
           <div className="text-center py-16 text-slate-500">
             <h3 className="text-xl font-semibold">No Jobs Found</h3>

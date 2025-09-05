@@ -3,25 +3,28 @@ import React, { useState, useEffect } from 'react';
 interface SaveQuoteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (jobName: string, customerName: string) => void;
+  onSave: (jobName: string, customerName: string, jobNumber: number) => void;
+  nextJobNumber: number;
 }
 
-const SaveQuoteModal: React.FC<SaveQuoteModalProps> = ({ isOpen, onClose, onSave }) => {
+const SaveQuoteModal: React.FC<SaveQuoteModalProps> = ({ isOpen, onClose, onSave, nextJobNumber }) => {
   const [jobName, setJobName] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [jobNumber, setJobNumber] = useState(nextJobNumber);
 
   useEffect(() => {
     if (isOpen) {
       // Reset form on open
       setJobName('');
       setCustomerName('');
+      setJobNumber(nextJobNumber);
     }
-  }, [isOpen]);
+  }, [isOpen, nextJobNumber]);
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (jobName.trim() && customerName.trim()) {
-      onSave(jobName, customerName);
+    if (jobName.trim() && customerName.trim() && jobNumber > 0) {
+      onSave(jobName, customerName, jobNumber);
     }
   };
 
@@ -32,6 +35,19 @@ const SaveQuoteModal: React.FC<SaveQuoteModalProps> = ({ isOpen, onClose, onSave
       <div className="bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-700" onClick={e => e.stopPropagation()}>
         <h2 id="modal-title" className="text-2xl font-semibold text-cyan-400 border-b border-slate-600 pb-2 mb-4">Save Quote</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="jobNumber" className="block text-sm font-medium text-slate-300 mb-1">Job Number</label>
+            <input
+              type="number"
+              id="jobNumber"
+              value={jobNumber}
+              onChange={(e) => setJobNumber(parseInt(e.target.value, 10) || 0)}
+              className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              required
+              aria-required="true"
+              min="1"
+            />
+          </div>
           <div>
             <label htmlFor="jobName" className="block text-sm font-medium text-slate-300 mb-1">Job Name</label>
             <input

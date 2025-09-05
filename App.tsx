@@ -83,12 +83,23 @@ function App() {
     };
   }, [parameters, selectedFilament, selectedPrinter]);
 
-  // Quote Handlers
-  const handleSaveQuote = useCallback((jobName: string, customerName: string, finalQuotePrice: number) => {
+  const nextJobNumber = useMemo(() => {
+    if (quotes.length === 0) {
+      return 1;
+    }
     const maxJobNumber = quotes.reduce((max, q) => Math.max(max, q.jobNumber), 0);
+    return maxJobNumber + 1;
+  }, [quotes]);
+
+  // Quote Handlers
+  const handleSaveQuote = useCallback((jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number) => {
+    if (quotes.some(q => q.jobNumber === jobNumber)) {
+      alert(`Job number ${jobNumber} already exists. Please choose a unique job number.`);
+      return;
+    }
     const newQuote: Quote = {
       id: new Date().toISOString(),
-      jobNumber: maxJobNumber + 1,
+      jobNumber,
       jobName,
       customerName,
       createdAt: new Date().toISOString(),
@@ -170,6 +181,7 @@ function App() {
                   costBreakdown={costBreakdown}
                   quotePrice={costBreakdown.quotePrice}
                   onSaveQuote={handleSaveQuote}
+                  nextJobNumber={nextJobNumber}
                 />
               </div>
             </div>
