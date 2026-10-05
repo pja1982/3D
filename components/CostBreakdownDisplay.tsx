@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { CostBreakdown, PrintParameters } from '../types';
+import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer } from '../types';
 import SaveIcon from './icons/SaveIcon';
 import SaveQuoteModal from './SaveQuoteModal';
 
@@ -9,22 +9,54 @@ interface CostBreakdownDisplayProps {
   onSaveQuote: (jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number, params: PrintParameters, breakdown: CostBreakdown) => void;
   nextJobNumber: number;
   parameters: PrintParameters;
+  revisingQuote?: Quote | null;
+  onCancelRevision?: () => void;
+  quoteParts?: QuotePartConfig[];
+  printers?: Printer[];
 }
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 };
 
-const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdown, quotePrice, onSaveQuote, nextJobNumber, parameters }) => {
+const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ 
+  costBreakdown, 
+  quotePrice, 
+  onSaveQuote, 
+  nextJobNumber, 
+  parameters,
+  revisingQuote,
+  onCancelRevision,
+  quoteParts,
+  printers,
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableQuotePrice, setEditableQuotePrice] = useState(quotePrice);
+
+  const totalPrintHours = quoteParts 
+    ? quoteParts.reduce((sum, p) => sum + (p.printHours * p.quantity), 0)
+    : parameters.printHours;
 
   useEffect(() => {
     setEditableQuotePrice(quotePrice);
   }, [quotePrice]);
 
+  const costWithFailure = costBreakdown.costWithFailureRate;
+  const currentProfit = editableQuotePrice - costWithFailure;
+  const currentProfitMargin = costWithFailure > 0 
+    ? ((currentProfit / costWithFailure) * 100) 
+    : 0;
+
   const handleSave = (jobName: string, customerName: string, jobNumber: number) => {
-    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice, parameters, costBreakdown);
+    const updatedBreakdown: CostBreakdown = {
+      ...costBreakdown,
+      profit: parseFloat(currentProfit.toFixed(2)),
+    };
+    const updatedParameters: PrintParameters = {
+      ...parameters,
+      profitMargin: parseFloat(currentProfitMargin.toFixed(1)),
+    };
+    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice, updatedParameters, updatedBreakdown);
     setIsModalOpen(false);
   };
 
@@ -34,16 +66,79 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdo
 
   return (
     <div>
+      {revisingQuote && (
+        <div className="mb-5 p-3.5 bg-amber-500/15 border border-amber-500/40 rounded-xl flex items-center justify-between text-amber-200">
+          <div className="flex items-center gap-2 text-sm min-w-0 pr-2">
+            <span className="bg-amber-500/30 text-amber-300 font-bold px-2 py-0.5 rounded text-xs">
+              REVISION MODE
+            </span>
+            <span className="font-semibold text-slate-100 truncate">
+              Job #{revisingQuote.jobNumber}: {revisingQuote.jobName}
+            </span>
+            <span className="text-amber-400/80 text-xs hidden sm:inline">
+              ({revisingQuote.customerName})
+            </span>
+          </div>
+          {onCancelRevision && (
+            <button
+              onClick={onCancelRevision}
+              className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1 rounded-md border border-slate-600 transition shrink-0"
+            >
+              Cancel Revision
+            </button>
+          )}
+        </div>
+      )}
+
       <h2 className="text-2xl font-semibold text-cyan-400 border-b border-slate-600 pb-2 mb-4">Quote Breakdown</h2>
       <div className="space-y-3 text-lg mb-6">
         <div className="flex justify-between"><span>Filament Cost:</span> <span className="font-mono">{formatCurrency(costBreakdown.filamentCost)}</span></div>
         <div className="flex justify-between"><span>Electricity Cost:</span> <span className="font-mono">{formatCurrency(costBreakdown.electricityCost)}</span></div>
         <div className="flex justify-between"><span>Labor Cost:</span> <span className="font-mono">{formatCurrency(costBreakdown.laborCost)}</span></div>
         <div className="flex justify-between"><span>Hardware Cost:</span> <span className="font-mono">{formatCurrency(costBreakdown.hardwareCost)}</span></div>
+        {costBreakdown.printerCost !== undefined && (
+          <div className="flex flex-col bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/80">
+            <div className="flex justify-between items-center text-base">
+              <span className="flex items-center gap-1.5 font-medium text-cyan-300">
+                <span>⏱️ Printer Time & Depreciation:</span>
+                {totalPrintHours > 0 && (() => {
+                  const h = Math.floor(totalPrintHours);
+                  const m = Math.round((totalPrintHours - h) * 60);
+                  const durationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+                  return (
+                    <span className="text-xs text-slate-400 font-normal">({durationStr} total)</span>
+                  );
+                })()}
+              </span>
+              <span className="font-mono font-semibold text-cyan-400">
+                {formatCurrency(costBreakdown.printerCost || 0)}
+              </span>
+            </div>
+            {((costBreakdown.printerDepreciationCost ?? 0) > 0 || (costBreakdown.printerMaintenanceCost ?? 0) > 0) && (
+              <div className="flex justify-between text-xs text-slate-400 pt-1 mt-1 border-t border-slate-800">
+                <span>Depreciation: {formatCurrency(costBreakdown.printerDepreciationCost || 0)}</span>
+                <span>Maint & Fees: {formatCurrency(costBreakdown.printerMaintenanceCost || 0)}</span>
+              </div>
+            )}
+          </div>
+        )}
+        {Boolean(costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) && (
+          <div className="flex justify-between items-center text-purple-300 bg-purple-950/30 px-2.5 py-1 rounded-lg border border-purple-500/30 text-base">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span>🎨 Multi-Color Fee:</span>
+            </span>
+            <span className="font-mono font-semibold">{formatCurrency(costBreakdown.multiColorFee || 0)}</span>
+          </div>
+        )}
         <hr className="border-slate-600 my-2" />
         <div className="flex justify-between font-semibold"><span>Subtotal:</span> <span className="font-mono">{formatCurrency(costBreakdown.subtotal)}</span></div>
         <div className="flex justify-between text-sm text-slate-400"><span>+ Failure Rate Adj:</span> <span className="font-mono">{formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)}</span></div>
-        <div className="flex justify-between text-sm text-slate-400"><span>+ Profit:</span> <span className="font-mono">{formatCurrency(costBreakdown.profit)}</span></div>
+        <div className="flex justify-between text-sm text-slate-400">
+          <span>+ Profit:</span> 
+          <span className={`font-mono font-medium ${currentProfit >= 0 ? 'text-slate-200' : 'text-red-400'}`}>
+            {formatCurrency(currentProfit)} ({currentProfitMargin >= 0 ? '+' : ''}{currentProfitMargin.toFixed(1)}%)
+          </span>
+        </div>
       </div>
       <div className="mt-6 p-4 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white shadow-lg">
         <div className="flex justify-between items-center">
@@ -56,7 +151,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdo
             className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-4 rounded-lg transition-colors"
           >
             <SaveIcon className="w-5 h-5" />
-            Save Quote
+            {revisingQuote ? 'Save Revised Quote' : 'Save Quote'}
           </button>
         </div>
         <hr className="border-white/20 my-4" />
@@ -89,6 +184,10 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdo
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         nextJobNumber={nextJobNumber}
+        initialJobName={revisingQuote ? revisingQuote.jobName : ''}
+        initialCustomerName={revisingQuote ? revisingQuote.customerName : ''}
+        initialJobNumber={revisingQuote ? revisingQuote.jobNumber : undefined}
+        isRevision={!!revisingQuote}
       />
     </div>
   );

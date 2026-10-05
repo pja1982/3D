@@ -28,4 +28,4 @@ View your app in AI Studio: https://ai.studio/apps/drive/1pnQAM70LLs5aig8cSjF1j-
    ```bash
    docker compose up -d
    ```
-2. Open `http://localhost:8080` in your browser.
+2. Open `http://localhost:3030` in your browser.

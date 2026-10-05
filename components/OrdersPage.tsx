@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
-import type { Order, Quote } from '../types';
+import React, { useState, useRef } from 'react';
+import type { Order, Quote, Filament, Printer } from '../types';
 import { OrderStatus } from '../types';
 import TrashIcon from './icons/TrashIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import CreateOrderIcon from './icons/CreateOrderIcon';
+import MarkdownIcon from './icons/MarkdownIcon';
+import CameraIcon from './icons/CameraIcon';
+import PhotoIcon from './icons/PhotoIcon';
+import ImageModal from './ImageModal';
+import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
+import { generateOrderMarkdown, generateAllOrdersMarkdown, downloadMarkdownFile, copyMarkdownToClipboard } from '../utils/markdownExport';
 
 interface OrdersPageProps {
   orders: Order[];
   quotes: Quote[];
+  filaments?: Filament[];
+  printers?: Printer[];
   onDelete: (id: string) => void;
   onUpdateStatus: (id: string, status: OrderStatus) => void;
+  onUpdateOrderPhoto?: (id: string, imageUrl?: string) => void;
 }
 
 const statusColors: Record<OrderStatus, string> = {
@@ -29,45 +38,345 @@ const DetailItem: React.FC<{ label: string; value: string | number }> = ({ label
   </div>
 );
 
-const OrderDetailView: React.FC<{ quote: Quote }> = ({ quote }) => {
-    return (
-      <div className="bg-slate-900/50 p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <DetailItem label="Job Name" value={quote.jobName} />
-          <DetailItem label="Customer" value={quote.customerName} />
-          <DetailItem label="Quoted Price" value={formatCurrency(quote.quotePrice)} />
+const OrderDetailView: React.FC<{
+  order: Order;
+  quote: Quote;
+  filaments?: Filament[];
+  printers?: Printer[];
+  onUpdateOrderPhoto?: (id: string, imageUrl?: string) => void;
+  onOpenPhotoModal: (url: string, title: string) => void;
+}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal }) => {
+  const [copied, setCopied] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDownloadMd = () => {
+    const cleanJob = (quote.jobName || 'Order').replace(/[^a-zA-Z0-9_-]/g, '_');
+    downloadMarkdownFile(`Order_${order.orderNumber}_${cleanJob}.md`, generateOrderMarkdown(order, quote, filaments, printers));
+  };
+
+  const handleCopyMd = async () => {
+    const ok = await copyMarkdownToClipboard(generateOrderMarkdown(order, quote, filaments, printers));
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isValidImageFile(file)) {
+      alert('Please choose a valid image file (JPG, PNG, WEBP, etc.)');
+      return;
+    }
+
+    try {
+      setIsCompressing(true);
+      const compressedDataUrl = await compressAndFormatImage(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.84,
+      });
+      if (onUpdateOrderPhoto) {
+        onUpdateOrderPhoto(order.id, compressedDataUrl);
+      }
+    } catch (err) {
+      console.error('Failed to compress order photo', err);
+      alert('Error processing photo. Please try a different image.');
+    } finally {
+      setIsCompressing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleApplyUrl = () => {
+    if (urlInput.trim() && onUpdateOrderPhoto) {
+      onUpdateOrderPhoto(order.id, urlInput.trim());
+      setUrlInput('');
+      setShowUrlInput(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    if (onUpdateOrderPhoto && window.confirm('Remove finished order photo?')) {
+      onUpdateOrderPhoto(order.id, undefined);
+    }
+  };
+
+  const isCompleted = order.status === OrderStatus.Completed;
+
+  return (
+    <div className="bg-slate-900/50 p-5 space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <DetailItem label="Job Name" value={quote.jobName} />
+        <DetailItem label="Customer" value={quote.customerName} />
+        <DetailItem label="Quoted Price" value={formatCurrency(quote.quotePrice)} />
+      </div>
+
+      {quote.parts && quote.parts.length > 0 && (
+        <div className="border-t border-slate-700/60 pt-3">
+          <span className="text-sm font-semibold text-cyan-400">Parts to Fulfill ({quote.parts.length}):</span>
+          <div className="flex flex-wrap gap-2.5 mt-2">
+            {quote.parts.map((p, idx) => (
+              <div
+                key={p.id || idx}
+                className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg text-slate-300 flex items-center gap-2"
+              >
+                {p.imageUrl && (
+                  <img
+                    src={p.imageUrl}
+                    alt={p.name}
+                    className="w-5 h-5 rounded object-cover cursor-pointer hover:opacity-80"
+                    onClick={() => onOpenPhotoModal(p.imageUrl!, `Part: ${p.name}`)}
+                    title="Click to view part photo"
+                  />
+                )}
+                <span>{p.name}</span>
+                <span className="text-cyan-400 font-bold">x{p.quantity}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        {quote.parts && quote.parts.length > 0 && (
-          <div className="border-t border-slate-700/60 pt-3">
-            <span className="text-sm font-semibold text-cyan-400">Parts List ({quote.parts.length}):</span>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {quote.parts.map((p, idx) => (
-                <span key={p.id || idx} className="bg-slate-800 border border-slate-700 text-xs px-2.5 py-1 rounded-md text-slate-300">
-                  {p.name} <span className="text-cyan-400 font-bold">x{p.quantity}</span>
-                </span>
-              ))}
+      )}
+
+      {/* Completed Print Photo Section */}
+      <div className="border-t border-slate-700/60 pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <CameraIcon className="w-4 h-4 text-purple-400" />
+            <span>Finished Print & Inspection Photo</span>
+            {order.completedImageUrl ? (
+              <span className="text-[11px] bg-purple-900/50 border border-purple-500/40 text-purple-300 px-2 py-0.5 rounded-full font-medium">
+                ✓ Photo Documented
+              </span>
+            ) : isCompleted ? (
+              <span className="text-[11px] bg-amber-900/40 border border-amber-600/40 text-amber-300 px-2 py-0.5 rounded-full font-medium">
+                Photo Recommended for Completed Order
+              </span>
+            ) : null}
+          </h4>
+
+          {order.completedImageUrl && (
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => onOpenPhotoModal(order.completedImageUrl!, `Order #${order.orderNumber} Completed Print: ${quote.jobName}`)}
+                className="text-cyan-400 hover:text-cyan-300 transition"
+              >
+                View Fullscreen
+              </button>
+              <span className="text-slate-600">•</span>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-purple-400 hover:text-purple-300 transition"
+              >
+                Replace
+              </button>
+              <span className="text-slate-600">•</span>
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                className="text-red-400 hover:text-red-300 transition"
+              >
+                Remove
+              </button>
             </div>
+          )}
+        </div>
+
+        {order.completedImageUrl ? (
+          <div className="bg-slate-950/70 p-3 rounded-xl border border-purple-900/40 flex flex-col sm:flex-row items-center gap-4">
+            <div
+              className="relative group cursor-pointer w-full sm:w-48 h-36 rounded-lg overflow-hidden border border-slate-700 flex-shrink-0 bg-slate-900 shadow-md"
+              onClick={() => onOpenPhotoModal(order.completedImageUrl!, `Order #${order.orderNumber} Completed Print: ${quote.jobName}`)}
+              title="Click to view full size"
+            >
+              <img
+                src={order.completedImageUrl}
+                alt={`Order #${order.orderNumber} finished print`}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              />
+              <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <PhotoIcon className="w-6 h-6 text-white drop-shadow-md" />
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-400 space-y-1.5 flex-1">
+              <div className="text-slate-200 font-semibold text-sm flex items-center gap-1.5">
+                <span>Completed 3D Print Documentation</span>
+              </div>
+              <p>
+                This photo verifies dimensional quality, surface finish, and print completeness for Order #{order.orderNumber} ({quote.jobName}).
+              </p>
+              {order.completedAt && (
+                <p className="text-slate-500 font-mono text-[11px]">
+                  Recorded on {new Date(order.completedAt).toLocaleDateString()} at {new Date(order.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              <div className="pt-1">
+                <span className="text-purple-400 bg-purple-950/60 border border-purple-800/60 px-2 py-0.5 rounded text-[11px] font-medium">
+                  Included in Obsidian Markdown export
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-950/40 p-4 rounded-xl border border-dashed border-slate-700 hover:border-purple-500/60 transition">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handlePhotoUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-950/50 border border-purple-800/40 flex items-center justify-center text-purple-400 flex-shrink-0">
+                  <CameraIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-200">
+                    {isCompleted ? 'Add a photo of the completed 3D print' : 'Add finished or test print photo'}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Upload camera shot or inspection image to keep visual records with this order.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isCompressing}
+                  className="bg-purple-700 hover:bg-purple-600 text-white font-medium py-1.5 px-3 rounded-lg text-xs transition shadow flex items-center gap-1.5"
+                >
+                  <CameraIcon className="w-3.5 h-3.5" />
+                  <span>{isCompressing ? 'Processing...' : 'Upload Photo'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUrlInput(!showUrlInput)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-1.5 px-3 rounded-lg text-xs transition border border-slate-700"
+                >
+                  {showUrlInput ? 'Cancel' : 'Paste URL'}
+                </button>
+              </div>
+            </div>
+
+            {showUrlInput && (
+              <div className="flex gap-2 mt-3 pt-3 border-t border-slate-800">
+                <input
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder="https://example.com/finished-print.jpg"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-md py-1.5 px-3 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyUrl}
+                  className="bg-purple-700 hover:bg-purple-600 text-white text-xs px-3.5 py-1.5 rounded-md font-medium transition"
+                >
+                  Attach Photo
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
-    );
+
+      {/* Obsidian Markdown Export Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-700/60 pt-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadMd}
+            className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+            title="Download this order as an Obsidian Markdown note (.md)"
+          >
+            <MarkdownIcon className="w-3.5 h-3.5" />
+            <span>Export Markdown (.md)</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyMd}
+            className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
+            title="Copy Obsidian Markdown note to clipboard"
+          >
+            <span>{copied ? '✓ Copied to Clipboard!' : 'Copy Markdown'}</span>
+          </button>
+        </div>
+        <span className="text-xs text-slate-400">
+          Ready to save into your Obsidian Vault for order tracking & fulfillment logs.
+        </span>
+      </div>
+    </div>
+  );
 };
 
-const OrdersPage: React.FC<OrdersPageProps> = ({ orders, quotes, onDelete, onUpdateStatus }) => {
+const OrdersPage: React.FC<OrdersPageProps> = ({
+  orders,
+  quotes,
+  filaments = [],
+  printers = [],
+  onDelete,
+  onUpdateStatus,
+  onUpdateOrderPhoto,
+}) => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
 
   const handleToggleExpand = (orderId: string) => {
-      setExpandedOrderId(prevId => prevId === orderId ? null : orderId);
+    setExpandedOrderId(prevId => prevId === orderId ? null : orderId);
+  };
+
+  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
+    onUpdateStatus(orderId, newStatus);
+    // If marked as Completed and order doesn't have a photo yet, automatically expand it so user can add the photo
+    if (newStatus === OrderStatus.Completed) {
+      setExpandedOrderId(orderId);
+    }
+  };
+
+  const handleExportAllMarkdown = () => {
+    if (orders.length === 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    const md = generateAllOrdersMarkdown(orders, quotes, filaments, printers);
+    downloadMarkdownFile(`3D_Print_Orders_Obsidian_${today}.md`, md);
   };
   
   return (
-    <div className="mt-8">
+    <div className="mt-8 pb-12">
       <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
-        <div className="flex justify-between items-center border-b border-slate-600 pb-2 mb-6">
-          <h2 className="flex items-center gap-3 text-2xl font-semibold text-cyan-400">
-            <CreateOrderIcon className="w-7 h-7" />
-            Active Orders
-          </h2>
+        <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-600 pb-2 mb-6">
+          <div className="flex items-center gap-3">
+            <CreateOrderIcon className="w-7 h-7 text-cyan-400" />
+            <h2 className="text-2xl font-semibold text-cyan-400">
+              Active Orders
+            </h2>
+            <span className="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
+              {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+            </span>
+          </div>
+          {orders.length > 0 && (
+            <button
+              onClick={handleExportAllMarkdown}
+              className="flex items-center gap-2 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
+              title="Export all orders as an Obsidian-ready Markdown archive note (.md)"
+            >
+              <MarkdownIcon className="w-4 h-4" />
+              <span>Export to Markdown (Obsidian)</span>
+            </button>
+          )}
         </div>
 
         {orders.length === 0 ? (
@@ -86,6 +395,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ orders, quotes, onDelete, onUpd
                   <th scope="col" className="px-6 py-3">Customer</th>
                   <th scope="col" className="px-6 py-3">Date</th>
                   <th scope="col" className="px-6 py-3">Price</th>
+                  <th scope="col" className="px-6 py-3">Finished Photo</th>
                   <th scope="col" className="px-6 py-3">Status</th>
                   <th scope="col" className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -96,7 +406,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ orders, quotes, onDelete, onUpd
                   if (!quote) {
                     return (
                        <tr key={order.id} className="border-b border-slate-700 bg-red-900/20">
-                         <td colSpan={8} className="px-6 py-4 text-red-400 italic">
+                         <td colSpan={9} className="px-6 py-4 text-red-400 italic">
                             Order #{order.orderNumber} - Associated quote has been deleted.
                          </td>
                        </tr>
@@ -121,28 +431,87 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ orders, quotes, onDelete, onUpd
                       <td className="px-6 py-4 text-slate-300">{quote.customerName}</td>
                       <td className="px-6 py-4 text-slate-400">{formatDate(order.createdAt)}</td>
                       <td className="px-6 py-4 font-mono text-cyan-400">{formatCurrency(quote.quotePrice)}</td>
+
+                      {/* Finished Photo Column */}
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        {order.completedImageUrl ? (
+                          <div 
+                            className="flex items-center gap-2 cursor-pointer group"
+                            onClick={() => setModalImage({ url: order.completedImageUrl!, title: `Order #${order.orderNumber} Completed Print: ${quote.jobName}` })}
+                            title="Click to view full finished photo"
+                          >
+                            <img
+                              src={order.completedImageUrl}
+                              alt={`Order #${order.orderNumber}`}
+                              className="w-9 h-9 rounded-lg object-cover border border-purple-500/50 group-hover:border-purple-400 transition shadow-sm"
+                            />
+                            <span className="text-[11px] text-purple-300 font-medium group-hover:underline hidden sm:inline">
+                              View Photo
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              handleToggleExpand(order.id);
+                            }}
+                            className="text-xs text-slate-500 hover:text-purple-300 transition flex items-center gap-1"
+                            title="Click to expand and add photo"
+                          >
+                            <CameraIcon className="w-3.5 h-3.5" />
+                            <span className="text-[11px]">+ Add</span>
+                          </button>
+                        )}
+                      </td>
+
+                      {/* Status Dropdown */}
                       <td className="px-6 py-4">
                         <select 
                           value={order.status}
-                          onChange={(e) => onUpdateStatus(order.id, e.target.value as OrderStatus)}
+                          onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
                           onClick={e => e.stopPropagation()}
-                          className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusColors[order.status]} bg-transparent appearance-none text-center focus:outline-none focus:ring-1 focus:ring-cyan-400`}
+                          className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusColors[order.status]} bg-transparent appearance-none text-center focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer`}
                         >
                           {Object.values(OrderStatus).map(status => (
                             <option key={status} value={status} className="bg-slate-800 text-slate-200">{status}</option>
                           ))}
                         </select>
                       </td>
+
+                      {/* Actions */}
                       <td className="px-6 py-4 text-right">
                        <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => onDelete(order.id)} className="p-1.5 rounded-full bg-slate-600 hover:bg-red-500/40 text-slate-300 hover:text-red-300 transition-colors" title="Delete Order"><TrashIcon className="w-4 h-4" /></button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const cleanJob = (quote.jobName || 'Order').replace(/[^a-zA-Z0-9_-]/g, '_');
+                              downloadMarkdownFile(`Order_${order.orderNumber}_${cleanJob}.md`, generateOrderMarkdown(order, quote, filaments, printers));
+                            }}
+                            className="p-1.5 rounded-full bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 transition-colors"
+                            title="Export to Obsidian Markdown (.md)"
+                          >
+                            <MarkdownIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onDelete(order.id)}
+                            className="p-1.5 rounded-full bg-slate-600 hover:bg-red-500/40 text-slate-300 hover:text-red-300 transition-colors"
+                            title="Delete Order"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
                        </div>
                       </td>
                     </tr>
                     {expandedOrderId === order.id && (
                       <tr className="bg-slate-800 border-b border-slate-700">
-                        <td colSpan={8} className="p-0">
-                          <OrderDetailView quote={quote} />
+                        <td colSpan={9} className="p-0">
+                          <OrderDetailView
+                            order={order}
+                            quote={quote}
+                            filaments={filaments}
+                            printers={printers}
+                            onUpdateOrderPhoto={onUpdateOrderPhoto}
+                            onOpenPhotoModal={(url, title) => setModalImage({ url, title })}
+                          />
                         </td>
                       </tr>
                     )}
@@ -153,6 +522,17 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ orders, quotes, onDelete, onUpd
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal */}
+      {modalImage && (
+        <ImageModal
+          isOpen={true}
+          onClose={() => setModalImage(null)}
+          imageUrl={modalImage.url}
+          title={modalImage.title}
+          subtitle="Completed 3D print & inspection record"
+        />
+      )}
     </div>
   );
 };
