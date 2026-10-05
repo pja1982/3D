@@ -1,0 +1,9 @@
+services:
+  tracker-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: 3d-print-cost-tracker
+    restart: unless-stopped
+    ports:
+      - "8080:80"

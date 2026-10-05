@@ -1,6 +1,6 @@
 import React from 'react';
 
-type View = 'calculator' | 'jobs' | 'filaments' | 'printers' | 'settings';
+type View = 'calculator' | 'jobs' | 'orders' | 'parts' | 'filaments' | 'printers' | 'settings';
 
 interface NavProps {
   currentView: View;
@@ -15,6 +15,8 @@ const Nav: React.FC<NavProps> = ({ currentView, onViewChange }) => {
   const navItems: { view: View, label: string }[] = [
     { view: 'calculator', label: 'Calculator' },
     { view: 'jobs', label: 'Jobs' },
+    { view: 'orders', label: 'Orders' },
+    { view: 'parts', label: 'Parts' },
     { view: 'filaments', label: 'Filaments' },
     { view: 'printers', label: 'Printers' },
     { view: 'settings', label: 'Settings' }
@@ -22,7 +24,7 @@ const Nav: React.FC<NavProps> = ({ currentView, onViewChange }) => {
 
   return (
     <nav className="flex justify-center my-6">
-      <div className="flex flex-wrap justify-center space-x-2 bg-slate-800 p-1 rounded-lg border border-slate-700">
+      <div className="flex flex-wrap justify-center gap-2 bg-slate-800 p-1 rounded-lg border border-slate-700">
         {navItems.map(item => (
            <button
               key={item.view}

@@ -1,5 +1,6 @@
 {
   "name": "3D Print Cost & Quote Tracker",
   "description": "A comprehensive tool to accurately calculate costs, generate quotes, and track projects for your 3D printing business. Input material, time, and financial parameters to get detailed cost breakdowns and save quotes for future reference.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

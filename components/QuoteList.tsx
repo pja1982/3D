@@ -23,13 +23,29 @@ const QuoteItem: React.FC<{ quote: Quote; onDelete: (id: string) => void; onUpda
   return (
     <li className="bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-cyan-500 transition-all duration-300">
       <div className="flex justify-between items-start">
-        <div>
+        <div className="flex-1 min-w-0 pr-4">
           {/* Fix: Property 'name' does not exist on type 'Quote'. Use 'jobName' instead. */}
-          <h3 className="font-bold text-lg text-slate-100">{quote.jobName}</h3>
+          <h3 className="font-bold text-lg text-slate-100 truncate">{quote.jobName}</h3>
           <p className="text-sm text-slate-400">Created: {new Date(quote.createdAt).toLocaleDateString()}</p>
-          <p className="text-2xl font-bold text-cyan-400 mt-2">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(quote.quotePrice)}</p>
+          
+          {quote.parts && quote.parts.length > 0 ? (
+            <div className="mt-3">
+              <div className="text-xs text-slate-400 font-semibold mb-1">Parts in order:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {quote.parts.map((p, idx) => (
+                  <span key={p.id || idx} className="bg-slate-900/60 border border-slate-700/80 px-2 py-0.5 rounded text-xs text-slate-300 font-medium">
+                    {p.name} <span className="text-cyan-400 font-bold">x{p.quantity}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 mt-2 italic">1x Part (Legacy)</p>
+          )}
+
+          <p className="text-2xl font-bold text-cyan-400 mt-3">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(quote.quotePrice)}</p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-2 shrink-0">
             <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusColors[quote.status]}`}>
                 {quote.status}
             </span>

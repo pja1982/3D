@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import type { CostBreakdown } from '../types';
+import type { CostBreakdown, PrintParameters } from '../types';
 import SaveIcon from './icons/SaveIcon';
 import SaveQuoteModal from './SaveQuoteModal';
 
 interface CostBreakdownDisplayProps {
   costBreakdown: CostBreakdown;
   quotePrice: number;
-  onSaveQuote: (jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number) => void;
+  onSaveQuote: (jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number, params: PrintParameters, breakdown: CostBreakdown) => void;
   nextJobNumber: number;
+  parameters: PrintParameters;
 }
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 };
 
-const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdown, quotePrice, onSaveQuote, nextJobNumber }) => {
+const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdown, quotePrice, onSaveQuote, nextJobNumber, parameters }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableQuotePrice, setEditableQuotePrice] = useState(quotePrice);
 
@@ -23,7 +24,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({ costBreakdo
   }, [quotePrice]);
 
   const handleSave = (jobName: string, customerName: string, jobNumber: number) => {
-    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice);
+    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice, parameters, costBreakdown);
     setIsModalOpen(false);
   };
 

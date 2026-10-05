@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { PrintParameters, CostBreakdown, Filament, Printer, GeneralSettings, Quote, QuoteStatus } from './types';
+import { PrintParameters, CostBreakdown, Filament, Printer, GeneralSettings, Quote, QuoteStatus, AppData, Part, Order, OrderStatus, QuotePartConfig } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
 import Header from './components/Header';
 import CalculatorForm from './components/CalculatorForm';
@@ -9,8 +9,10 @@ import ConfigurationPage from './components/ConfigurationPage';
 import PrinterConfigurationPage from './components/PrinterConfigurationPage';
 import GeneralConfigurationPage from './components/GeneralConfigurationPage';
 import JobsPage from './components/JobsPage';
+import PartsPage from './components/PartsPage';
+import OrdersPage from './components/OrdersPage';
 
-type View = 'calculator' | 'jobs' | 'filaments' | 'printers' | 'settings';
+type View = 'calculator' | 'jobs' | 'orders' | 'parts' | 'filaments' | 'printers' | 'settings';
 
 const DEFAULT_FILAMENTS: Filament[] = [
   { id: 'pla-default', name: 'Standard PLA', brand: 'Generic', costPerKg: 20 },
@@ -19,56 +21,149 @@ const DEFAULT_FILAMENTS: Filament[] = [
 ];
 
 const DEFAULT_PRINTERS: Printer[] = [
-  { id: 'ender3-default', name: 'Ender 3', brand: 'Creality', watts: 150 },
-  { id: 'prusa-mk3s-default', name: 'MK3S+', brand: 'Prusa', watts: 120 },
+  { id: 'creality-k1-default', name: 'K1', brand: 'Creality', watts: 350 },
+  { id: 'anycubic-k3-combo-default', name: 'K3 Combo', brand: 'Anycubic', watts: 150 },
 ];
 
 const DEFAULT_SETTINGS: GeneralSettings = {
-  electricityCostKwh: 0.15,
+  electricityCostKwh: 0.32,
   laborCostPerHour: 25,
   failureRate: 5,
   profitMargin: 30,
 };
 
+const DEFAULT_APP_DATA: AppData = {
+  filaments: DEFAULT_FILAMENTS,
+  printers: DEFAULT_PRINTERS,
+  generalSettings: DEFAULT_SETTINGS,
+  quotes: [],
+  parts: [],
+  orders: [],
+};
+
+
 function App() {
   const [view, setView] = useState<View>('calculator');
-  const [filaments, setFilaments] = useLocalStorage<Filament[]>('filaments', DEFAULT_FILAMENTS);
-  const [printers, setPrinters] = useLocalStorage<Printer[]>('printers', DEFAULT_PRINTERS);
-  const [generalSettings, setGeneralSettings] = useLocalStorage<GeneralSettings>('generalSettings', DEFAULT_SETTINGS);
-  const [quotes, setQuotes] = useLocalStorage<Quote[]>('quotes', []);
-  
-  const initialParameters: PrintParameters = {
-    filamentGrams: 100,
-    filamentId: filaments.length > 0 ? filaments[0].id : null,
-    printHours: 5,
-    printerId: printers.length > 0 ? printers[0].id : null,
-    postProcessingHours: 0.5,
-    hardwareCost: 0,
-    ...generalSettings,
-  };
+  const [appData, setAppData] = useLocalStorage<AppData>('appData', DEFAULT_APP_DATA);
+  const { filaments, printers, generalSettings, quotes, parts, orders } = appData;
 
-  const [parameters, setParameters] = useState<PrintParameters>(initialParameters);
+  const [quoteParts, setQuoteParts] = useState<QuotePartConfig[]>(() => {
+    const initialFilamentId = filaments.length > 0 ? filaments[0].id : null;
+    const initialPrinterId = printers.length > 0 ? printers[0].id : null;
+    return [
+      {
+        id: 'part-1',
+        name: 'Part 1',
+        quantity: 1,
+        filamentGrams: 100,
+        filamentId: initialFilamentId,
+        printHours: 5,
+        printerId: initialPrinterId,
+        postProcessingHours: 0.5,
+        hardwareCost: 0,
+      }
+    ];
+  });
+  const [activePartId, setActivePartId] = useState<string>('part-1');
 
-  const selectedFilament = useMemo(() => {
-    return filaments.find(f => f.id === parameters.filamentId) || null;
-  }, [filaments, parameters.filamentId]);
-  
-  const selectedPrinter = useMemo(() => {
-    return printers.find(p => p.id === parameters.printerId) || null;
-  }, [printers, parameters.printerId]);
+  const activePart = useMemo(() => {
+    return quoteParts.find(p => p.id === activePartId) || quoteParts[0] || {
+      id: 'part-1',
+      name: 'Part 1',
+      quantity: 1,
+      filamentGrams: 100,
+      filamentId: filaments.length > 0 ? filaments[0].id : null,
+      printHours: 5,
+      printerId: printers.length > 0 ? printers[0].id : null,
+      postProcessingHours: 0.5,
+      hardwareCost: 0,
+    };
+  }, [quoteParts, activePartId, filaments, printers]);
+
+  const parameters = useMemo<PrintParameters>(() => {
+    return {
+      filamentGrams: activePart.filamentGrams,
+      filamentId: activePart.filamentId,
+      printHours: activePart.printHours,
+      printerId: activePart.printerId,
+      postProcessingHours: activePart.postProcessingHours,
+      hardwareCost: activePart.hardwareCost,
+      ...generalSettings,
+    };
+  }, [activePart, generalSettings]);
+
+  const setParameters = useCallback((value: React.SetStateAction<PrintParameters>) => {
+    setQuoteParts(prev => {
+      return prev.map(p => {
+        if (p.id === activePartId) {
+          const currentParams: PrintParameters = {
+            filamentGrams: p.filamentGrams,
+            filamentId: p.filamentId,
+            printHours: p.printHours,
+            printerId: p.printerId,
+            postProcessingHours: p.postProcessingHours,
+            hardwareCost: p.hardwareCost,
+            ...generalSettings,
+          };
+          const nextParams = typeof value === 'function' ? value(currentParams) : value;
+          return {
+            ...p,
+            filamentGrams: nextParams.filamentGrams,
+            filamentId: nextParams.filamentId,
+            printHours: nextParams.printHours,
+            printerId: nextParams.printerId,
+            postProcessingHours: nextParams.postProcessingHours,
+            hardwareCost: nextParams.hardwareCost,
+          };
+        }
+        return p;
+      });
+    });
+  }, [activePartId, generalSettings]);
+
+  const partsBreakdowns = useMemo(() => {
+    return quoteParts.map(part => {
+      const filament = filaments.find(f => f.id === part.filamentId) || null;
+      const printer = printers.find(p => p.id === part.printerId) || null;
+
+      const costPerKg = filament?.costPerKg || 0;
+      const printerWatts = printer?.watts || 0;
+
+      const filamentCost = (part.filamentGrams / 1000) * costPerKg * part.quantity;
+      const electricityCost = (part.printHours * (printerWatts / 1000)) * generalSettings.electricityCostKwh * part.quantity;
+      const laborCost = part.postProcessingHours * generalSettings.laborCostPerHour * part.quantity;
+      const hardwareCost = part.hardwareCost * part.quantity;
+      
+      const subtotal = filamentCost + electricityCost + laborCost + hardwareCost;
+
+      return {
+        partId: part.id,
+        filamentCost,
+        electricityCost,
+        laborCost,
+        hardwareCost,
+        subtotal,
+      };
+    });
+  }, [quoteParts, filaments, printers, generalSettings]);
 
   const costBreakdown = useMemo<CostBreakdown & { quotePrice: number }>(() => {
-    const costPerKg = selectedFilament?.costPerKg || 0;
-    const printerWatts = selectedPrinter?.watts || 0;
+    let filamentCost = 0;
+    let electricityCost = 0;
+    let laborCost = 0;
+    let hardwareCost = 0;
+    let subtotal = 0;
 
-    const filamentCost = (parameters.filamentGrams / 1000) * costPerKg;
-    const electricityCost = (parameters.printHours * (printerWatts / 1000)) * parameters.electricityCostKwh;
-    const laborCost = parameters.postProcessingHours * parameters.laborCostPerHour;
-    const hardwareCost = parameters.hardwareCost;
-    
-    const subtotal = filamentCost + electricityCost + laborCost + hardwareCost;
-    const costWithFailureRate = subtotal / (1 - (parameters.failureRate / 100));
-    const profit = costWithFailureRate * (parameters.profitMargin / 100);
+    partsBreakdowns.forEach(pb => {
+      filamentCost += pb.filamentCost;
+      electricityCost += pb.electricityCost;
+      laborCost += pb.laborCost;
+      hardwareCost += pb.hardwareCost;
+      subtotal += pb.subtotal;
+    });
+
+    const costWithFailureRate = subtotal / (1 - (generalSettings.failureRate / 100));
+    const profit = costWithFailureRate * (generalSettings.profitMargin / 100);
     const quotePrice = parseFloat((costWithFailureRate + profit).toFixed(2));
 
     return {
@@ -81,7 +176,7 @@ function App() {
       profit,
       quotePrice,
     };
-  }, [parameters, selectedFilament, selectedPrinter]);
+  }, [partsBreakdowns, generalSettings]);
 
   const nextJobNumber = useMemo(() => {
     if (quotes.length === 0) {
@@ -91,8 +186,17 @@ function App() {
     return maxJobNumber + 1;
   }, [quotes]);
 
+  const nextOrderNumber = useMemo(() => {
+    if (orders.length === 0) {
+      return 1001;
+    }
+    const maxOrderNumber = orders.reduce((max, o) => Math.max(max, o.orderNumber), 0);
+    return maxOrderNumber + 1;
+  }, [orders]);
+
+
   // Quote Handlers
-  const handleSaveQuote = useCallback((jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number) => {
+  const handleSaveQuote = useCallback((jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number, params: PrintParameters, breakdown: CostBreakdown) => {
     if (quotes.some(q => q.jobNumber === jobNumber)) {
       alert(`Job number ${jobNumber} already exists. Please choose a unique job number.`);
       return;
@@ -105,54 +209,133 @@ function App() {
       createdAt: new Date().toISOString(),
       quotePrice: finalQuotePrice,
       status: QuoteStatus.Pending,
+      parameters: params,
+      costBreakdown: breakdown,
+      parts: quoteParts,
     };
-    setQuotes(prev => [...prev, newQuote].sort((a, b) => b.jobNumber - a.jobNumber));
+    setAppData(prev => ({ ...prev, quotes: [...prev.quotes, newQuote].sort((a, b) => b.jobNumber - a.jobNumber) }));
+    
+    // Reset quote parts
+    setQuoteParts([
+      {
+        id: 'part-1',
+        name: 'Part 1',
+        quantity: 1,
+        filamentGrams: 100,
+        filamentId: filaments.length > 0 ? filaments[0].id : null,
+        printHours: 5,
+        printerId: printers.length > 0 ? printers[0].id : null,
+        postProcessingHours: 0.5,
+        hardwareCost: 0,
+      }
+    ]);
+    setActivePartId('part-1');
     setView('jobs');
-  }, [quotes, setQuotes]);
+  }, [quotes, quoteParts, filaments, printers, setAppData]);
 
   const handleDeleteQuote = (id: string) => {
-    setQuotes(prev => prev.filter(q => q.id !== id));
+    const isConfirmed = window.confirm(
+      "Are you sure you want to delete this quote? This will also delete any associated order."
+    );
+    if (isConfirmed) {
+      setAppData(prev => ({ 
+        ...prev, 
+        quotes: prev.quotes.filter(q => q.id !== id),
+        orders: prev.orders.filter(o => o.quoteId !== id)
+      }));
+    }
   };
 
   const handleUpdateQuoteStatus = (id: string, status: QuoteStatus) => {
-    setQuotes(prev => prev.map(q => (q.id === id ? { ...q, status } : q)));
+    setAppData(prev => ({ ...prev, quotes: prev.quotes.map(q => (q.id === id ? { ...q, status } : q)) }));
   };
 
+  // Part Handlers
+  const handleAddPart = (part: Omit<Part, 'id'>) => {
+    const newPart = { ...part, id: new Date().toISOString() };
+    setAppData(prev => ({ ...prev, parts: [...prev.parts, newPart] }));
+  };
+  const handleUpdatePart = (updatedPart: Part) => {
+    setAppData(prev => ({ ...prev, parts: prev.parts.map(p => p.id === updatedPart.id ? updatedPart : p) }));
+  };
+  const handleDeletePart = (id: string) => {
+    setAppData(prev => ({ ...prev, parts: prev.parts.filter(p => p.id !== id) }));
+  };
+  const handlePartSelect = useCallback((part: Part | null) => {
+      if (part) {
+          setQuoteParts(prev => prev.map(p => {
+              if (p.id === activePartId) {
+                  return {
+                      ...p,
+                      name: part.name,
+                      filamentGrams: part.filamentGrams,
+                      printHours: part.printHours,
+                      postProcessingHours: part.postProcessingHours,
+                      hardwareCost: part.hardwareCost,
+                  };
+              }
+              return p;
+          }));
+      }
+  }, [activePartId]);
+
+  // Order Handlers
+  const handleCreateOrder = (quoteId: string) => {
+    const newOrder: Order = {
+      id: new Date().toISOString(),
+      quoteId,
+      orderNumber: nextOrderNumber,
+      createdAt: new Date().toISOString(),
+      status: OrderStatus.InProgress,
+    };
+    setAppData(prev => ({ ...prev, orders: [...prev.orders, newOrder].sort((a,b) => b.orderNumber - a.orderNumber) }));
+    setView('orders');
+  };
+  const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
+    setAppData(prev => ({
+      ...prev,
+      orders: prev.orders.map(o => o.id === orderId ? { ...o, status } : o)
+    }));
+  };
+  const handleDeleteOrder = (orderId: string) => {
+    setAppData(prev => ({ ...prev, orders: prev.orders.filter(o => o.id !== orderId) }));
+  };
 
   // Filament Handlers
   const handleAddFilament = (filament: Omit<Filament, 'id'>) => {
     const newFilament = { ...filament, id: new Date().toISOString() };
-    setFilaments(prev => [...prev, newFilament]);
+    setAppData(prev => ({ ...prev, filaments: [...prev.filaments, newFilament] }));
   };
   const handleUpdateFilament = (updatedFilament: Filament) => {
-    setFilaments(prev => prev.map(m => m.id === updatedFilament.id ? updatedFilament : m));
+    setAppData(prev => ({ ...prev, filaments: prev.filaments.map(m => m.id === updatedFilament.id ? updatedFilament : m) }));
   };
   const handleDeleteFilament = (id: string) => {
-    setFilaments(prev => prev.filter(m => m.id !== id));
+    const newFilaments = filaments.filter(m => m.id !== id);
+    setAppData(prev => ({ ...prev, filaments: newFilaments }));
     if (parameters.filamentId === id) {
-      setParameters(p => ({ ...p, filamentId: filaments.length > 1 ? filaments.find(m => m.id !== id)?.id || null : null }));
+      setParameters(p => ({ ...p, filamentId: newFilaments.length > 0 ? newFilaments[0].id : null }));
     }
   };
 
   // Printer Handlers
   const handleAddPrinter = (printer: Omit<Printer, 'id'>) => {
     const newPrinter = { ...printer, id: new Date().toISOString() };
-    setPrinters(prev => [...prev, newPrinter]);
+    setAppData(prev => ({ ...prev, printers: [...prev.printers, newPrinter] }));
   };
   const handleUpdatePrinter = (updatedPrinter: Printer) => {
-    setPrinters(prev => prev.map(p => p.id === updatedPrinter.id ? updatedPrinter : p));
+    setAppData(prev => ({ ...prev, printers: prev.printers.map(p => p.id === updatedPrinter.id ? updatedPrinter : p) }));
   };
   const handleDeletePrinter = (id: string) => {
-    setPrinters(prev => prev.filter(p => p.id !== id));
+    const newPrinters = printers.filter(p => p.id !== id);
+    setAppData(prev => ({ ...prev, printers: newPrinters }));
     if (parameters.printerId === id) {
-      setParameters(p => ({ ...p, printerId: printers.length > 1 ? printers.find(p => p.id !== id)?.id || null : null }));
+      setParameters(p => ({ ...p, printerId: newPrinters.length > 0 ? newPrinters[0].id : null }));
     }
   };
 
   // Settings Handler
   const handleSaveSettings = (newSettings: GeneralSettings) => {
-    setGeneralSettings(newSettings);
-    // Update current calculator parameters with new defaults if they haven't been changed
+    setAppData(prev => ({ ...prev, generalSettings: newSettings }));
     setParameters(p => ({
       ...p,
       electricityCostKwh: newSettings.electricityCostKwh,
@@ -161,6 +344,84 @@ function App() {
       profitMargin: newSettings.profitMargin,
     }));
   };
+  
+  // Data Management Handlers
+  const handleExportData = useCallback(() => {
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(appData, null, 2)
+    )}`;
+    const link = document.createElement("a");
+    const today = new Date().toISOString().split('T')[0];
+    link.href = jsonString;
+    link.download = `3d_print_tracker_backup_${today}.json`;
+    link.click();
+  }, [appData]);
+
+  const handleImportData = useCallback((file: File) => {
+    if (!file) {
+      alert("No file selected.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text !== 'string') {
+        alert("Could not read file.");
+        return;
+      }
+      try {
+        const importedData = JSON.parse(text) as AppData;
+
+        const isValid = 
+          importedData &&
+          typeof importedData === 'object' &&
+          !Array.isArray(importedData) &&
+          Array.isArray(importedData.filaments) &&
+          Array.isArray(importedData.printers) &&
+          Array.isArray(importedData.quotes) &&
+          Array.isArray(importedData.parts) &&
+          Array.isArray(importedData.orders) &&
+          importedData.generalSettings &&
+          typeof importedData.generalSettings === 'object' &&
+          !Array.isArray(importedData.generalSettings);
+
+        if (!isValid) {
+          throw new Error("Invalid data structure. The file must be a JSON object containing arrays for 'filaments', 'printers', 'quotes', 'parts', 'orders' and an object for 'generalSettings'.");
+        }
+        
+        const isConfirmed = window.confirm(
+          "Are you sure you want to import this data? This will overwrite all existing jobs, filaments, printers, and settings."
+        );
+
+        if (isConfirmed) {
+          setAppData(importedData);
+
+          // After import, reset the calculator state to use the new data as defaults.
+          setParameters({
+            filamentGrams: 100,
+            filamentId: importedData.filaments.length > 0 ? importedData.filaments[0].id : null,
+            printHours: 5,
+            printerId: importedData.printers.length > 0 ? importedData.printers[0].id : null,
+            postProcessingHours: 0.5,
+            hardwareCost: 0,
+            ...importedData.generalSettings,
+          });
+          
+          alert("Data imported successfully!");
+          setView('calculator');
+        }
+      } catch (error) {
+        console.error("Failed to import data:", error);
+        alert(`Failed to import data. Please check the file format.\nError: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+    reader.onerror = () => {
+        alert("Error reading file.");
+    };
+    reader.readAsText(file);
+  }, [setAppData, setParameters, setView]);
+
 
   const renderContent = () => {
     switch(view) {
@@ -173,11 +434,18 @@ function App() {
                 setParameters={setParameters}
                 filaments={filaments}
                 printers={printers}
+                parts={parts}
+                onPartSelect={handlePartSelect}
+                quoteParts={quoteParts}
+                setQuoteParts={setQuoteParts}
+                activePartId={activePartId}
+                setActivePartId={setActivePartId}
               />
             </div>
             <div className="lg:col-span-3">
               <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
                 <CostBreakdownDisplay
+                  parameters={parameters}
                   costBreakdown={costBreakdown}
                   quotePrice={costBreakdown.quotePrice}
                   onSaveQuote={handleSaveQuote}
@@ -191,8 +459,30 @@ function App() {
         return (
           <JobsPage 
             quotes={quotes}
+            filaments={filaments}
+            printers={printers}
+            orders={orders}
             onDelete={handleDeleteQuote}
             onUpdateStatus={handleUpdateQuoteStatus}
+            onCreateOrder={handleCreateOrder}
+          />
+        );
+      case 'orders':
+        return (
+          <OrdersPage
+            orders={orders}
+            quotes={quotes}
+            onDelete={handleDeleteOrder}
+            onUpdateStatus={handleUpdateOrderStatus}
+          />
+        );
+       case 'parts':
+        return (
+          <PartsPage 
+            parts={parts}
+            onAdd={handleAddPart}
+            onUpdate={handleUpdatePart}
+            onDelete={handleDeletePart}
           />
         );
       case 'filaments':
@@ -218,6 +508,8 @@ function App() {
           <GeneralConfigurationPage 
             settings={generalSettings}
             onSave={handleSaveSettings}
+            onExport={handleExportData}
+            onImport={handleImportData}
           />
         );
       default:

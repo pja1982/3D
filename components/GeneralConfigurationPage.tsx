@@ -4,9 +4,11 @@ import type { GeneralSettings } from '../types';
 interface GeneralConfigurationPageProps {
   settings: GeneralSettings;
   onSave: (newSettings: GeneralSettings) => void;
+  onExport: () => void;
+  onImport: (file: File) => void;
 }
 
-const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({ settings, onSave }) => {
+const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({ settings, onSave, onExport, onImport }) => {
   const [currentSettings, setCurrentSettings] = useState<GeneralSettings>(settings);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -29,6 +31,15 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({ set
     setTimeout(() => setShowSuccess(false), 2000);
   };
   
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImport(file);
+      // Reset input value to allow importing the same file again if needed
+      e.target.value = '';
+    }
+  };
+
   return (
     <div className="mt-8 max-w-2xl mx-auto">
       <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
@@ -105,6 +116,33 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({ set
             </button>
           </div>
         </form>
+      </div>
+      
+      <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700 mt-8">
+        <h2 className="text-2xl font-semibold text-cyan-400 border-b border-slate-600 pb-2 mb-6">
+          Data Management
+        </h2>
+        <p className="text-slate-400 mb-6 text-sm">
+          Backup all your data to a JSON file, or restore it from a previous backup. This will overwrite existing data.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button
+            onClick={onExport}
+            className="flex-1 text-center bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            Export All Data
+          </button>
+          
+          <label className="flex-1 text-center bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors cursor-pointer">
+            Import Data from JSON
+            <input
+              type="file"
+              className="hidden"
+              accept=".json,application/json"
+              onChange={handleFileChange}
+            />
+          </label>
+        </div>
       </div>
     </div>
   );
