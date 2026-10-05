@@ -10,11 +10,22 @@ View your app in AI Studio: https://ai.studio/apps/drive/1pnQAM70LLs5aig8cSjF1j-
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js (v18+)
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+2. Run the development server:
+   ```bash
+   npm run dev
+   ```
+   *(Note: This application runs completely client-side in your browser. No Gemini API key or external API calls are required for normal use.)*
+
+## Run with Docker
+
+1. Start container:
+   ```bash
+   docker compose up -d
+   ```
+2. Open `http://localhost:8080` in your browser.
