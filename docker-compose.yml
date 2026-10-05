@@ -6,4 +6,4 @@ services:
     container_name: 3d-print-cost-tracker
     restart: unless-stopped
     ports:
-      - "3080:80"
+      - "3030:80"
