@@ -1,5 +1,6 @@
 import type { Quote, Order, Filament, Printer, Part } from '../types';
 import JSZip from 'jszip';
+import { calculateJobPartRows } from './partCostCalculator';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
@@ -221,57 +222,41 @@ tags:
 ## 📦 Parts & Manufacturing Specifications
 `;
 
-  if (parts && parts.length > 0) {
-    const totalPartsQty = parts.reduce((sum, p) => sum + (p.quantity || 1), 0);
-    const totalCostValue = costBreakdown.costWithFailureRate;
-    md += `
-| Part Name | Quantity | Quantity Required | Per Unit Cost | Total Cost | Material / Color | Machine & Print Time |
-| :--- | :---: | :---: | :---: | :---: | :--- | :--- |
+  const { rows, totalQuantity, totalQuantityRequired, grandTotalCost, grandTotalPrice } = calculateJobPartRows(quote, filaments, printers);
+
+  md += `
+| Part Name | Quantity | Quantity Required | Per Unit Cost | Unit Price | Total Cost | Line Total | Material / Color | Machine & Print Time |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- |
 `;
-    parts.forEach(part => {
-      const printer = printers.find(p => p.id === part.printerId);
-      const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Default Printer';
-      const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * part.quantity)} tot)`;
-      const qtyRequired = part.quantityRequired !== undefined ? part.quantityRequired : part.quantity;
 
-      const estimatedUnitCost = totalPartsQty > 0 ? (totalCostValue / totalPartsQty) : totalCostValue;
-      const lineTotalCost = estimatedUnitCost * part.quantity;
+  rows.forEach(r => {
+    const part = r.part;
+    const printer = r.printer;
+    const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Default Printer';
+    const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * r.qty)} tot)`;
 
-      let materialDesc = '';
-      if (part.colors && part.colors.length > 1) {
-        materialDesc = `🎨 Multi-Color (${part.colors.length}): ` + part.colors.map(c => {
-          const fil = filaments.find(f => f.id === c.filamentId);
-          return `${fil ? `${fil.brand} ${fil.type}` : 'Filament'}${fil?.colorName ? ` (${fil.colorName})` : ''} [${c.grams}g]`;
-        }).join(', ');
-      } else {
-        const fil = filaments.find(f => f.id === part.filamentId);
-        materialDesc = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Standard Material';
-      }
-
-      // Link part directly into the Obsidian 'parts/' directory
-      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${qtyRequired} | ${formatCurrency(estimatedUnitCost)} | ${formatCurrency(lineTotalCost)} | ${materialDesc} | ${printerLabel} • ${printTimeStr} |\n`;
-    });
-
-    const partsWithPhotos = parts.filter(p => p.imageUrl);
-    if (partsWithPhotos.length > 0) {
-      md += `\n### 📸 Part Visuals & Model Photos\n`;
-      partsWithPhotos.forEach(p => {
-        md += `\n> **Part Link:** [[parts/${p.name}|${p.name}]]\n> ![[parts/${p.name}]]\n> ![${p.name}](${p.imageUrl})\n`;
-      });
+    let materialDesc = '';
+    if (part.colors && part.colors.length > 1) {
+      materialDesc = `🎨 Multi-Color (${part.colors.length}): ` + part.colors.map(c => {
+        const fil = filaments.find(f => f.id === c.filamentId);
+        return `${fil ? `${fil.brand} ${fil.type}` : 'Filament'}${fil?.colorName ? ` (${fil.colorName})` : ''} [${c.grams}g]`;
+      }).join(', ');
+    } else {
+      const fil = filaments.find(f => f.id === part.filamentId);
+      materialDesc = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Standard Material';
     }
-  } else {
-    // Legacy single part
-    const fil = filaments.find(f => f.id === parameters.filamentId);
-    const printer = printers.find(p => p.id === parameters.printerId);
-    md += `
-- **Part Link:** [[parts/${quote.jobName}|${quote.jobName}]]
-- **Material:** ${fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'N/A'}
-- **Filament Weight:** ${parameters.filamentGrams}g
-- **Printer:** ${printer ? `${printer.brand} ${printer.name}` : 'N/A'}
-- **Print Time:** ${formatHours(parameters.printHours)}
-- **Post-Processing Time:** ${formatHours(parameters.postProcessingHours)}
-- **Hardware Cost:** ${formatCurrency(parameters.hardwareCost)}
-`;
+
+    md += `| [[parts/${part.name}\\|${part.name}]] | ${r.qty} | ${r.qtyRequired} | ${formatCurrency(r.perUnitCost)} | ${formatCurrency(r.perUnitPrice)} | ${formatCurrency(r.lineTotalCost)} | ${formatCurrency(r.lineTotalPrice)} | ${materialDesc} | ${printerLabel} • ${printTimeStr} |\n`;
+  });
+
+  md += `| **Total (${rows.length} ${rows.length === 1 ? 'part' : 'parts'})** | **${totalQuantity}** | **${totalQuantityRequired}** | - | - | **${formatCurrency(grandTotalCost)}** | **${formatCurrency(grandTotalPrice)}** | - | - |\n`;
+
+  const partsWithPhotos = rows.map(r => r.part).filter(p => p.imageUrl);
+  if (partsWithPhotos.length > 0) {
+    md += `\n### 📸 Part Visuals & Model Photos\n`;
+    partsWithPhotos.forEach(p => {
+      md += `\n> **Part Link:** [[parts/${p.name}|${p.name}]]\n> ![[parts/${p.name}]]\n> ![${p.name}](${p.imageUrl})\n`;
+    });
   }
 
   md += `
@@ -403,35 +388,23 @@ tags:
 ## 📦 Items to Fulfill
 `;
 
-  if (quote?.parts && quote.parts.length > 0) {
-    const totalPartsQty = quote.parts.reduce((sum, p) => sum + (p.quantity || 1), 0);
-    const totalCostValue = quote.costBreakdown?.costWithFailureRate || 0;
+  if (quote) {
+    const { rows, totalQuantity, totalQuantityRequired, grandTotalCost, grandTotalPrice } = calculateJobPartRows(quote, filaments, printers);
     md += `
-| Part Name | Quantity | Quantity Required | Per Unit Cost | Total Cost | Material | Machine | Print Time |
-| :--- | :---: | :---: | :---: | :---: | :--- | :--- | :---: |
+| Part Name | Quantity | Quantity Required | Per Unit Cost | Unit Price | Total Cost | Line Total | Material | Machine | Print Time | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
 `;
-    quote.parts.forEach(part => {
-      const printer = printers.find(p => p.id === part.printerId);
+    rows.forEach(r => {
+      const part = r.part;
+      const printer = r.printer;
       const fil = filaments.find(f => f.id === part.filamentId);
       const matStr = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Material';
       const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Printer';
-      const qtyRequired = part.quantityRequired !== undefined ? part.quantityRequired : part.quantity;
-
-      const estimatedUnitCost = totalPartsQty > 0 ? (totalCostValue / totalPartsQty) : totalCostValue;
-      const lineTotalCost = estimatedUnitCost * part.quantity;
-
       // Link part directly into the Obsidian 'parts/' directory
-      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${qtyRequired} | ${formatCurrency(estimatedUnitCost)} | ${formatCurrency(lineTotalCost)} | ${matStr} | ${printerLabel} | ${formatHours(part.printHours)} |\n`;
+      md += `| [[parts/${part.name}\\|${part.name}]] | ${r.qty} | ${r.qtyRequired} | ${formatCurrency(r.perUnitCost)} | ${formatCurrency(r.perUnitPrice)} | ${formatCurrency(r.lineTotalCost)} | ${formatCurrency(r.lineTotalPrice)} | ${matStr} | ${printerLabel} | ${formatHours(part.printHours)} | [ ] Complete |\n`;
     });
-  } else if (quote) {
-    const fil = filaments.find(f => f.id === quote.parameters.filamentId);
-    const printer = printers.find(p => p.id === quote.parameters.printerId);
-    md += `
-- **Part / Model:** [[parts/${quote.jobName}|${quote.jobName}]]
-- **Filament:** ${fil ? `${fil.brand} ${fil.type}` : 'Standard'} (${quote.parameters.filamentGrams}g)
-- **Printer:** ${printer ? `${printer.brand} ${printer.name}` : 'Standard'}
-- **Estimated Print Time:** ${formatHours(quote.parameters.printHours)}
-`;
+
+    md += `| **Total (${rows.length} ${rows.length === 1 ? 'part' : 'parts'})** | **${totalQuantity}** | **${totalQuantityRequired}** | - | - | **${formatCurrency(grandTotalCost)}** | **${formatCurrency(grandTotalPrice)}** | - | - | - | - |\n`;
   }
 
   md += `
@@ -566,51 +539,41 @@ ${order ? `> - **Production Order:** [[orders/Order_${order.orderNumber}_${quote
 
 ## 📦 Itemized Products & Fabrication Services
 
-| Item / Part | Quantity | Material & Color | Fabrication Machine | Print Duration | Unit Price | Line Total |
-| :--- | :---: | :--- | :--- | :---: | :---: | :---: |
+| Item / Part | Quantity | Quantity Required | Per Unit Cost | Unit Price | Total Cost | Line Total | Material & Color | Fabrication Machine | Print Duration |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: |
 `;
 
-  if (parts && parts.length > 0) {
-    const totalPartsQty = parts.reduce((sum, p) => sum + (p.quantity || 1), 0);
-    parts.forEach(part => {
-      const printer = printers.find(p => p.id === part.printerId);
-      const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Industrial 3D Printer';
-      const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * part.quantity)} total)`;
+  const { rows, totalQuantity, totalQuantityRequired, grandTotalCost, grandTotalPrice } = calculateJobPartRows(quote, filaments, printers);
 
-      let materialDesc = '';
-      if (part.colors && part.colors.length > 1) {
-        materialDesc = `🎨 Multi-Color (${part.colors.length}): ` + part.colors.map(c => {
-          const fil = filaments.find(f => f.id === c.filamentId);
-          return `${fil ? `${fil.brand} ${fil.type}` : 'Filament'}${fil?.colorName ? ` (${fil.colorName})` : ''}`;
-        }).join(', ');
-      } else {
-        const fil = filaments.find(f => f.id === part.filamentId);
-        materialDesc = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Standard Material';
-      }
+  rows.forEach(r => {
+    const part = r.part;
+    const printer = r.printer;
+    const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Industrial 3D Printer';
+    const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * r.qty)} total)`;
 
-      // Proportional unit price based on quote price divided by parts
-      const estimatedUnitPrice = totalPartsQty > 0 ? (quote.quotePrice / totalPartsQty) : quote.quotePrice;
-      const lineTotal = estimatedUnitPrice * part.quantity;
-
-      // Every part explicitly links to the 'parts/' directory
-      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${materialDesc} | ${printerLabel} | ${printTimeStr} | ${formatCurrency(estimatedUnitPrice)} | ${formatCurrency(lineTotal)} |\n`;
-    });
-
-    const partsWithPhotos = parts.filter(p => p.imageUrl);
-    if (partsWithPhotos.length > 0) {
-      md += `\n### 📸 Fabricated Part Previews\n`;
-      partsWithPhotos.forEach(p => {
-        md += `\n> **Item Link:** [[parts/${p.name}|${p.name}]]\n> ![${p.name}](${p.imageUrl})\n`;
-      });
+    let materialDesc = '';
+    if (part.colors && part.colors.length > 1) {
+      materialDesc = `🎨 Multi-Color (${part.colors.length}): ` + part.colors.map(c => {
+        const fil = filaments.find(f => f.id === c.filamentId);
+        return `${fil ? `${fil.brand} ${fil.type}` : 'Filament'}${fil?.colorName ? ` (${fil.colorName})` : ''}`;
+      }).join(', ');
+    } else {
+      const fil = filaments.find(f => f.id === part.filamentId);
+      materialDesc = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Standard Material';
     }
-  } else {
-    // Single part fallback
-    const fil = filaments.find(f => f.id === parameters.filamentId);
-    const printer = printers.find(p => p.id === parameters.printerId);
-    const matStr = fil ? `${fil.brand} ${fil.type}` : 'Standard Polymer';
-    const printerLabel = printer ? `${printer.brand} ${printer.name}` : '3D Printer';
 
-    md += `| [[parts/${quote.jobName}\\|${quote.jobName}]] | 1 | ${matStr} | ${printerLabel} | ${formatHours(parameters.printHours)} | ${formatCurrency(quote.quotePrice)} | ${formatCurrency(quote.quotePrice)} |\n`;
+    // Every part explicitly links to the 'parts/' directory
+    md += `| [[parts/${part.name}\\|${part.name}]] | ${r.qty} | ${r.qtyRequired} | ${formatCurrency(r.perUnitCost)} | ${formatCurrency(r.perUnitPrice)} | ${formatCurrency(r.lineTotalCost)} | ${formatCurrency(r.lineTotalPrice)} | ${materialDesc} | ${printerLabel} | ${printTimeStr} |\n`;
+  });
+
+  md += `| **Total (${rows.length} ${rows.length === 1 ? 'part' : 'parts'})** | **${totalQuantity}** | **${totalQuantityRequired}** | - | - | **${formatCurrency(grandTotalCost)}** | **${formatCurrency(grandTotalPrice)}** | - | - | - |\n`;
+
+  const partsWithPhotos = rows.map(r => r.part).filter(p => p.imageUrl);
+  if (partsWithPhotos.length > 0) {
+    md += `\n### 📸 Fabricated Part Previews\n`;
+    partsWithPhotos.forEach(p => {
+      md += `\n> **Item Link:** [[parts/${p.name}|${p.name}]]\n> ![${p.name}](${p.imageUrl})\n`;
+    });
   }
 
   md += `
@@ -638,7 +601,7 @@ Please remit payment within **30 days** of the invoice date.
 ---
 
 ## 🔗 Obsidian Knowledge Graph Links
-- **Part Catalog Specs:** ${parts && parts.length > 0 ? parts.map(p => `[[parts/${p.name}]]`).join(', ') : `[[parts/${quote.jobName}]]`}
+- **Part Catalog Specs:** ${rows.map(r => `[[parts/${r.part.name}]]`).join(', ')}
 - **Production Job Note:** [[jobs/Job_${quote.jobNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Job #${quote.jobNumber}]]
 ${order ? `- **Production Order Note:** [[orders/Order_${order.orderNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Order #${order.orderNumber}]]\n` : ''}- **Client Profile:** [[${quote.customerName}]]
 `;
