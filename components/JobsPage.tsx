@@ -12,7 +12,14 @@ import ReviseIcon from './icons/ReviseIcon';
 import MarkdownIcon from './icons/MarkdownIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import ImageModal from './ImageModal';
-import { generateJobMarkdown, generateAllJobsMarkdown, downloadMarkdownFile, copyMarkdownToClipboard } from '../utils/markdownExport';
+import { 
+  generateJobMarkdown, 
+  generateAllJobsMarkdown, 
+  generateInvoiceMarkdown, 
+  generateAllInvoicesMarkdown, 
+  downloadMarkdownFile, 
+  copyMarkdownToClipboard 
+} from '../utils/markdownExport';
 
 interface JobsPageProps {
   quotes: Quote[];
@@ -44,6 +51,7 @@ const DetailItem: React.FC<{ label: string; value: React.ReactNode }> = ({ label
 
 const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers: Printer[]; onReviseQuote?: (quote: Quote) => void }> = ({ quote, filaments, printers, onReviseQuote }) => {
     const [copied, setCopied] = useState(false);
+    const [copiedInvoice, setCopiedInvoice] = useState(false);
     const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
     const { parameters, costBreakdown, parts } = quote;
 
@@ -189,7 +197,7 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-700/60">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -200,7 +208,18 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
                 title="Download this job as an Obsidian Markdown note (.md)"
               >
                 <MarkdownIcon className="w-3.5 h-3.5" />
-                <span>Export Markdown (.md)</span>
+                <span>Export Job (.md)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                  downloadMarkdownFile(`Invoice_${quote.jobNumber}_${cleanName}.md`, generateInvoiceMarkdown(quote, filaments, printers));
+                }}
+                className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+                title="Download formatted customer invoice as an Obsidian Markdown note (.md) linking to parts/"
+              >
+                <span>🧾 Export Invoice (.md)</span>
               </button>
               <button
                 type="button"
@@ -214,7 +233,21 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
                 className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
                 title="Copy Obsidian Markdown to clipboard"
               >
-                <span>{copied ? '✓ Copied to Clipboard!' : 'Copy Markdown'}</span>
+                <span>{copied ? '✓ Copied Job!' : 'Copy Job'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await copyMarkdownToClipboard(generateInvoiceMarkdown(quote, filaments, printers));
+                  if (ok) {
+                    setCopiedInvoice(true);
+                    setTimeout(() => setCopiedInvoice(false), 2000);
+                  }
+                }}
+                className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
+                title="Copy Invoice Markdown to clipboard"
+              >
+                <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
               </button>
             </div>
 
@@ -308,7 +341,7 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
             </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-3 border-t border-slate-700/60">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -319,7 +352,18 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
                 title="Download this job as an Obsidian Markdown note (.md)"
               >
                 <MarkdownIcon className="w-3.5 h-3.5" />
-                <span>Export Markdown (.md)</span>
+                <span>Export Job (.md)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                  downloadMarkdownFile(`Invoice_${quote.jobNumber}_${cleanName}.md`, generateInvoiceMarkdown(quote, filaments, printers));
+                }}
+                className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+                title="Download customer invoice as an Obsidian Markdown note (.md)"
+              >
+                <span>🧾 Export Invoice (.md)</span>
               </button>
               <button
                 type="button"
@@ -333,7 +377,21 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
                 className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
                 title="Copy Obsidian Markdown to clipboard"
               >
-                <span>{copied ? '✓ Copied to Clipboard!' : 'Copy Markdown'}</span>
+                <span>{copied ? '✓ Copied Job!' : 'Copy Job'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await copyMarkdownToClipboard(generateInvoiceMarkdown(quote, filaments, printers));
+                  if (ok) {
+                    setCopiedInvoice(true);
+                    setTimeout(() => setCopiedInvoice(false), 2000);
+                  }
+                }}
+                className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
+                title="Copy Invoice Markdown to clipboard"
+              >
+                <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
               </button>
             </div>
 
@@ -428,6 +486,13 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders
     downloadMarkdownFile(`3D_Print_Jobs_Obsidian_${today}.md`, md);
   };
 
+  const handleExportAllInvoicesMarkdown = () => {
+    if (quotes.length === 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    const md = generateAllInvoicesMarkdown(quotes, filaments, printers);
+    downloadMarkdownFile(`3D_Print_Invoices_Obsidian_${today}.md`, md);
+  };
+
   return (
     <div className="mt-8">
       <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
@@ -443,7 +508,14 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders
                 title="Export all saved jobs as an Obsidian-ready Markdown note (.md)"
               >
                 <MarkdownIcon className="w-4 h-4" />
-                <span>Export to Markdown (Obsidian)</span>
+                <span>Export Jobs (.md)</span>
+              </button>
+              <button
+                onClick={handleExportAllInvoicesMarkdown}
+                className="flex items-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
+                title="Export all customer invoices as an Obsidian-ready Markdown note (.md) linking to parts/"
+              >
+                <span>🧾 Export Invoices (.md)</span>
               </button>
               <button
                 onClick={handleExportCSV}
@@ -577,9 +649,20 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders
                               downloadMarkdownFile(`Job_${quote.jobNumber}_${cleanName}.md`, generateJobMarkdown(quote, filaments, printers));
                             }}
                             className="p-1.5 rounded-full bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 transition-colors"
-                            title="Export to Obsidian Markdown (.md)"
+                            title="Export to Obsidian Job Markdown (.md)"
                           >
                             <MarkdownIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                              downloadMarkdownFile(`Invoice_${quote.jobNumber}_${cleanName}.md`, generateInvoiceMarkdown(quote, filaments, printers));
+                            }}
+                            className="p-1.5 rounded-full bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 transition-colors text-xs flex items-center justify-center font-bold"
+                            title="Export to Obsidian Customer Invoice (.md)"
+                          >
+                            🧾
                           </button>
                           <button onClick={() => onReviseQuote(quote)} className="p-1.5 rounded-full bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 transition-colors" title="Revise Quote in Calculator"><ReviseIcon className="w-4 h-4" /></button>
                           <button onClick={() => onUpdateStatus(quote.id, QuoteStatus.Accepted)} className="p-1.5 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-300 transition-colors" title="Accept"><CheckIcon className="w-4 h-4" /></button>

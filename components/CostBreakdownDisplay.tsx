@@ -122,6 +122,44 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
             )}
           </div>
         )}
+
+        {/* Multi-Part & Multi-Printer Production Allocation */}
+        {quoteParts && quoteParts.length > 1 && (
+          <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/80 space-y-2 text-xs">
+            <div className="flex justify-between items-center text-slate-300 font-semibold border-b border-slate-800 pb-1.5">
+              <span className="flex items-center gap-1.5 text-cyan-400">
+                <span>🏭 Machine Routing ({quoteParts.length} Parts):</span>
+              </span>
+              <span className="text-[11px] text-slate-400 font-normal">
+                {new Set(quoteParts.map(p => p.printerId)).size} distinct printer{new Set(quoteParts.map(p => p.printerId)).size > 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {quoteParts.map((part, idx) => {
+                const assignedPrinter = printers?.find(p => p.id === part.printerId);
+                const h = Math.floor(part.printHours || 0);
+                const m = Math.round(((part.printHours || 0) - h) * 60);
+                const timeStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+                return (
+                  <div key={part.id || idx} className="flex justify-between items-center bg-slate-800/70 px-2 py-1.5 rounded border border-slate-700/50">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-semibold text-slate-200 truncate">{part.name}</span>
+                      <span className="text-slate-400 text-[11px]">×{part.quantity}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 text-right">
+                      <span className="bg-cyan-950/70 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800/50 text-[11px] font-medium flex items-center gap-1 truncate max-w-[150px]">
+                        <span>🖨️</span>
+                        <span className="truncate">{assignedPrinter ? `${assignedPrinter.brand} ${assignedPrinter.name}` : 'Default Printer'}</span>
+                      </span>
+                      <span className="font-mono text-slate-300 text-[11px]">{timeStr}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {Boolean(costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) && (
           <div className="flex justify-between items-center text-purple-300 bg-purple-950/30 px-2.5 py-1 rounded-lg border border-purple-500/30 text-base">
             <span className="flex items-center gap-1.5 font-medium">

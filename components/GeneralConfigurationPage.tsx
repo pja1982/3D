@@ -9,6 +9,7 @@ interface GeneralConfigurationPageProps {
   onImport: (file: File) => void;
   onExportJobsMarkdown?: () => void;
   onExportOrdersMarkdown?: () => void;
+  onExportInvoicesMarkdown?: () => void;
   onExportPartsMarkdown?: () => void;
   onExportVaultZip?: () => void;
 }
@@ -20,6 +21,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
   onImport,
   onExportJobsMarkdown,
   onExportOrdersMarkdown,
+  onExportInvoicesMarkdown,
   onExportPartsMarkdown,
   onExportVaultZip,
 }) => {
@@ -575,7 +577,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
         <p className="text-slate-400 text-sm">
           Export your 3D printing jobs, orders, and parts catalog formatted as rich Markdown notes complete with YAML frontmatter, wiki-links to the <code className="text-purple-300 font-mono bg-purple-950/60 px-1 py-0.5 rounded">parts/</code> directory, callouts, and checklists ready to open in Obsidian or any Markdown note-taking app.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
           {onExportJobsMarkdown && (
             <button
               onClick={onExportJobsMarkdown}
@@ -596,6 +598,16 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
               <span>Export Orders (.md)</span>
             </button>
           )}
+          {onExportInvoicesMarkdown && (
+            <button
+              onClick={onExportInvoicesMarkdown}
+              className="flex items-center justify-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors shadow-sm text-xs"
+              title="Export all client invoices with line items linked to parts/ (.md)"
+            >
+              <span className="text-sm">🧾</span>
+              <span>Export Invoices (.md)</span>
+            </button>
+          )}
           {onExportPartsMarkdown && (
             <button
               onClick={onExportPartsMarkdown}
@@ -610,7 +622,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
             <button
               onClick={onExportVaultZip}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white font-bold py-2.5 px-3 rounded-lg transition-all shadow-md text-xs ring-1 ring-purple-400/40"
-              title="Download entire interconnected Obsidian vault (.zip) with parts/, jobs/, and orders/ folders"
+              title="Download entire interconnected Obsidian vault (.zip) with parts/, jobs/, orders/, and invoices/ folders"
             >
               <span>📦 Download Vault (.zip)</span>
             </button>

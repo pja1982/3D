@@ -4,6 +4,7 @@ import { calculatePrinterRates } from './utils/printerRates';
 import {
   generateAllJobsMarkdown,
   generateAllOrdersMarkdown,
+  generateAllInvoicesMarkdown,
   generateAllPartsMarkdown,
   downloadObsidianVaultZip,
   downloadMarkdownFile,
@@ -667,6 +668,16 @@ function App() {
     downloadMarkdownFile(`3D_Print_Orders_Obsidian_${today}.md`, md);
   }, [orders, quotes, filaments, printers]);
 
+  const handleExportInvoicesMarkdown = useCallback(() => {
+    if (quotes.length === 0) {
+      alert("No quotes or invoices to export. Create a quote first.");
+      return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const md = generateAllInvoicesMarkdown(quotes, filaments, printers);
+    downloadMarkdownFile(`3D_Print_Invoices_Obsidian_${today}.md`, md);
+  }, [quotes, filaments, printers]);
+
   const handleExportPartsMarkdown = useCallback(() => {
     if (parts.length === 0) {
       alert("No parts to export. Add parts to your catalog first.");
@@ -853,6 +864,7 @@ function App() {
             onImport={handleImportData}
             onExportJobsMarkdown={handleExportJobsMarkdown}
             onExportOrdersMarkdown={handleExportOrdersMarkdown}
+            onExportInvoicesMarkdown={handleExportInvoicesMarkdown}
             onExportPartsMarkdown={handleExportPartsMarkdown}
             onExportVaultZip={handleExportVaultZip}
           />

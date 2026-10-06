@@ -9,7 +9,14 @@ import CameraIcon from './icons/CameraIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import ImageModal from './ImageModal';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
-import { generateOrderMarkdown, generateAllOrdersMarkdown, downloadMarkdownFile, copyMarkdownToClipboard } from '../utils/markdownExport';
+import { 
+  generateOrderMarkdown, 
+  generateAllOrdersMarkdown, 
+  generateInvoiceMarkdown, 
+  generateAllInvoicesMarkdown, 
+  downloadMarkdownFile, 
+  copyMarkdownToClipboard 
+} from '../utils/markdownExport';
 
 interface OrdersPageProps {
   orders: Order[];
@@ -47,6 +54,7 @@ const OrderDetailView: React.FC<{
   onOpenPhotoModal: (url: string, title: string) => void;
 }> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedInvoice, setCopiedInvoice] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
@@ -57,11 +65,24 @@ const OrderDetailView: React.FC<{
     downloadMarkdownFile(`Order_${order.orderNumber}_${cleanJob}.md`, generateOrderMarkdown(order, quote, filaments, printers));
   };
 
+  const handleDownloadInvoice = () => {
+    const cleanJob = (quote.jobName || 'Invoice').replace(/[^a-zA-Z0-9_-]/g, '_');
+    downloadMarkdownFile(`Invoice_Order_${order.orderNumber}_${cleanJob}.md`, generateInvoiceMarkdown(quote, filaments, printers, order));
+  };
+
   const handleCopyMd = async () => {
     const ok = await copyMarkdownToClipboard(generateOrderMarkdown(order, quote, filaments, printers));
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleCopyInvoice = async () => {
+    const ok = await copyMarkdownToClipboard(generateInvoiceMarkdown(quote, filaments, printers, order));
+    if (ok) {
+      setCopiedInvoice(true);
+      setTimeout(() => setCopiedInvoice(false), 2000);
     }
   };
 
@@ -296,7 +317,7 @@ const OrderDetailView: React.FC<{
 
       {/* Obsidian Markdown Export Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-700/60 pt-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleDownloadMd}
@@ -304,7 +325,15 @@ const OrderDetailView: React.FC<{
             title="Download this order as an Obsidian Markdown note (.md)"
           >
             <MarkdownIcon className="w-3.5 h-3.5" />
-            <span>Export Markdown (.md)</span>
+            <span>Export Order (.md)</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadInvoice}
+            className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+            title="Download customer invoice for this order as an Obsidian note (.md) linking to parts/"
+          >
+            <span>🧾 Export Invoice (.md)</span>
           </button>
           <button
             type="button"
@@ -312,7 +341,15 @@ const OrderDetailView: React.FC<{
             className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
             title="Copy Obsidian Markdown note to clipboard"
           >
-            <span>{copied ? '✓ Copied to Clipboard!' : 'Copy Markdown'}</span>
+            <span>{copied ? '✓ Copied Order!' : 'Copy Order'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyInvoice}
+            className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
+            title="Copy Invoice Markdown note to clipboard"
+          >
+            <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
           </button>
         </div>
         <span className="text-xs text-slate-400">
@@ -353,6 +390,15 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
     const md = generateAllOrdersMarkdown(orders, quotes, filaments, printers);
     downloadMarkdownFile(`3D_Print_Orders_Obsidian_${today}.md`, md);
   };
+
+  const handleExportAllInvoicesMarkdown = () => {
+    if (orders.length === 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    // Gather quotes for current orders
+    const orderQuotes = orders.map(o => quotes.find(q => q.id === o.quoteId)).filter(Boolean) as Quote[];
+    const md = generateAllInvoicesMarkdown(orderQuotes, filaments, printers);
+    downloadMarkdownFile(`3D_Print_Invoices_Obsidian_${today}.md`, md);
+  };
   
   return (
     <div className="mt-8 pb-12">
@@ -368,14 +414,23 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
             </span>
           </div>
           {orders.length > 0 && (
-            <button
-              onClick={handleExportAllMarkdown}
-              className="flex items-center gap-2 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
-              title="Export all orders as an Obsidian-ready Markdown archive note (.md)"
-            >
-              <MarkdownIcon className="w-4 h-4" />
-              <span>Export to Markdown (Obsidian)</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleExportAllMarkdown}
+                className="flex items-center gap-2 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
+                title="Export all orders as an Obsidian-ready Markdown archive note (.md)"
+              >
+                <MarkdownIcon className="w-4 h-4" />
+                <span>Export Orders (.md)</span>
+              </button>
+              <button
+                onClick={handleExportAllInvoicesMarkdown}
+                className="flex items-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
+                title="Export all customer invoices for these orders as an Obsidian-ready note (.md) linking to parts/"
+              >
+                <span>🧾 Export Invoices (.md)</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -487,9 +542,20 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                               downloadMarkdownFile(`Order_${order.orderNumber}_${cleanJob}.md`, generateOrderMarkdown(order, quote, filaments, printers));
                             }}
                             className="p-1.5 rounded-full bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 transition-colors"
-                            title="Export to Obsidian Markdown (.md)"
+                            title="Export to Obsidian Order Markdown (.md)"
                           >
                             <MarkdownIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const cleanJob = (quote.jobName || 'Invoice').replace(/[^a-zA-Z0-9_-]/g, '_');
+                              downloadMarkdownFile(`Invoice_Order_${order.orderNumber}_${cleanJob}.md`, generateInvoiceMarkdown(quote, filaments, printers, order));
+                            }}
+                            className="p-1.5 rounded-full bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 transition-colors text-xs flex items-center justify-center font-bold"
+                            title="Export Customer Invoice (.md)"
+                          >
+                            🧾
                           </button>
                           <button
                             onClick={() => onDelete(order.id)}

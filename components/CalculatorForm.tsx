@@ -446,6 +446,33 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                 </div>
                 
                 <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                  {/* Individual Printer Selector for this part */}
+                  <div className="hidden sm:flex items-center gap-1.5 bg-slate-900/90 rounded-md border border-slate-700/80 px-2 py-1" title="Assign individual 3D printer for this part">
+                    <span className="text-[11px] text-slate-400 font-medium">🖨️</span>
+                    <select
+                      value={part.printerId || ''}
+                      onChange={(e) => {
+                        const newPrinterId = e.target.value || null;
+                        setQuoteParts(prev => prev.map(p => p.id === part.id ? { ...p, printerId: newPrinterId } : p));
+                        if (part.id === activePartId) {
+                          setParameters(prev => ({ ...prev, printerId: newPrinterId }));
+                        }
+                      }}
+                      className="bg-transparent text-slate-200 text-xs font-medium focus:outline-none focus:ring-0 max-w-[125px] truncate cursor-pointer"
+                      title="Select individual printer for this part"
+                    >
+                      {printers.length === 0 ? (
+                        <option value="" className="bg-slate-800 text-slate-400">No printers</option>
+                      ) : (
+                        printers.map(printer => (
+                          <option key={printer.id} value={printer.id} className="bg-slate-800 text-slate-200">
+                            {printer.brand} {printer.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
                   {/* Quantity controls */}
                   <div className="flex items-center bg-slate-800/80 rounded-md border border-slate-700 px-1 py-0.5">
                     <button
@@ -819,9 +846,21 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
 
       {/* Active Part Machine & Time Section */}
       <div className="space-y-4 p-4 border border-slate-700 rounded-lg bg-slate-800/40">
-        <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-1">Active Part Machine & Time</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-700 pb-2 gap-1">
+          <h3 className="text-lg font-medium text-slate-200">
+            Machine & Print Time: <span className="text-cyan-400 font-semibold">{activePart.name}</span>
+          </h3>
+          <span className="text-xs text-slate-400">
+            Assigned: <strong className="text-cyan-300">{selectedPrinter ? `${selectedPrinter.brand} ${selectedPrinter.name}` : 'Default Printer'}</strong>
+          </span>
+        </div>
+        <p className="text-xs text-slate-400">
+          Assign an individual 3D printer for <strong>{activePart.name}</strong>. Machine wear, wattage, and hourly depreciation calculate independently for each part in the quote.
+        </p>
          <div>
-            <label htmlFor="printerId" className="block text-sm font-medium text-slate-300 mb-1">Select Printer</label>
+            <label htmlFor="printerId" className="block text-sm font-medium text-slate-300 mb-1">
+              Select 3D Printer for {activePart.name}
+            </label>
             <select
                 id="printerId"
                 name="printerId"

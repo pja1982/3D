@@ -508,8 +508,191 @@ tags:
 }
 
 /**
+ * Generates an Obsidian Markdown Invoice for an individual Job / Quote or Order.
+ * Features full bidirectional linking to the 'parts/' directory.
+ */
+export function generateInvoiceMarkdown(
+  quote: Quote,
+  filaments: Filament[] = [],
+  printers: Printer[] = [],
+  order?: Order
+): string {
+  const today = new Date().toISOString().split('T')[0];
+  const invoiceNumber = `INV-${quote.jobNumber.toString().padStart(4, '0')}`;
+  const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const { parts, parameters, costBreakdown } = quote;
+
+  let md = `---
+type: 3d-print-invoice
+invoice_number: "${invoiceNumber}"
+job_number: ${quote.jobNumber}
+job_name: "${quote.jobName.replace(/"/g, '\\"')}"
+customer: "${quote.customerName.replace(/"/g, '\\"')}"
+date: ${today}
+due_date: ${dueDate}
+status: "Pending Payment"
+total_amount: ${quote.quotePrice.toFixed(2)}
+currency: "USD"
+${order ? `order_number: ${order.orderNumber}\n` : ''}tags:
+  - 3d-printing
+  - invoice
+  - billing
+  - finance
+  - obsidian-vault
+---
+
+# 🧾 Invoice #${invoiceNumber}
+
+> [!info] Invoice Details
+> - **Bill To:** [[${quote.customerName}]]
+> - **Invoice Date:** ${today}
+> - **Payment Due Date:** ${dueDate} *(Net 30)*
+> - **Linked Job / Quote:** [[jobs/Job_${quote.jobNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Job #${quote.jobNumber}: ${quote.jobName}]]
+> - **Total Amount Due:** **${formatCurrency(quote.quotePrice)}**
+${order ? `> - **Production Order:** [[orders/Order_${order.orderNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Order #${order.orderNumber}]]\n` : ''}
+
+---
+
+## 📦 Itemized Products & Fabrication Services
+
+| Item / Part | Quantity | Material & Color | Fabrication Machine | Print Duration | Unit Price | Line Total |
+| :--- | :---: | :--- | :--- | :---: | :---: | :---: |
+`;
+
+  if (parts && parts.length > 0) {
+    const totalPartsQty = parts.reduce((sum, p) => sum + (p.quantity || 1), 0);
+    parts.forEach(part => {
+      const printer = printers.find(p => p.id === part.printerId);
+      const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Industrial 3D Printer';
+      const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * part.quantity)} total)`;
+
+      let materialDesc = '';
+      if (part.colors && part.colors.length > 1) {
+        materialDesc = `🎨 Multi-Color (${part.colors.length}): ` + part.colors.map(c => {
+          const fil = filaments.find(f => f.id === c.filamentId);
+          return `${fil ? `${fil.brand} ${fil.type}` : 'Filament'}${fil?.colorName ? ` (${fil.colorName})` : ''}`;
+        }).join(', ');
+      } else {
+        const fil = filaments.find(f => f.id === part.filamentId);
+        materialDesc = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Standard Material';
+      }
+
+      // Proportional unit price based on quote price divided by parts
+      const estimatedUnitPrice = totalPartsQty > 0 ? (quote.quotePrice / totalPartsQty) : quote.quotePrice;
+      const lineTotal = estimatedUnitPrice * part.quantity;
+
+      // Every part explicitly links to the 'parts/' directory
+      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${materialDesc} | ${printerLabel} | ${printTimeStr} | ${formatCurrency(estimatedUnitPrice)} | ${formatCurrency(lineTotal)} |\n`;
+    });
+
+    const partsWithPhotos = parts.filter(p => p.imageUrl);
+    if (partsWithPhotos.length > 0) {
+      md += `\n### 📸 Fabricated Part Previews\n`;
+      partsWithPhotos.forEach(p => {
+        md += `\n> **Item Link:** [[parts/${p.name}|${p.name}]]\n> ![${p.name}](${p.imageUrl})\n`;
+      });
+    }
+  } else {
+    // Single part fallback
+    const fil = filaments.find(f => f.id === parameters.filamentId);
+    const printer = printers.find(p => p.id === parameters.printerId);
+    const matStr = fil ? `${fil.brand} ${fil.type}` : 'Standard Polymer';
+    const printerLabel = printer ? `${printer.brand} ${printer.name}` : '3D Printer';
+
+    md += `| [[parts/${quote.jobName}\\|${quote.jobName}]] | 1 | ${matStr} | ${printerLabel} | ${formatHours(parameters.printHours)} | ${formatCurrency(quote.quotePrice)} | ${formatCurrency(quote.quotePrice)} |\n`;
+  }
+
+  md += `
+---
+
+## 💰 Invoice Summary
+
+> [!summary] Payment Summary
+> - **Materials & Consumables:** ${formatCurrency(costBreakdown.filamentCost + costBreakdown.hardwareCost)}
+> - **Machine Operation & Electricity:** ${formatCurrency(costBreakdown.electricityCost + (costBreakdown.printerCost || 0))}
+> - **Engineering, Slicing & Post-Processing:** ${formatCurrency(costBreakdown.laborCost + (costBreakdown.multiColorFee || 0))}
+> - **Failure Risk Buffer & Margin:** ${formatCurrency(quote.quotePrice - costBreakdown.subtotal)}
+> - **Total Billed Amount:** **${formatCurrency(quote.quotePrice)}**
+
+---
+
+## 💳 Remittance & Payment Instructions
+
+Please remit payment within **30 days** of the invoice date.
+
+- **Payment Methods Accepted:** Direct ACH Bank Transfer, Credit Card, Wire, or Check
+- **Payment Reference:** Please include \`${invoiceNumber}\` in your transfer memo
+- **Remittance Contact:** Accounts Receivable • 3D Rapid Prototyping & Additive Manufacturing
+
+---
+
+## 🔗 Obsidian Knowledge Graph Links
+- **Part Catalog Specs:** ${parts && parts.length > 0 ? parts.map(p => `[[parts/${p.name}]]`).join(', ') : `[[parts/${quote.jobName}]]`}
+- **Production Job Note:** [[jobs/Job_${quote.jobNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Job #${quote.jobNumber}]]
+${order ? `- **Production Order Note:** [[orders/Order_${order.orderNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Order #${order.orderNumber}]]\n` : ''}- **Client Profile:** [[${quote.customerName}]]
+`;
+
+  return md;
+}
+
+/**
+ * Generates an Obsidian Markdown document containing all Invoices.
+ */
+export function generateAllInvoicesMarkdown(
+  quotes: Quote[],
+  filaments: Filament[] = [],
+  printers: Printer[] = []
+): string {
+  const today = new Date().toISOString().split('T')[0];
+  const totalInvoiced = quotes.reduce((sum, q) => sum + q.quotePrice, 0);
+
+  let md = `---
+type: 3d-print-invoices-index
+date: ${today}
+total_invoices: ${quotes.length}
+total_invoiced_value: ${totalInvoiced.toFixed(2)}
+tags:
+  - 3d-printing
+  - invoices-archive
+  - finance
+  - obsidian-vault
+---
+
+# 🧾 3D Print Invoices & Billing Archive
+
+*Exported on ${today} for Obsidian Record-Keeping*
+
+> [!summary] Billing Overview
+> - **Total Invoices Issued:** ${quotes.length}
+> - **Total Receivables Pipeline:** **${formatCurrency(totalInvoiced)}**
+
+---
+
+## 📑 Invoices Master Register
+
+| Invoice # | Job Name | Customer | Date | Total Amount | Status | Linked Job |
+| :---: | :--- | :--- | :---: | :---: | :---: | :---: |
+`;
+
+  quotes.forEach(quote => {
+    const qDate = new Date(quote.createdAt).toISOString().split('T')[0];
+    const invNumber = `INV-${quote.jobNumber.toString().padStart(4, '0')}`;
+    md += `| #${invNumber} | [[#Invoice #${invNumber}\\|${quote.jobName}]] | [[${quote.customerName}]] | ${qDate} | **${formatCurrency(quote.quotePrice)}** | \`Pending\` | [[jobs/Job_${quote.jobNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}\\|Job #${quote.jobNumber}]] |\n`;
+  });
+
+  md += `\n---\n\n## 📝 Detailed Invoice Records\n\n`;
+
+  quotes.forEach(quote => {
+    md += `\n---\n\n`;
+    md += generateInvoiceMarkdown(quote, filaments, printers);
+  });
+
+  return md;
+}
+
+/**
  * Creates and downloads a complete Obsidian Vault archive (.zip)
- * with the dedicated 'parts/' directory structure, linking quotes and orders seamlessly.
+ * with the dedicated 'parts/', 'jobs/', 'orders/', and 'invoices/' directory structure.
  */
 export async function downloadObsidianVaultZip(
   quotes: Quote[],
@@ -546,7 +729,16 @@ export async function downloadObsidianVaultZip(
   });
   ordersFolder?.file('Orders_Index.md', generateAllOrdersMarkdown(orders, quotes, filaments, printers));
 
-  // 4. Root Vault Index / Dashboard
+  // 4. 'invoices/' directory
+  const invoicesFolder = zip.folder('invoices');
+  quotes.forEach(quote => {
+    const cleanJobName = (quote.jobName || 'Invoice').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const order = orders.find(o => o.quoteId === quote.id);
+    invoicesFolder?.file(`Invoice_${quote.jobNumber}_${cleanJobName}.md`, generateInvoiceMarkdown(quote, filaments, printers, order));
+  });
+  invoicesFolder?.file('Invoices_Index.md', generateAllInvoicesMarkdown(quotes, filaments, printers));
+
+  // 5. Root Vault Index / Dashboard
   const rootIndex = `---
 type: obsidian-vault-dashboard
 date: ${today}
@@ -564,13 +756,15 @@ Welcome to your 3D printing operation's Obsidian vault. All notes are organized 
 > - **Cataloged Parts:** [[parts/Catalog_Index|${parts.length} Parts]]
 > - **Saved Jobs & Quotes:** [[jobs/Jobs_Index|${quotes.length} Jobs]]
 > - **Active & Historic Orders:** [[orders/Orders_Index|${orders.length} Orders]]
+> - **Invoices & Billing:** [[invoices/Invoices_Index|${quotes.length} Invoices]]
 
 ---
 
 ## 📁 Vault Structure
-- \`parts/\`: Contains individual manufacturing specs for each cataloged 3D model. Quotes and orders link to \`[[parts/Part Name]]\`.
+- \`parts/\`: Contains individual manufacturing specs for each cataloged 3D model. Invoices, quotes, and orders link to \`[[parts/Part Name]]\`.
 - \`jobs/\`: Contains detailed quote calculations, materials, machine depreciation, and customer estimates.
 - \`orders/\`: Contains fulfillment checklists, status tracking, and finished print verification photos.
+- \`invoices/\`: Contains itemized invoices with direct backlinks to \`[[parts/Part Name]]\` for client billing and record-keeping.
 `;
 
   zip.file('Vault_Dashboard.md', rootIndex);
