@@ -222,16 +222,20 @@ tags:
 `;
 
   if (parts && parts.length > 0) {
+    const totalPartsQty = parts.reduce((sum, p) => sum + (p.quantity || 1), 0);
+    const totalCostValue = costBreakdown.costWithFailureRate;
     md += `
-| Part Name | Qty | Material / Color | Weight | Printer & Print Time | Post-Proc | Hardware |
-| :--- | :---: | :--- | :---: | :--- | :---: | :---: |
+| Part Name | Quantity | Quantity Required | Per Unit Cost | Total Cost | Material / Color | Machine & Print Time |
+| :--- | :---: | :---: | :---: | :---: | :--- | :--- |
 `;
     parts.forEach(part => {
       const printer = printers.find(p => p.id === part.printerId);
       const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Default Printer';
-      const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * part.quantity)} total)`;
-      const postProcStr = `${formatHours(part.postProcessingHours)}`;
-      const hwStr = part.hardwareCost > 0 ? formatCurrency(part.hardwareCost) : '-';
+      const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * part.quantity)} tot)`;
+      const qtyRequired = part.quantityRequired !== undefined ? part.quantityRequired : part.quantity;
+
+      const estimatedUnitCost = totalPartsQty > 0 ? (totalCostValue / totalPartsQty) : totalCostValue;
+      const lineTotalCost = estimatedUnitCost * part.quantity;
 
       let materialDesc = '';
       if (part.colors && part.colors.length > 1) {
@@ -245,7 +249,7 @@ tags:
       }
 
       // Link part directly into the Obsidian 'parts/' directory
-      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${materialDesc} | ${part.filamentGrams}g (${part.filamentGrams * part.quantity}g) | ${printerLabel} • ${printTimeStr} | ${postProcStr} | ${hwStr} |\n`;
+      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${qtyRequired} | ${formatCurrency(estimatedUnitCost)} | ${formatCurrency(lineTotalCost)} | ${materialDesc} | ${printerLabel} • ${printTimeStr} |\n`;
     });
 
     const partsWithPhotos = parts.filter(p => p.imageUrl);
@@ -400,17 +404,24 @@ tags:
 `;
 
   if (quote?.parts && quote.parts.length > 0) {
+    const totalPartsQty = quote.parts.reduce((sum, p) => sum + (p.quantity || 1), 0);
+    const totalCostValue = quote.costBreakdown?.costWithFailureRate || 0;
     md += `
-| Part Name | Qty | Material | Machine | Print Time | Status |
-| :--- | :---: | :--- | :--- | :---: | :---: |
+| Part Name | Quantity | Quantity Required | Per Unit Cost | Total Cost | Material | Machine | Print Time |
+| :--- | :---: | :---: | :---: | :---: | :--- | :--- | :---: |
 `;
     quote.parts.forEach(part => {
       const printer = printers.find(p => p.id === part.printerId);
       const fil = filaments.find(f => f.id === part.filamentId);
       const matStr = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Material';
       const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Printer';
+      const qtyRequired = part.quantityRequired !== undefined ? part.quantityRequired : part.quantity;
+
+      const estimatedUnitCost = totalPartsQty > 0 ? (totalCostValue / totalPartsQty) : totalCostValue;
+      const lineTotalCost = estimatedUnitCost * part.quantity;
+
       // Link part directly into the Obsidian 'parts/' directory
-      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${matStr} | ${printerLabel} | ${formatHours(part.printHours)} | [ ] Complete |\n`;
+      md += `| [[parts/${part.name}\\|${part.name}]] | ${part.quantity} | ${qtyRequired} | ${formatCurrency(estimatedUnitCost)} | ${formatCurrency(lineTotalCost)} | ${matStr} | ${printerLabel} | ${formatHours(part.printHours)} |\n`;
     });
   } else if (quote) {
     const fil = filaments.find(f => f.id === quote.parameters.filamentId);

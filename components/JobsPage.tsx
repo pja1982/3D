@@ -12,6 +12,7 @@ import ReviseIcon from './icons/ReviseIcon';
 import MarkdownIcon from './icons/MarkdownIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import ImageModal from './ImageModal';
+import JobPartsTable from './JobPartsTable';
 import { 
   generateJobMarkdown, 
   generateAllJobsMarkdown, 
@@ -31,6 +32,7 @@ interface JobsPageProps {
   onCreateOrder: (quoteId: string) => void;
   onUpdatePrice?: (id: string, newPrice: number) => void;
   onReviseQuote: (quote: Quote) => void;
+  onUseAsTemplate?: (quote: Quote) => void;
 }
 
 const statusColors: Record<QuoteStatus, string> = {
@@ -49,11 +51,17 @@ const DetailItem: React.FC<{ label: string; value: React.ReactNode }> = ({ label
   </div>
 );
 
-const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers: Printer[]; onReviseQuote?: (quote: Quote) => void }> = ({ quote, filaments, printers, onReviseQuote }) => {
+const QuoteDetailView: React.FC<{ 
+  quote: Quote; 
+  filaments: Filament[]; 
+  printers: Printer[]; 
+  onReviseQuote?: (quote: Quote) => void;
+  onUseAsTemplate?: (quote: Quote) => void;
+}> = ({ quote, filaments, printers, onReviseQuote, onUseAsTemplate }) => {
     const [copied, setCopied] = useState(false);
     const [copiedInvoice, setCopiedInvoice] = useState(false);
     const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
-    const { parameters, costBreakdown, parts } = quote;
+    const { parameters, costBreakdown } = quote;
 
     const costWithFailure = costBreakdown.costWithFailureRate;
     const actualProfit = quote.quotePrice - costWithFailure;
@@ -61,357 +69,155 @@ const QuoteDetailView: React.FC<{ quote: Quote; filaments: Filament[]; printers:
       ? ((actualProfit / costWithFailure) * 100) 
       : 0;
 
-    const formatHours = (hours: number) => {
-      const h = Math.floor(hours);
-      const m = Math.round((hours - h) * 60);
-      if (h > 0 && m > 0) return `${h}h ${m}m`;
-      if (h > 0) return `${h}h`;
-      return `${m}m`;
-    };
-
-    // Render detailed multi-part grid if parts are stored inside the quote
-    if (parts && parts.length > 0) {
-      return (
-        <div className="bg-slate-900/60 p-5 space-y-6">
-          <div>
-            <h4 className="font-semibold text-cyan-400 text-lg mb-3 border-b border-slate-700 pb-1">Quote Parts ({parts.length})</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {parts.map((part, idx) => {
-                const filament = filaments.find(f => f.id === part.filamentId);
-                const printer = printers.find(p => p.id === part.printerId);
-                return (
-                  <div key={part.id || idx} className="bg-slate-800/40 border border-slate-700/80 rounded-xl p-4 space-y-2 hover:border-slate-600 transition">
-                    <div className="flex justify-between items-center border-b border-slate-700 pb-1.5 mb-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {part.imageUrl && (
-                          <img
-                            src={part.imageUrl}
-                            alt={part.name}
-                            className="w-7 h-7 rounded-lg object-cover border border-slate-600 flex-shrink-0 cursor-pointer hover:border-cyan-400 transition"
-                            onClick={() => setPreviewImage({ url: part.imageUrl!, title: part.name })}
-                            title="Click to view full photo"
-                          />
-                        )}
-                        <span className="font-bold text-slate-100 truncate">{part.name}</span>
-                      </div>
-                      <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-700/80 text-slate-300 flex-shrink-0">
-                        Qty: {part.quantity}
-                      </span>
-                    </div>
-                    {part.colors && part.colors.length > 1 ? (
-                      <div className="py-1">
-                        <div className="flex justify-between text-sm py-0.5">
-                          <span className="text-slate-400">Materials:</span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
-                            🎨 Multi-Color ({part.colors.length})
-                          </span>
-                        </div>
-                        <div className="space-y-1 pl-2 border-l-2 border-purple-500/30 my-1.5 text-xs">
-                          {part.colors.map((c, ci) => {
-                            const fil = filaments.find(f => f.id === c.filamentId);
-                            return (
-                              <div key={c.id || ci} className="flex justify-between items-center text-slate-300">
-                                <span className="flex items-center gap-1.5 truncate pr-2">
-                                  <span
-                                    className="w-2 h-2 rounded-full border border-slate-500 shadow-xs flex-shrink-0"
-                                    style={{ backgroundColor: fil?.colorHex || '#94a3b8' }}
-                                  />
-                                  <span className="truncate">{fil ? `${fil.brand} ${fil.type}` : 'Material'}{fil?.colorName ? ` (${fil.colorName})` : ''}</span>
-                                </span>
-                                <span className="font-mono text-slate-400 whitespace-nowrap">{c.grams}g</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      <DetailItem 
-                        label="Filament" 
-                        value={
-                          filament ? (
-                            <span className="inline-flex items-center gap-1.5 justify-end">
-                              {filament.colorHex && (
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full border border-slate-500/60 shadow-xs flex-shrink-0 inline-block"
-                                  style={{ backgroundColor: filament.colorHex }}
-                                />
-                              )}
-                              <span>{filament.brand} - {filament.type || filament.name}{filament.colorName ? ` (${filament.colorName})` : ''}</span>
-                            </span>
-                          ) : 'N/A'
-                        } 
-                      />
-                    )}
-                    <DetailItem label="Weight per unit" value={`${part.filamentGrams}g (total: ${part.filamentGrams * part.quantity}g)`} />
-                    <DetailItem label="Printer" value={printer ? `${printer.brand} - ${printer.name}` : 'N/A'} />
-                    <DetailItem label="Print Time" value={`${formatHours(part.printHours)} (total: ${formatHours(part.printHours * part.quantity)})`} />
-                    <DetailItem label="Post-Processing" value={`${formatHours(part.postProcessingHours)} (total: ${formatHours(part.postProcessingHours * part.quantity)})`} />
-                    <DetailItem label="Hardware Cost" value={`${formatCurrency(part.hardwareCost)} (total: ${formatCurrency(part.hardwareCost * part.quantity)})`} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-cyan-400 text-base mb-2 border-b border-slate-700 pb-1">Financial Summary</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-2">
-              <div>
-                <DetailItem label="Subtotal (All Parts)" value={formatCurrency(costBreakdown.subtotal)} />
-              </div>
-              <div>
-                <DetailItem label="Failure Adj." value={`${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} (${parameters.failureRate}%)`} />
-              </div>
-              <div>
-                <DetailItem label="Total Cost" value={formatCurrency(costWithFailure)} />
-              </div>
-              <div>
-                <DetailItem 
-                  label="Profit" 
-                  value={`${formatCurrency(actualProfit)} (${actualProfitMargin >= 0 ? '+' : ''}${actualProfitMargin.toFixed(1)}%)`} 
-                />
-              </div>
-              {costBreakdown.printerCost !== undefined && (
-                <div className="sm:col-span-2">
-                  <DetailItem 
-                    label="⏱️ Printer Time & Depreciation" 
-                    value={
-                      <span>
-                        {formatCurrency(costBreakdown.printerCost)}
-                        {((costBreakdown.printerDepreciationCost ?? 0) > 0 || (costBreakdown.printerMaintenanceCost ?? 0) > 0) && (
-                          <span className="text-xs text-slate-400 ml-1 font-normal">
-                            (dep: {formatCurrency(costBreakdown.printerDepreciationCost || 0)}, maint: {formatCurrency(costBreakdown.printerMaintenanceCost || 0)})
-                          </span>
-                        )}
-                      </span>
-                    } 
-                  />
-                </div>
-              )}
-              {Boolean(costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) && (
-                <div className="sm:col-span-2">
-                  <DetailItem label="🎨 Multi-Color Fee Included" value={formatCurrency(costBreakdown.multiColorFee || 0)} />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-700/60">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
-                  downloadMarkdownFile(`Job_${quote.jobNumber}_${cleanName}.md`, generateJobMarkdown(quote, filaments, printers));
-                }}
-                className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
-                title="Download this job as an Obsidian Markdown note (.md)"
-              >
-                <MarkdownIcon className="w-3.5 h-3.5" />
-                <span>Export Job (.md)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
-                  downloadMarkdownFile(`Invoice_${quote.jobNumber}_${cleanName}.md`, generateInvoiceMarkdown(quote, filaments, printers));
-                }}
-                className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
-                title="Download formatted customer invoice as an Obsidian Markdown note (.md) linking to parts/"
-              >
-                <span>🧾 Export Invoice (.md)</span>
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const ok = await copyMarkdownToClipboard(generateJobMarkdown(quote, filaments, printers));
-                  if (ok) {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }
-                }}
-                className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
-                title="Copy Obsidian Markdown to clipboard"
-              >
-                <span>{copied ? '✓ Copied Job!' : 'Copy Job'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const ok = await copyMarkdownToClipboard(generateInvoiceMarkdown(quote, filaments, printers));
-                  if (ok) {
-                    setCopiedInvoice(true);
-                    setTimeout(() => setCopiedInvoice(false), 2000);
-                  }
-                }}
-                className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
-                title="Copy Invoice Markdown to clipboard"
-              >
-                <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
-              </button>
-            </div>
-
-            {onReviseQuote && (
-              <button
-                onClick={() => onReviseQuote(quote)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-1.5 px-3.5 rounded-lg text-xs shadow transition-colors"
-              >
-                <ReviseIcon className="w-3.5 h-3.5" />
-                <span>Revise This Quote in Calculator</span>
-              </button>
-            )}
-          </div>
-
-          {previewImage && (
-            <ImageModal
-              isOpen={true}
-              onClose={() => setPreviewImage(null)}
-              imageUrl={previewImage.url}
-              title={`Part: ${previewImage.title}`}
-              subtitle={`Job #${quote.jobNumber}: ${quote.jobName}`}
-            />
-          )}
-        </div>
-      );
-    }
-
-    // Fallback/Legacy Single-Part Quote View
-    const filament = filaments.find(f => f.id === parameters.filamentId);
-    const printer = printers.find(p => p.id === parameters.printerId);
-
     return (
-      <div className="bg-slate-900/50 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-        <div>
-          <h4 className="font-semibold text-cyan-400 text-base mb-2 border-b border-slate-700 pb-1">Material</h4>
-          <DetailItem 
-            label="Filament" 
-            value={
-              filament ? (
-                <span className="inline-flex items-center gap-1.5 justify-end">
-                  {filament.colorHex && (
-                    <span
-                      className="w-2.5 h-2.5 rounded-full border border-slate-500/60 shadow-xs flex-shrink-0 inline-block"
-                      style={{ backgroundColor: filament.colorHex }}
-                    />
-                  )}
-                  <span>{filament.brand} - {filament.type || filament.name}{filament.colorName ? ` (${filament.colorName})` : ''}</span>
-                </span>
-              ) : 'N/A (Deleted)'
-            } 
-          />
-          <DetailItem label="Weight" value={`${parameters.filamentGrams} g`} />
-          <DetailItem label="Material Cost" value={formatCurrency(costBreakdown.filamentCost)} />
-        </div>
+      <div className="bg-slate-900/60 p-5 space-y-6">
+        {/* Expanded Job Parts Table */}
+        <JobPartsTable
+          quote={quote}
+          filaments={filaments}
+          printers={printers}
+          onOpenPhotoModal={(url, title) => setPreviewImage({ url, title })}
+          title={`Job #${quote.jobNumber} Parts Table`}
+        />
 
+        {/* Financial Summary */}
         <div>
-          <h4 className="font-semibold text-cyan-400 text-base mb-2 border-b border-slate-700 pb-1">Machine & Time</h4>
-          <DetailItem label="Printer" value={printer ? `${printer.brand} - ${printer.name}` : 'N/A (Deleted)'} />
-          <DetailItem label="Print Time" value={formatHours(parameters.printHours)} />
-          <DetailItem label="Electricity Cost" value={formatCurrency(costBreakdown.electricityCost)} />
-          {costBreakdown.printerCost !== undefined && (
-            <DetailItem label="Printer Time & Depr." value={formatCurrency(costBreakdown.printerCost)} />
-          )}
-        </div>
-        
-        <div>
-          <h4 className="font-semibold text-cyan-400 text-base mb-2 border-b border-slate-700 pb-1">Labor & Other</h4>
-          <DetailItem label="Post-Processing" value={formatHours(parameters.postProcessingHours)} />
-          <DetailItem label="Labor Cost" value={formatCurrency(costBreakdown.laborCost)} />
-          <DetailItem label="Hardware Cost" value={formatCurrency(parameters.hardwareCost)} />
-        </div>
-
-        <div className="md:col-span-2 lg:col-span-3">
-            <h4 className="font-semibold text-cyan-400 text-base mb-2 border-b border-slate-700 pb-1 mt-2">Financial Summary</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-2">
-              <div>
-                <DetailItem label="Subtotal" value={formatCurrency(costBreakdown.subtotal)} />
-              </div>
-              <div>
-                <DetailItem label="Failure Adj." value={`${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} (${parameters.failureRate}%)`} />
-              </div>
-              <div>
-                <DetailItem label="Total Cost" value={formatCurrency(costWithFailure)} />
-              </div>
-              <div>
+          <h4 className="font-semibold text-cyan-400 text-base mb-2 border-b border-slate-700 pb-1">Financial Summary</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-2">
+            <div>
+              <DetailItem label="Subtotal (All Parts)" value={formatCurrency(costBreakdown.subtotal)} />
+            </div>
+            <div>
+              <DetailItem label="Failure Adj." value={`${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} (${parameters.failureRate}%)`} />
+            </div>
+            <div>
+              <DetailItem label="Total Cost" value={formatCurrency(costWithFailure)} />
+            </div>
+            <div>
+              <DetailItem 
+                label="Profit" 
+                value={`${formatCurrency(actualProfit)} (${actualProfitMargin >= 0 ? '+' : ''}${actualProfitMargin.toFixed(1)}%)`} 
+              />
+            </div>
+            {costBreakdown.printerCost !== undefined && (
+              <div className="sm:col-span-2">
                 <DetailItem 
-                  label="Profit" 
-                  value={`${formatCurrency(actualProfit)} (${actualProfitMargin >= 0 ? '+' : ''}${actualProfitMargin.toFixed(1)}%)`} 
+                  label="⏱️ Printer Time & Depreciation" 
+                  value={
+                    <span>
+                      {formatCurrency(costBreakdown.printerCost)}
+                      {((costBreakdown.printerDepreciationCost ?? 0) > 0 || (costBreakdown.printerMaintenanceCost ?? 0) > 0) && (
+                        <span className="text-xs text-slate-400 ml-1 font-normal">
+                          (dep: {formatCurrency(costBreakdown.printerDepreciationCost || 0)}, maint: {formatCurrency(costBreakdown.printerMaintenanceCost || 0)})
+                        </span>
+                      )}
+                    </span>
+                  } 
                 />
               </div>
-            </div>
+            )}
+            {Boolean(costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) && (
+              <div className="sm:col-span-2">
+                <DetailItem label="🎨 Multi-Color Fee Included" value={formatCurrency(costBreakdown.multiColorFee || 0)} />
+              </div>
+            )}
+          </div>
+        </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-3 border-t border-slate-700/60">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
-                  downloadMarkdownFile(`Job_${quote.jobNumber}_${cleanName}.md`, generateJobMarkdown(quote, filaments, printers));
-                }}
-                className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
-                title="Download this job as an Obsidian Markdown note (.md)"
-              >
-                <MarkdownIcon className="w-3.5 h-3.5" />
-                <span>Export Job (.md)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
-                  downloadMarkdownFile(`Invoice_${quote.jobNumber}_${cleanName}.md`, generateInvoiceMarkdown(quote, filaments, printers));
-                }}
-                className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
-                title="Download customer invoice as an Obsidian Markdown note (.md)"
-              >
-                <span>🧾 Export Invoice (.md)</span>
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const ok = await copyMarkdownToClipboard(generateJobMarkdown(quote, filaments, printers));
-                  if (ok) {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }
-                }}
-                className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
-                title="Copy Obsidian Markdown to clipboard"
-              >
-                <span>{copied ? '✓ Copied Job!' : 'Copy Job'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const ok = await copyMarkdownToClipboard(generateInvoiceMarkdown(quote, filaments, printers));
-                  if (ok) {
-                    setCopiedInvoice(true);
-                    setTimeout(() => setCopiedInvoice(false), 2000);
-                  }
-                }}
-                className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
-                title="Copy Invoice Markdown to clipboard"
-              >
-                <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
-              </button>
-            </div>
+        {/* Actions & Obsidian Markdown Exports */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-700/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                downloadMarkdownFile(`Job_${quote.jobNumber}_${cleanName}.md`, generateJobMarkdown(quote, filaments, printers));
+              }}
+              className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+              title="Download this job as an Obsidian Markdown note (.md)"
+            >
+              <MarkdownIcon className="w-3.5 h-3.5" />
+              <span>Export Job (.md)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                downloadMarkdownFile(`Invoice_${quote.jobNumber}_${cleanName}.md`, generateInvoiceMarkdown(quote, filaments, printers));
+              }}
+              className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+              title="Download formatted customer invoice as an Obsidian Markdown note (.md) linking to parts/"
+            >
+              <span>🧾 Export Invoice (.md)</span>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await copyMarkdownToClipboard(generateJobMarkdown(quote, filaments, printers));
+                if (ok) {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }
+              }}
+              className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
+              title="Copy Obsidian Markdown to clipboard"
+            >
+              <span>{copied ? '✓ Copied Job!' : 'Copy Job'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await copyMarkdownToClipboard(generateInvoiceMarkdown(quote, filaments, printers));
+                if (ok) {
+                  setCopiedInvoice(true);
+                  setTimeout(() => setCopiedInvoice(false), 2000);
+                }
+              }}
+              className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-1.5 px-3 rounded-lg text-xs transition"
+              title="Copy Invoice Markdown to clipboard"
+            >
+              <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
+            </button>
+          </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            {onUseAsTemplate && (
+              <button
+                onClick={() => onUseAsTemplate(quote)}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+                title="Load quote settings into Calculator as a new draft template"
+              >
+                <span>📋 Use as Template</span>
+              </button>
+            )}
             {onReviseQuote && (
               <button
                 onClick={() => onReviseQuote(quote)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-1.5 px-3.5 rounded-lg text-xs shadow transition-colors"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors"
+                title="Update and revise this existing quote"
               >
                 <ReviseIcon className="w-3.5 h-3.5" />
-                <span>Revise This Quote in Calculator</span>
+                <span>Revise Quote</span>
               </button>
             )}
           </div>
         </div>
+
+        {previewImage && (
+          <ImageModal
+            isOpen={true}
+            onClose={() => setPreviewImage(null)}
+            imageUrl={previewImage.url}
+            title={`Part: ${previewImage.title}`}
+            subtitle={`Job #${quote.jobNumber}: ${quote.jobName}`}
+          />
+        )}
       </div>
     );
 };
 
 
-const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders, onDelete, onUpdateStatus, onCreateOrder, onUpdatePrice, onReviseQuote }) => {
+const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders, onDelete, onUpdateStatus, onCreateOrder, onUpdatePrice, onReviseQuote, onUseAsTemplate }) => {
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [editingPriceQuoteId, setEditingPriceQuoteId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>('');
@@ -664,6 +470,15 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders
                           >
                             🧾
                           </button>
+                          <button
+                            onClick={() => onUseAsTemplate ? onUseAsTemplate(quote) : onReviseQuote(quote)}
+                            className="p-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 transition-colors"
+                            title="Use as Template (Create New Quote from this)"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
                           <button onClick={() => onReviseQuote(quote)} className="p-1.5 rounded-full bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 transition-colors" title="Revise Quote in Calculator"><ReviseIcon className="w-4 h-4" /></button>
                           <button onClick={() => onUpdateStatus(quote.id, QuoteStatus.Accepted)} className="p-1.5 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-300 transition-colors" title="Accept"><CheckIcon className="w-4 h-4" /></button>
                           <button onClick={() => onUpdateStatus(quote.id, QuoteStatus.Rejected)} className="p-1.5 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors" title="Reject"><XIcon className="w-4 h-4" /></button>
@@ -674,7 +489,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders
                     {expandedQuoteId === quote.id && (
                       <tr className="bg-slate-800 border-b border-slate-700">
                         <td colSpan={8} className="p-0">
-                          <QuoteDetailView quote={quote} filaments={filaments} printers={printers} onReviseQuote={onReviseQuote} />
+                          <QuoteDetailView quote={quote} filaments={filaments} printers={printers} onReviseQuote={onReviseQuote} onUseAsTemplate={onUseAsTemplate} />
                         </td>
                       </tr>
                     )}

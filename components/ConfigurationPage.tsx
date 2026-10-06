@@ -119,6 +119,41 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ filaments, onAdd,
     }
     handleCancelEdit();
   };
+
+  const handleSaveAsNewFromTemplate = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    const filType = (editingFilament.type || (editingFilament as any).name || '').trim();
+    const brand = editingFilament.brand.trim();
+    if (!filType || !brand) return;
+
+    const baseType = filType;
+    const newType = baseType.includes('(Copy)') ? baseType : `${baseType} (Copy)`;
+    const normalizedColor = normalizeHex(editingFilament.colorHex || '#3b82f6');
+    const colorName = (editingFilament.colorName || '').trim();
+
+    const { id: _unusedId, ...restFilament } = editingFilament as any;
+    onAdd({
+      ...restFilament,
+      type: newType,
+      name: newType,
+      brand,
+      colorName: colorName ? (colorName.includes('(Copy)') ? colorName : `${colorName} (Copy)`) : '',
+      colorHex: normalizedColor,
+    });
+    handleCancelEdit();
+  };
+
+  const handleUseAsTemplate = (filament: Filament) => {
+    const filType = filament.type || (filament as any).name || '';
+    setEditingFilament({
+      ...filament,
+      type: filType.includes('(Copy)') ? filType : `${filType} (Copy)`,
+      colorName: filament.colorName || '',
+      colorHex: filament.colorHex || '#3b82f6',
+    });
+    setIsEditing(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   
   const handleEdit = (filament: Filament) => {
     setEditingFilament({
@@ -308,23 +343,52 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ filaments, onAdd,
             </div>
           </div>
 
-          <div className="flex gap-4 pt-2">
-            <button
-              type="submit"
-              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg transition-colors"
-            >
-              {isEditing ? 'Update Filament' : 'Add Filament'}
-            </button>
-            {isEditing && (
+          {isEditing ? (
+            <div className="flex flex-col gap-2 pt-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-3 rounded-lg transition-colors shadow text-xs flex items-center justify-center gap-1.5"
+                  title="Update the existing filament record"
+                >
+                  <span>🔄 Update Filament</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAsNewFromTemplate}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg transition-colors shadow text-xs flex items-center justify-center gap-1.5"
+                  title="Create a new filament record using this as a template"
+                >
+                  <span>📋 Save as New (from Template)</span>
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 px-4 rounded-lg transition-colors"
+                className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-1.5 px-3 rounded-lg transition-colors text-xs"
               >
-                Cancel
+                Cancel Edit
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-lg transition-colors shadow text-sm"
+              >
+                Add Filament
+              </button>
+              {Boolean(editingFilament.brand || editingFilament.type) && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium py-2.5 px-4 rounded-lg transition-colors text-xs"
+                >
+                  Clear Form
+                </button>
+              )}
+            </div>
+          )}
         </form>
       </div>
 
@@ -394,6 +458,19 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ filaments, onAdd,
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <button
+                      onClick={() => handleUseAsTemplate(filament)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        isLightBg
+                          ? 'bg-black/10 hover:bg-black/20 text-slate-900'
+                          : 'bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300'
+                      }`}
+                      title="Use as Template to create new Filament"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => handleEdit(filament)}
                       className={`p-2 rounded-lg transition-colors ${

@@ -104,6 +104,42 @@ const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ pri
     handleCancelEdit();
   };
 
+  const handleSaveAsNewFromTemplate = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!formData.name.trim() || !formData.brand.trim()) return;
+
+    const baseName = formData.name.trim();
+    const newName = baseName.includes('(Copy)') ? baseName : `${baseName} (Copy)`;
+    const purchaseCost = formData.purchaseCost ?? 0;
+    const lifespanHours = formData.lifespanHours ?? 3000;
+    const computedDep = lifespanHours > 0 ? parseFloat((purchaseCost / lifespanHours).toFixed(4)) : 0;
+
+    const { id: _unusedId, ...restData } = formData as any;
+    const newPrinterData: Omit<Printer, 'id'> = {
+      ...restData,
+      name: newName,
+      hourlyDepreciation: isCustomDepreciation 
+        ? (formData.hourlyDepreciation || 0) 
+        : computedDep,
+      customHourlyRate: isCustomDepreciation,
+    };
+
+    onAdd(newPrinterData);
+    handleCancelEdit();
+  };
+
+  const handleUseAsTemplate = (printer: Printer) => {
+    const baseName = printer.name;
+    const newName = baseName.includes('(Copy)') ? baseName : `${baseName} (Copy)`;
+    setFormData({
+      ...printer,
+      name: newName,
+    });
+    setIsCustomDepreciation(Boolean(printer.customHourlyRate));
+    setIsEditing(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const rates = calculatePrinterRates(formData as Printer);
   const samplePrintHours = 8;
   const sampleCost = (rates.totalHourlyRate * samplePrintHours).toFixed(2);
@@ -340,23 +376,52 @@ const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ pri
           </div>
 
           {/* Form Actions */}
-          <div className="flex gap-4 pt-3">
-            <button
-              type="submit"
-              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg transition-colors shadow-md"
-            >
-              {isEditing ? 'Update Printer' : 'Add Printer'}
-            </button>
-            {isEditing && (
+          {isEditing ? (
+            <div className="flex flex-col gap-2 pt-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-3 rounded-lg transition-colors shadow text-xs flex items-center justify-center gap-1.5"
+                  title="Update the existing printer configuration"
+                >
+                  <span>🔄 Update Printer</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAsNewFromTemplate}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg transition-colors shadow text-xs flex items-center justify-center gap-1.5"
+                  title="Create a new printer using this printer as a template"
+                >
+                  <span>📋 Save as New (from Template)</span>
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-2 px-4 rounded-lg transition-colors"
+                className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-1.5 px-3 rounded-lg transition-colors text-xs"
               >
-                Cancel
+                Cancel Edit
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex gap-3 pt-3">
+              <button
+                type="submit"
+                className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-lg transition-colors shadow-md text-sm"
+              >
+                Add Printer
+              </button>
+              {Boolean(formData.name || formData.brand) && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium py-2.5 px-4 rounded-lg transition-colors text-xs"
+                >
+                  Clear Form
+                </button>
+              )}
+            </div>
+          )}
         </form>
       </div>
 
@@ -395,6 +460,15 @@ const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ pri
                         </h3>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => handleUseAsTemplate(printer)}
+                          className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 transition-colors"
+                          title="Use as Template to create new Printer"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleEdit(printer)}
                           className="p-1.5 rounded-lg bg-slate-700 hover:bg-cyan-500/30 text-slate-300 hover:text-cyan-300 transition-colors"

@@ -171,11 +171,38 @@ const PartsPage: React.FC<PartsPageProps> = ({
     }
     handleCancelEdit();
   };
+
+  const handleSaveAsNewFromTemplate = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!editingPart.name) return;
+
+    const baseName = editingPart.name;
+    const newName = baseName.includes('(Copy)') || baseName.includes('(New)') 
+      ? baseName 
+      : `${baseName} (Copy)`;
+
+    const { id: _unusedId, ...restPart } = editingPart as any;
+    onAdd({
+      ...restPart,
+      name: newName,
+    });
+    handleCancelEdit();
+  };
   
   const handleEdit = (part: Part) => {
     setEditingPart(part);
     setIsEditing(true);
     setShowUrlInput(false);
+  };
+
+  const handleUseAsTemplate = (part: Part) => {
+    setEditingPart({
+      ...part,
+      name: `${part.name} (Copy)`,
+    });
+    setIsEditing(false); // In add mode, pre-filled with this template!
+    setShowUrlInput(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
   const handleCancelEdit = () => {
@@ -448,23 +475,52 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </div>
           </div>
 
-          <div className="flex gap-4 pt-2">
-            <button
-              type="submit"
-              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg transition-colors shadow"
-            >
-              {isEditing ? 'Update Part' : 'Add Part'}
-            </button>
-            {isEditing && (
+          {isEditing ? (
+            <div className="flex flex-col gap-2 pt-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-3 rounded-lg transition-colors shadow text-xs flex items-center justify-center gap-1.5"
+                  title="Update the existing part with your changes"
+                >
+                  <span>🔄 Update Part</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAsNewFromTemplate}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg transition-colors shadow text-xs flex items-center justify-center gap-1.5"
+                  title="Create a new part using this part's settings as a template"
+                >
+                  <span>📋 Save as New (from Template)</span>
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 px-4 rounded-lg transition-colors"
+                className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-1.5 px-3 rounded-lg transition-colors text-xs"
               >
-                Cancel
+                Cancel Edit
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-lg transition-colors shadow text-sm"
+              >
+                Add Part
+              </button>
+              {editingPart.name && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium py-2.5 px-4 rounded-lg transition-colors text-xs"
+                >
+                  Clear Form
+                </button>
+              )}
+            </div>
+          )}
         </form>
       </div>
 
@@ -579,6 +635,15 @@ const PartsPage: React.FC<PartsPageProps> = ({
                       title="Export this part as Obsidian Markdown note (into parts/ directory)"
                     >
                       <MarkdownIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleUseAsTemplate(part)}
+                      className="p-2 rounded-full bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 transition-colors"
+                      title="Use as Template to create new Part"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
                     </button>
                     <button
                       onClick={() => handleEdit(part)}

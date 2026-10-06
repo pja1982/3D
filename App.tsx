@@ -377,8 +377,16 @@ function App() {
 
 
   // Quote Handlers
-  const handleSaveQuote = useCallback((jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number, params: PrintParameters, breakdown: CostBreakdown) => {
-    if (quotes.some(q => q.jobNumber === jobNumber && (!revisingQuote || q.id !== revisingQuote.id))) {
+  const handleSaveQuote = useCallback((
+    jobName: string, 
+    customerName: string, 
+    jobNumber: number, 
+    finalQuotePrice: number, 
+    params: PrintParameters, 
+    breakdown: CostBreakdown,
+    isCreateNew?: boolean
+  ) => {
+    if (quotes.some(q => q.jobNumber === jobNumber && (!revisingQuote || isCreateNew || q.id !== revisingQuote.id))) {
       alert(`Job number ${jobNumber} already exists. Please choose a unique job number.`);
       return;
     }
@@ -388,7 +396,7 @@ function App() {
       ? parseFloat((((finalQuotePrice - costWithFailureRate) / costWithFailureRate) * 100).toFixed(1))
       : 0;
 
-    if (revisingQuote) {
+    if (revisingQuote && !isCreateNew) {
       setAppData(prev => ({
         ...prev,
         quotes: prev.quotes.map(q => {
@@ -434,6 +442,7 @@ function App() {
         parts: quoteParts,
       };
       setAppData(prev => ({ ...prev, quotes: [...prev.quotes, newQuote].sort((a, b) => b.jobNumber - a.jobNumber) }));
+      setRevisingQuote(null);
     }
     
     // Reset quote parts
@@ -474,6 +483,34 @@ function App() {
         }
       ]);
       setActivePartId('part-1');
+    }
+    setView('calculator');
+  }, [setQuoteParts, setActivePartId, setView]);
+
+  const handleUseQuoteAsTemplate = useCallback((quote: Quote) => {
+    setRevisingQuote(null); // Not a revision: this is creating a fresh new quote from a template!
+    if (quote.parts && quote.parts.length > 0) {
+      setQuoteParts(quote.parts.map(p => ({
+        ...p,
+        id: `part-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      })));
+      setActivePartId(quote.parts[0]?.id || 'part-1');
+    } else {
+      const newPartId = `part-${Date.now()}`;
+      setQuoteParts([
+        {
+          id: newPartId,
+          name: quote.jobName ? `${quote.jobName} (Copy)` : 'Part 1',
+          quantity: 1,
+          filamentGrams: quote.parameters.filamentGrams,
+          filamentId: quote.parameters.filamentId,
+          printHours: quote.parameters.printHours,
+          printerId: quote.parameters.printerId,
+          postProcessingHours: quote.parameters.postProcessingHours,
+          hardwareCost: quote.parameters.hardwareCost,
+        }
+      ]);
+      setActivePartId(newPartId);
     }
     setView('calculator');
   }, [setQuoteParts, setActivePartId, setView]);
@@ -812,6 +849,7 @@ function App() {
             onCreateOrder={handleCreateOrder}
             onUpdatePrice={handleUpdateQuotePrice}
             onReviseQuote={handleReviseQuote}
+            onUseAsTemplate={handleUseQuoteAsTemplate}
           />
         );
       case 'orders':

@@ -8,6 +8,7 @@ import MarkdownIcon from './icons/MarkdownIcon';
 import CameraIcon from './icons/CameraIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import ImageModal from './ImageModal';
+import JobPartsTable from './JobPartsTable';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
 import { 
   generateOrderMarkdown, 
@@ -140,31 +141,16 @@ const OrderDetailView: React.FC<{
         <DetailItem label="Quoted Price" value={formatCurrency(quote.quotePrice)} />
       </div>
 
-      {quote.parts && quote.parts.length > 0 && (
-        <div className="border-t border-slate-700/60 pt-3">
-          <span className="text-sm font-semibold text-cyan-400">Parts to Fulfill ({quote.parts.length}):</span>
-          <div className="flex flex-wrap gap-2.5 mt-2">
-            {quote.parts.map((p, idx) => (
-              <div
-                key={p.id || idx}
-                className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg text-slate-300 flex items-center gap-2"
-              >
-                {p.imageUrl && (
-                  <img
-                    src={p.imageUrl}
-                    alt={p.name}
-                    className="w-5 h-5 rounded object-cover cursor-pointer hover:opacity-80"
-                    onClick={() => onOpenPhotoModal(p.imageUrl!, `Part: ${p.name}`)}
-                    title="Click to view part photo"
-                  />
-                )}
-                <span>{p.name}</span>
-                <span className="text-cyan-400 font-bold">x{p.quantity}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Order Fabrication Parts Table */}
+      <div className="border-t border-slate-700/60 pt-4">
+        <JobPartsTable
+          quote={quote}
+          filaments={filaments}
+          printers={printers}
+          onOpenPhotoModal={onOpenPhotoModal}
+          title={`Order #${order.orderNumber} Parts & Production Table`}
+        />
+      </div>
 
       {/* Completed Print Photo Section */}
       <div className="border-t border-slate-700/60 pt-4">

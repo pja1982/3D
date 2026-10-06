@@ -474,11 +474,16 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   </div>
 
                   {/* Quantity controls */}
-                  <div className="flex items-center bg-slate-800/80 rounded-md border border-slate-700 px-1 py-0.5">
+                  <div className="flex items-center bg-slate-800/80 rounded-md border border-slate-700 px-1 py-0.5" title="Batch Quantity">
                     <button
                       type="button"
                       onClick={() => {
-                        setQuoteParts(prev => prev.map(p => p.id === part.id ? { ...p, quantity: Math.max(1, p.quantity - 1) } : p));
+                        const newQ = Math.max(1, part.quantity - 1);
+                        setQuoteParts(prev => prev.map(p => p.id === part.id ? { 
+                          ...p, 
+                          quantity: newQ,
+                          quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? newQ : p.quantityRequired
+                        } : p));
                       }}
                       className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition text-sm font-bold"
                     >
@@ -490,7 +495,12 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setQuoteParts(prev => prev.map(p => p.id === part.id ? { ...p, quantity: p.quantity + 1 } : p));
+                        const newQ = part.quantity + 1;
+                        setQuoteParts(prev => prev.map(p => p.id === part.id ? { 
+                          ...p, 
+                          quantity: newQ,
+                          quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? newQ : p.quantityRequired
+                        } : p));
                       }}
                       className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition text-sm font-bold"
                     >
@@ -985,6 +995,54 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
         </div>
 
         <InputGroup label="Hardware & Consumables Cost" id="hardwareCost" value={parameters.hardwareCost} onChange={handleInputChange} unit="$" />
+
+        {/* Quantity and Quantity Required for Active Part */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-700/60">
+          <div>
+            <label htmlFor="activePartQuantity" className="block text-sm font-medium text-slate-300 mb-1">
+              Quantity to Print (Batch Size)
+            </label>
+            <input
+              type="number"
+              id="activePartQuantity"
+              min="1"
+              step="1"
+              value={activePart.quantity}
+              onChange={(e) => {
+                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+                  ...p,
+                  quantity: val,
+                  quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? val : p.quantityRequired
+                } : p));
+              }}
+              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+            />
+            <span className="text-[11px] text-slate-400 mt-1 block">Number of copies to produce in this job</span>
+          </div>
+
+          <div>
+            <label htmlFor="activePartQuantityRequired" className="block text-sm font-medium text-slate-300 mb-1">
+              Quantity Required (Order Demand)
+            </label>
+            <input
+              type="number"
+              id="activePartQuantityRequired"
+              min="1"
+              step="1"
+              value={activePart.quantityRequired !== undefined ? activePart.quantityRequired : activePart.quantity}
+              onChange={(e) => {
+                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+                  ...p,
+                  quantityRequired: val
+                } : p));
+              }}
+              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+            />
+            <span className="text-[11px] text-slate-400 mt-1 block">Total customer requirement for fulfillment</span>
+          </div>
+        </div>
       </div>
 
       {previewImage && (

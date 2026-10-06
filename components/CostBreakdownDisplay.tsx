@@ -6,7 +6,7 @@ import SaveQuoteModal from './SaveQuoteModal';
 interface CostBreakdownDisplayProps {
   costBreakdown: CostBreakdown;
   quotePrice: number;
-  onSaveQuote: (jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number, params: PrintParameters, breakdown: CostBreakdown) => void;
+  onSaveQuote: (jobName: string, customerName: string, jobNumber: number, finalQuotePrice: number, params: PrintParameters, breakdown: CostBreakdown, isCreateNew?: boolean) => void;
   nextJobNumber: number;
   parameters: PrintParameters;
   revisingQuote?: Quote | null;
@@ -47,7 +47,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
     ? ((currentProfit / costWithFailure) * 100) 
     : 0;
 
-  const handleSave = (jobName: string, customerName: string, jobNumber: number) => {
+  const handleSave = (jobName: string, customerName: string, jobNumber: number, isCreateNew?: boolean) => {
     const updatedBreakdown: CostBreakdown = {
       ...costBreakdown,
       profit: parseFloat(currentProfit.toFixed(2)),
@@ -56,7 +56,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
       ...parameters,
       profitMargin: parseFloat(currentProfitMargin.toFixed(1)),
     };
-    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice, updatedParameters, updatedBreakdown);
+    onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice, updatedParameters, updatedBreakdown, isCreateNew);
     setIsModalOpen(false);
   };
 

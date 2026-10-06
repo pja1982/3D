@@ -100,6 +100,7 @@ export interface QuotePartConfig {
   id: string;
   name: string;
   quantity: number;
+  quantityRequired?: number;
   filamentGrams: number;
   filamentId: string | null;
   printHours: number;
