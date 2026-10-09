@@ -1,29 +1,42 @@
-# --- Build Stage ---
+# -------------------------------------------------------------
+# 3D Print Cost & Quote Tracker - Local Self-Hosted Dockerfile
+# -------------------------------------------------------------
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy package descriptors
 COPY package*.json ./
-RUN npm install
 
-# Copy application source files
+# Install dependencies
+RUN npm ci
+
+# Copy application source code
 COPY . .
 
-# Build the Vite production bundle
+# Build production static bundle
 RUN npm run build
 
-# --- Production Stage ---
-FROM nginx:alpine
+# Production runtime stage
+FROM node:20-alpine AS runner
 
-# Copy custom Nginx configuration for SPA routing
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy compiled static assets from build stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV DATA_DIR=/app/data
 
-# Expose port 80
-EXPOSE 80
+# Copy built bundle and server script
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server.mjs ./server.mjs
+COPY --from=builder /app/package.json ./package.json
 
-# Start Nginx in foreground
-CMD ["nginx", "-g", "daemon off;"]
+# Create data directory for persistent local database volume
+RUN mkdir -p /app/data
+
+# Persistent volume for local quote and parts storage on host machine
+VOLUME ["/app/data"]
+
+EXPOSE 3000
+
+CMD ["node", "server.mjs"]

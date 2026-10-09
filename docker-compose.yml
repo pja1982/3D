@@ -1,9 +1,16 @@
 services:
-  tracker-app:
+  print-tracker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: 3d-print-cost-tracker
+    container_name: 3d-print-tracker
     restart: unless-stopped
     ports:
-      - "3030:80"
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/data
+    volumes:
+      # Persistent local storage on your Docker host machine:
+      # All quotes, parts, printers, and settings are saved here in print-tracker-db.json!
+      - ./data:/app/data

@@ -29,6 +29,15 @@ import {
   sanitizeDocId,
 } from './services/firestoreService';
 import Header from './components/Header';
+import { DockerSetupModal } from './components/DockerSetupModal';
+import {
+  checkLocalServerStatus,
+  fetchLocalServerData,
+  saveLocalServerData,
+  exportBackupJson,
+  parseBackupFile,
+  LocalServerStatus,
+} from './services/localServerStorage';
 import CalculatorForm from './components/CalculatorForm';
 import CostBreakdownDisplay from './components/CostBreakdownDisplay';
 import Nav from './components/Nav';
@@ -114,6 +123,41 @@ function App() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [remoteToast, setRemoteToast] = useState<string | null>(null);
 
+  // Local Docker / Host Network Storage state
+  const [localServerStatus, setLocalServerStatus] = useState<LocalServerStatus>({
+    available: false,
+    mode: 'browser-only',
+    lastChecked: 0,
+  });
+  const [isDockerModalOpen, setIsDockerModalOpen] = useState<boolean>(false);
+
+  // Check and connect to Local Docker Backend Storage
+  useEffect(() => {
+    checkLocalServerStatus().then(async (status) => {
+      setLocalServerStatus(status);
+      if (status.available) {
+        const serverData = await fetchLocalServerData();
+        if (serverData && (serverData.quotes?.length || serverData.parts?.length)) {
+          setAppData(serverData);
+          setRemoteToast('🐳 Connected to Local Docker Host storage! Loaded database from disk.');
+          setTimeout(() => setRemoteToast(null), 3500);
+        } else {
+          // If server file is brand new, persist current data to host disk
+          await saveLocalServerData(appData);
+        }
+      }
+    });
+  }, []);
+
+  // Automatically persist changes to Local Docker Server when connected
+  useEffect(() => {
+    if (!localServerStatus.available) return;
+    const timeout = setTimeout(() => {
+      saveLocalServerData(appData);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [appData, localServerStatus.available]);
+
   // Monitor Firebase Auth state
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
@@ -191,7 +235,15 @@ function App() {
     } catch (err: any) {
       console.error('Sign in failed:', err);
       if (err?.code !== 'auth/popup-closed-by-user') {
-        alert(`Google Sign In failed: ${err.message || String(err)}`);
+        if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized')) {
+          setRemoteToast(
+            'Google blocks sign-in on private LAN IPs (192.168.x.x). Your app is already saving locally to your Docker disk!'
+          );
+          setIsDockerModalOpen(true);
+        } else {
+          setRemoteToast(`Sign in notice: ${err.message || String(err)}`);
+        }
+        setTimeout(() => setRemoteToast(null), 6000);
       }
     }
   };
@@ -208,7 +260,8 @@ function App() {
 
   const handleSyncAllLocal = async () => {
     if (!user) {
-      alert('Please sign in with Google first to push data to your remote cloud database.');
+      setRemoteToast('Please sign in with Google first to push data to your remote cloud database.');
+      setTimeout(() => setRemoteToast(null), 3500);
       return;
     }
     setIsSyncing(true);
@@ -218,10 +271,35 @@ function App() {
       setTimeout(() => setRemoteToast(null), 4000);
     } catch (err: any) {
       console.error('Push to cloud error:', err);
-      alert(`Sync failed: ${err.message || String(err)}`);
+      setRemoteToast(`Sync failed: ${err.message || String(err)}`);
+      setTimeout(() => setRemoteToast(null), 4000);
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleExportBackup = () => {
+    exportBackupJson(appData);
+    setRemoteToast('Full database backup (.json) downloaded successfully!');
+    setTimeout(() => setRemoteToast(null), 3000);
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const imported = await parseBackupFile(file);
+      setAppData(imported);
+      if (localServerStatus.available) {
+        await saveLocalServerData(imported);
+      }
+      setRemoteToast('Database backup restored successfully!');
+      setTimeout(() => setRemoteToast(null), 3500);
+    } catch (err: any) {
+      setRemoteToast(`Failed to restore backup: ${err.message || 'Invalid format'}`);
+      setTimeout(() => setRemoteToast(null), 4000);
+    }
+    e.target.value = '';
   };
 
   const [quoteParts, setQuoteParts] = useState<QuotePartConfig[]>(() => {
@@ -1097,9 +1175,20 @@ function App() {
           user={user}
           authLoading={authLoading}
           isSyncing={isSyncing}
+          localServerAvailable={localServerStatus.available}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
           onSyncAllLocal={handleSyncAllLocal}
+          onOpenDockerModal={() => setIsDockerModalOpen(true)}
+          onExportBackup={handleExportBackup}
+        />
+
+        <DockerSetupModal
+          isOpen={isDockerModalOpen}
+          onClose={() => setIsDockerModalOpen(false)}
+          serverStatus={localServerStatus}
+          onExportBackup={handleExportBackup}
+          onImportBackup={handleImportBackup}
         />
 
         {remoteToast && (
