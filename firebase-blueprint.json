@@ -1,0 +1,147 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile record for 3D Print Quote & Tracker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "email"]
+    },
+    "quote": {
+      "title": "Quote",
+      "description": "3D print cost quote for a customer job",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "jobNumber": { "type": "number" },
+        "jobName": { "type": "string", "maxLength": 256 },
+        "customerName": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "quotePrice": { "type": "number" },
+        "status": { "type": "string", "maxLength": 32 },
+        "parameters": { "type": "object" },
+        "costBreakdown": { "type": "object" },
+        "parts": { "type": "array" }
+      },
+      "required": ["id", "ownerId", "jobNumber", "jobName", "quotePrice", "status"]
+    },
+    "part": {
+      "title": "Part",
+      "description": "Pre-configured 3D model part in catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 2048 },
+        "filamentGrams": { "type": "number" },
+        "printHours": { "type": "number" },
+        "postProcessingHours": { "type": "number" },
+        "hardwareCost": { "type": "number" },
+        "imageUrl": { "type": "string", "maxLength": 2048 }
+      },
+      "required": ["id", "ownerId", "name", "filamentGrams", "printHours"]
+    },
+    "printer": {
+      "title": "Printer",
+      "description": "3D printer machine profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 256 },
+        "brand": { "type": "string", "maxLength": 256 },
+        "watts": { "type": "number" },
+        "purchaseCost": { "type": "number" },
+        "lifespanHours": { "type": "number" },
+        "hourlyDepreciation": { "type": "number" },
+        "maintenanceCostPerHour": { "type": "number" },
+        "hourlyUsageFee": { "type": "number" },
+        "customHourlyRate": { "type": "boolean" }
+      },
+      "required": ["id", "ownerId", "name", "brand", "watts"]
+    },
+    "filament": {
+      "title": "Filament",
+      "description": "Spool material and color profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 256 },
+        "brand": { "type": "string", "maxLength": 256 },
+        "costPerKg": { "type": "number" },
+        "colorHex": { "type": "string", "maxLength": 32 },
+        "colorName": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "ownerId", "type", "brand", "costPerKg"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "Production fabrication order linked to a quote",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "number" },
+        "quoteId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "maxLength": 64 },
+        "completedImageUrl": { "type": "string", "maxLength": 2048 },
+        "completedAt": { "type": "string", "maxLength": 64 },
+        "completionNotes": { "type": "string", "maxLength": 2048 }
+      },
+      "required": ["id", "ownerId", "orderNumber", "quoteId", "status"]
+    },
+    "userSettings": {
+      "title": "UserSettings",
+      "description": "General calculator and workshop settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "settings": { "type": "object" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "ownerId", "settings"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User profile documents"
+    },
+    "/quotes/{quoteId}": {
+      "schema": "quote",
+      "description": "Collection of user quotes and jobs"
+    },
+    "/parts/{partId}": {
+      "schema": "part",
+      "description": "Catalog of saved 3D printable parts"
+    },
+    "/printers/{printerId}": {
+      "schema": "printer",
+      "description": "Configured 3D printers and depreciation"
+    },
+    "/filaments/{filamentId}": {
+      "schema": "filament",
+      "description": "Configured materials and spool catalog"
+    },
+    "/orders/{orderId}": {
+      "schema": "order",
+      "description": "Production orders and job statuses"
+    },
+    "/user_settings/{userId}": {
+      "schema": "userSettings",
+      "description": "User workshop and billing configuration"
+    }
+  }
+}

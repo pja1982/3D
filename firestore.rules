@@ -1,0 +1,149 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-.:]+$');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.email is string && data.email.size() <= 256;
+    }
+
+    function isValidQuote(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'jobNumber', 'jobName', 'quotePrice', 'status']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.ownerId == request.auth.uid &&
+        data.jobNumber is number &&
+        data.jobName is string && data.jobName.size() <= 256 &&
+        data.quotePrice is number &&
+        data.status is string && data.status.size() <= 32;
+    }
+
+    function isValidPart(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'filamentGrams', 'printHours']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.ownerId == request.auth.uid &&
+        data.name is string && data.name.size() <= 256 &&
+        data.filamentGrams is number &&
+        data.printHours is number;
+    }
+
+    function isValidPrinter(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'brand', 'watts']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.ownerId == request.auth.uid &&
+        data.name is string && data.name.size() <= 256 &&
+        data.brand is string && data.brand.size() <= 256 &&
+        data.watts is number;
+    }
+
+    function isValidFilament(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'type', 'brand', 'costPerKg']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.ownerId == request.auth.uid &&
+        data.type is string && data.type.size() <= 64 &&
+        data.brand is string && data.brand.size() <= 256 &&
+        data.costPerKg is number;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'orderNumber', 'quoteId', 'status']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.ownerId == request.auth.uid &&
+        data.orderNumber is number &&
+        data.quoteId is string && data.quoteId.size() <= 128 &&
+        data.status is string && data.status.size() <= 64;
+    }
+
+    function isValidUserSettings(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'settings']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.ownerId == request.auth.uid;
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming());
+      allow delete: if false;
+    }
+
+    // Quotes
+    match /quotes/{quoteId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(quoteId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidQuote(incoming());
+      allow update: if isValidId(quoteId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid && isValidQuote(incoming());
+      allow delete: if isValidId(quoteId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // Parts Catalog
+    match /parts/{partId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(partId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidPart(incoming());
+      allow update: if isValidId(partId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid && isValidPart(incoming());
+      allow delete: if isValidId(partId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // Printers
+    match /printers/{printerId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(printerId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidPrinter(incoming());
+      allow update: if isValidId(printerId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid && isValidPrinter(incoming());
+      allow delete: if isValidId(printerId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // Filaments
+    match /filaments/{filamentId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(filamentId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidFilament(incoming());
+      allow update: if isValidId(filamentId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid && isValidFilament(incoming());
+      allow delete: if isValidId(filamentId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // Orders
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(orderId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidOrder(incoming());
+      allow update: if isValidId(orderId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid && isValidOrder(incoming());
+      allow delete: if isValidId(orderId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // User settings
+    match /user_settings/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(userId) && isOwner(userId) && incoming().ownerId == request.auth.uid && isValidUserSettings(incoming());
+      allow update: if isValidId(userId) && isOwner(userId) && incoming().ownerId == request.auth.uid && isValidUserSettings(incoming());
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+  }
+}

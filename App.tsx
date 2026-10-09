@@ -10,6 +10,24 @@ import {
   downloadMarkdownFile,
 } from './utils/markdownExport';
 import useLocalStorage from './hooks/useLocalStorage';
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, User } from './firebase';
+import {
+  subscribeToUserData,
+  saveQuoteToRemote,
+  deleteQuoteFromRemote,
+  savePartToRemote,
+  deletePartFromRemote,
+  savePrinterToRemote,
+  deletePrinterFromRemote,
+  saveFilamentToRemote,
+  deleteFilamentFromRemote,
+  saveOrderToRemote,
+  deleteOrderFromRemote,
+  saveSettingsToRemote,
+  saveUserProfile,
+  syncAllLocalDataToRemote,
+  sanitizeDocId,
+} from './services/firestoreService';
 import Header from './components/Header';
 import CalculatorForm from './components/CalculatorForm';
 import CostBreakdownDisplay from './components/CostBreakdownDisplay';
@@ -89,6 +107,122 @@ function App() {
   const [view, setView] = useState<View>('calculator');
   const [appData, setAppData] = useLocalStorage<AppData>('appData', DEFAULT_APP_DATA);
   const { filaments, printers, generalSettings, quotes, parts, orders } = appData;
+
+  // Firebase Remote Database & Auth state
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [remoteToast, setRemoteToast] = useState<string | null>(null);
+
+  // Monitor Firebase Auth state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+      if (currentUser) {
+        saveUserProfile(currentUser).catch(console.error);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time synchronization with Firestore when user is authenticated
+  useEffect(() => {
+    if (!user) return;
+
+    let isInitial = true;
+    const unsub = subscribeToUserData(user.uid, {
+      onQuotes: (remoteQuotes) => {
+        setAppData((prev) => ({
+          ...prev,
+          quotes: remoteQuotes,
+        }));
+      },
+      onParts: (remoteParts) => {
+        if (remoteParts.length > 0 || !isInitial) {
+          setAppData((prev) => ({
+            ...prev,
+            parts: remoteParts,
+          }));
+        }
+      },
+      onPrinters: (remotePrinters) => {
+        if (remotePrinters.length > 0 || !isInitial) {
+          setAppData((prev) => ({
+            ...prev,
+            printers: remotePrinters,
+          }));
+        }
+      },
+      onFilaments: (remoteFilaments) => {
+        if (remoteFilaments.length > 0 || !isInitial) {
+          setAppData((prev) => ({
+            ...prev,
+            filaments: remoteFilaments,
+          }));
+        }
+      },
+      onOrders: (remoteOrders) => {
+        setAppData((prev) => ({
+          ...prev,
+          orders: remoteOrders,
+        }));
+      },
+      onSettings: (remoteSettings) => {
+        setAppData((prev) => ({
+          ...prev,
+          generalSettings: remoteSettings,
+        }));
+      },
+      onError: (err) => {
+        console.error('Remote sync listener error:', err);
+      },
+    });
+
+    isInitial = false;
+    return () => unsub();
+  }, [user, setAppData]);
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setRemoteToast('Signed in successfully! Cloud sync active.');
+      setTimeout(() => setRemoteToast(null), 3500);
+    } catch (err: any) {
+      console.error('Sign in failed:', err);
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        alert(`Google Sign In failed: ${err.message || String(err)}`);
+      }
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      setRemoteToast('Signed out. Local storage mode active.');
+      setTimeout(() => setRemoteToast(null), 3500);
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
+  };
+
+  const handleSyncAllLocal = async () => {
+    if (!user) {
+      alert('Please sign in with Google first to push data to your remote cloud database.');
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      await syncAllLocalDataToRemote(user.uid, appData);
+      setRemoteToast('All local quotes, catalog parts, printers, and filaments uploaded to the remote cloud database!');
+      setTimeout(() => setRemoteToast(null), 4000);
+    } catch (err: any) {
+      console.error('Push to cloud error:', err);
+      alert(`Sync failed: ${err.message || String(err)}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const [quoteParts, setQuoteParts] = useState<QuotePartConfig[]>(() => {
     const initialFilamentId = filaments.length > 0 ? filaments[0].id : null;
@@ -396,35 +530,33 @@ function App() {
       ? parseFloat((((finalQuotePrice - costWithFailureRate) / costWithFailureRate) * 100).toFixed(1))
       : 0;
 
+    let savedQuote: Quote;
     if (revisingQuote && !isCreateNew) {
+      savedQuote = {
+        ...revisingQuote,
+        jobNumber,
+        jobName,
+        customerName,
+        quotePrice: finalQuotePrice,
+        parameters: {
+          ...params,
+          profitMargin: effectiveMargin,
+        },
+        costBreakdown: {
+          ...breakdown,
+          profit: effectiveProfit,
+        },
+        parts: quoteParts,
+      };
       setAppData(prev => ({
         ...prev,
-        quotes: prev.quotes.map(q => {
-          if (q.id === revisingQuote.id) {
-            return {
-              ...q,
-              jobNumber,
-              jobName,
-              customerName,
-              quotePrice: finalQuotePrice,
-              parameters: {
-                ...params,
-                profitMargin: effectiveMargin,
-              },
-              costBreakdown: {
-                ...breakdown,
-                profit: effectiveProfit,
-              },
-              parts: quoteParts,
-            };
-          }
-          return q;
-        }).sort((a, b) => b.jobNumber - a.jobNumber)
+        quotes: prev.quotes.map(q => q.id === revisingQuote.id ? savedQuote : q).sort((a, b) => b.jobNumber - a.jobNumber)
       }));
       setRevisingQuote(null);
     } else {
-      const newQuote: Quote = {
-        id: new Date().toISOString(),
+      const generatedId = `quote_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      savedQuote = {
+        id: generatedId,
         jobNumber,
         jobName,
         customerName,
@@ -441,8 +573,12 @@ function App() {
         },
         parts: quoteParts,
       };
-      setAppData(prev => ({ ...prev, quotes: [...prev.quotes, newQuote].sort((a, b) => b.jobNumber - a.jobNumber) }));
+      setAppData(prev => ({ ...prev, quotes: [...prev.quotes, savedQuote].sort((a, b) => b.jobNumber - a.jobNumber) }));
       setRevisingQuote(null);
+    }
+
+    if (user) {
+      saveQuoteToRemote(user.uid, savedQuote).catch(console.error);
     }
     
     // Reset quote parts
@@ -520,6 +656,7 @@ function App() {
   }, []);
 
   const handleUpdateQuotePrice = useCallback((id: string, newPrice: number) => {
+    let updatedQuote: Quote | null = null;
     setAppData(prev => ({
       ...prev,
       quotes: prev.quotes.map(q => {
@@ -529,7 +666,7 @@ function App() {
         const effectiveMargin = costWithFailureRate > 0
           ? parseFloat((((newPrice - costWithFailureRate) / costWithFailureRate) * 100).toFixed(1))
           : 0;
-        return {
+        updatedQuote = {
           ...q,
           quotePrice: newPrice,
           costBreakdown: {
@@ -541,9 +678,13 @@ function App() {
             profitMargin: effectiveMargin,
           },
         };
+        return updatedQuote;
       })
     }));
-  }, [setAppData]);
+    if (user && updatedQuote) {
+      saveQuoteToRemote(user.uid, updatedQuote).catch(console.error);
+    }
+  }, [setAppData, user]);
 
   const handleDeleteQuote = (id: string) => {
     const isConfirmed = window.confirm(
@@ -555,23 +696,35 @@ function App() {
         quotes: prev.quotes.filter(q => q.id !== id),
         orders: prev.orders.filter(o => o.quoteId !== id)
       }));
+      if (user) {
+        deleteQuoteFromRemote(user.uid, id).catch(console.error);
+      }
     }
   };
 
   const handleUpdateQuoteStatus = (id: string, status: QuoteStatus) => {
     setAppData(prev => ({ ...prev, quotes: prev.quotes.map(q => (q.id === id ? { ...q, status } : q)) }));
+    if (user) {
+      const q = quotes.find(item => item.id === id);
+      if (q) {
+        saveQuoteToRemote(user.uid, { ...q, status }).catch(console.error);
+      }
+    }
   };
 
   // Part Handlers
   const handleAddPart = (part: Omit<Part, 'id'>) => {
-    const newPart = { ...part, id: new Date().toISOString() };
+    const newPart: Part = { ...part, id: `part_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` };
     setAppData(prev => ({ ...prev, parts: [...prev.parts, newPart] }));
+    if (user) savePartToRemote(user.uid, newPart).catch(console.error);
   };
   const handleUpdatePart = (updatedPart: Part) => {
     setAppData(prev => ({ ...prev, parts: prev.parts.map(p => p.id === updatedPart.id ? updatedPart : p) }));
+    if (user) savePartToRemote(user.uid, updatedPart).catch(console.error);
   };
   const handleDeletePart = (id: string) => {
     setAppData(prev => ({ ...prev, parts: prev.parts.filter(p => p.id !== id) }));
+    if (user) deletePartFromRemote(user.uid, id).catch(console.error);
   };
   const handlePartSelect = useCallback((part: Part | null) => {
       if (part) {
@@ -596,46 +749,66 @@ function App() {
   // Order Handlers
   const handleCreateOrder = (quoteId: string) => {
     const newOrder: Order = {
-      id: new Date().toISOString(),
+      id: `order_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       quoteId,
       orderNumber: nextOrderNumber,
       createdAt: new Date().toISOString(),
       status: OrderStatus.InProgress,
     };
     setAppData(prev => ({ ...prev, orders: [...prev.orders, newOrder].sort((a,b) => b.orderNumber - a.orderNumber) }));
+    if (user) saveOrderToRemote(user.uid, newOrder).catch(console.error);
     setView('orders');
   };
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
+    let targetOrder: Order | null = null;
     setAppData(prev => ({
       ...prev,
-      orders: prev.orders.map(o => o.id === orderId ? {
-        ...o,
-        status,
-        completedAt: status === OrderStatus.Completed ? (o.completedAt || new Date().toISOString()) : o.completedAt,
-      } : o)
+      orders: prev.orders.map(o => {
+        if (o.id === orderId) {
+          targetOrder = {
+            ...o,
+            status,
+            completedAt: status === OrderStatus.Completed ? (o.completedAt || new Date().toISOString()) : o.completedAt,
+          };
+          return targetOrder;
+        }
+        return o;
+      })
     }));
+    if (user && targetOrder) saveOrderToRemote(user.uid, targetOrder).catch(console.error);
   };
   const handleUpdateOrderPhoto = (orderId: string, completedImageUrl?: string) => {
+    let targetOrder: Order | null = null;
     setAppData(prev => ({
       ...prev,
-      orders: prev.orders.map(o => o.id === orderId ? {
-        ...o,
-        completedImageUrl,
-        completedAt: completedImageUrl ? (o.completedAt || new Date().toISOString()) : o.completedAt,
-      } : o)
+      orders: prev.orders.map(o => {
+        if (o.id === orderId) {
+          targetOrder = {
+            ...o,
+            completedImageUrl,
+            completedAt: completedImageUrl ? (o.completedAt || new Date().toISOString()) : o.completedAt,
+          };
+          return targetOrder;
+        }
+        return o;
+      })
     }));
+    if (user && targetOrder) saveOrderToRemote(user.uid, targetOrder).catch(console.error);
   };
   const handleDeleteOrder = (orderId: string) => {
     setAppData(prev => ({ ...prev, orders: prev.orders.filter(o => o.id !== orderId) }));
+    if (user) deleteOrderFromRemote(user.uid, orderId).catch(console.error);
   };
 
   // Filament Handlers
   const handleAddFilament = (filament: Omit<Filament, 'id'>) => {
-    const newFilament = { ...filament, id: new Date().toISOString() };
+    const newFilament: Filament = { ...filament, id: `filament_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` };
     setAppData(prev => ({ ...prev, filaments: [...prev.filaments, newFilament] }));
+    if (user) saveFilamentToRemote(user.uid, newFilament).catch(console.error);
   };
   const handleUpdateFilament = (updatedFilament: Filament) => {
     setAppData(prev => ({ ...prev, filaments: prev.filaments.map(m => m.id === updatedFilament.id ? updatedFilament : m) }));
+    if (user) saveFilamentToRemote(user.uid, updatedFilament).catch(console.error);
   };
   const handleDeleteFilament = (id: string) => {
     const newFilaments = filaments.filter(m => m.id !== id);
@@ -643,15 +816,18 @@ function App() {
     if (parameters.filamentId === id) {
       setParameters(p => ({ ...p, filamentId: newFilaments.length > 0 ? newFilaments[0].id : null }));
     }
+    if (user) deleteFilamentFromRemote(user.uid, id).catch(console.error);
   };
 
   // Printer Handlers
   const handleAddPrinter = (printer: Omit<Printer, 'id'>) => {
-    const newPrinter = { ...printer, id: new Date().toISOString() };
+    const newPrinter: Printer = { ...printer, id: `printer_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` };
     setAppData(prev => ({ ...prev, printers: [...prev.printers, newPrinter] }));
+    if (user) savePrinterToRemote(user.uid, newPrinter).catch(console.error);
   };
   const handleUpdatePrinter = (updatedPrinter: Printer) => {
     setAppData(prev => ({ ...prev, printers: prev.printers.map(p => p.id === updatedPrinter.id ? updatedPrinter : p) }));
+    if (user) savePrinterToRemote(user.uid, updatedPrinter).catch(console.error);
   };
   const handleDeletePrinter = (id: string) => {
     const newPrinters = printers.filter(p => p.id !== id);
@@ -659,6 +835,7 @@ function App() {
     if (parameters.printerId === id) {
       setParameters(p => ({ ...p, printerId: newPrinters.length > 0 ? newPrinters[0].id : null }));
     }
+    if (user) deletePrinterFromRemote(user.uid, id).catch(console.error);
   };
 
   // Settings Handler
@@ -671,6 +848,7 @@ function App() {
       failureRate: newSettings.failureRate,
       profitMargin: newSettings.profitMargin,
     }));
+    if (user) saveSettingsToRemote(user.uid, newSettings).catch(console.error);
   };
   
   // Data Management Handlers
@@ -915,7 +1093,30 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-900 font-sans p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <Header />
+        <Header
+          user={user}
+          authLoading={authLoading}
+          isSyncing={isSyncing}
+          onSignIn={handleSignIn}
+          onSignOut={handleSignOut}
+          onSyncAllLocal={handleSyncAllLocal}
+        />
+
+        {remoteToast && (
+          <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-sm rounded-xl flex items-center justify-between shadow-lg animate-fadeIn">
+            <span className="flex items-center gap-2">
+              <span>✨</span>
+              <span>{remoteToast}</span>
+            </span>
+            <button
+              onClick={() => setRemoteToast(null)}
+              className="text-emerald-400 hover:text-emerald-100 font-bold ml-2 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <Nav currentView={view} onViewChange={setView} />
         {renderContent()}
       </div>
