@@ -23,7 +23,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3030
 ENV DATA_DIR=/app/data
 
 # Copy built bundle and server script
@@ -37,6 +37,6 @@ RUN mkdir -p /app/data
 # Persistent volume for local quote and parts storage on host machine
 VOLUME ["/app/data"]
 
-EXPOSE 3000
+EXPOSE 3030
 
 CMD ["node", "server.mjs"]

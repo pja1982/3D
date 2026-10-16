@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3030;
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'print-tracker-db.json');
 const DIST_DIR = path.resolve(__dirname, 'dist');

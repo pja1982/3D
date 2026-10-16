@@ -35,18 +35,18 @@ export const DockerSetupModal: React.FC<DockerSetupModalProps> = ({
     container_name: 3d-print-tracker
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3030:3030"
     environment:
-      - PORT=3000
+      - PORT=3030
       - DATA_DIR=/app/data
     volumes:
       # Persistent local host storage for all quotes, parts & settings:
-      - ./data:/app/data`;
+      - /Docker/3Dcost:/app/data`;
 
   const dockerRunCmd = `docker run -d \\
   --name 3d-print-tracker \\
-  -p 3000:3000 \\
-  -v $(pwd)/data:/app/data \\
+  -p 3030:3030 \\
+  -v /Docker/3Dcost:/app/data \\
   --restart unless-stopped \\
   3d-print-tracker`;
 
@@ -107,7 +107,7 @@ export const DockerSetupModal: React.FC<DockerSetupModalProps> = ({
           </h3>
           <p className="text-slate-300 leading-relaxed">
             Google Firebase OAuth strictly requires a registered public domain or standard <code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300">localhost</code>.
-            When you run on your local network (e.g., <code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300">http://192.168.1.50:3000</code>),
+            When you run on your local network (e.g., <code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300">http://192.168.1.50:3030</code>),
             Google blocks the sign-in redirect with an <em>Unauthorized domain</em> or <em>unreachable address</em> security error.
           </p>
           <p className="text-emerald-400 font-medium">
@@ -136,7 +136,7 @@ export const DockerSetupModal: React.FC<DockerSetupModalProps> = ({
               {dockerComposeYaml}
             </pre>
             <p className="text-[11px] text-slate-400">
-              Run <code className="bg-slate-800 text-slate-200 px-1 rounded">docker compose up -d</code> in the app directory. All your quotes and catalog parts will be saved inside your host machine&apos;s <code className="bg-slate-800 text-slate-200 px-1 rounded">./data</code> directory!
+              Run <code className="bg-slate-800 text-slate-200 px-1 rounded">docker compose up -d</code> in the app directory. All your quotes and catalog parts will be saved inside your host machine&apos;s <code className="bg-slate-800 text-slate-200 px-1 rounded">/Docker/3Dcost</code> directory!
             </p>
           </div>
 
@@ -167,7 +167,7 @@ export const DockerSetupModal: React.FC<DockerSetupModalProps> = ({
             Open any browser on your Wi-Fi and navigate to:
           </p>
           <div className="bg-slate-950 p-2 rounded border border-cyan-900/60 font-mono text-center text-cyan-300 font-bold">
-            http://192.168.1.150:3000
+            http://192.168.1.150:3030
           </div>
           <p className="text-[11px] text-slate-400">
             Every device connects to the same local database on your computer. Bookmark this link on your phone or tablet for instant access in your 3D printing workshop!
