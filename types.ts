@@ -1,3 +1,10 @@
+export interface SpoolProperties {
+  purchase_date?: string | null;
+  last_dried_date?: string | null;
+  purchase_price?: number | null;
+  [key: string]: any;
+}
+
 export interface Filament {
   id: string;
   type: string;
@@ -6,6 +13,21 @@ export interface Filament {
   costPerKg: number;
   colorHex?: string;
   colorName?: string;
+
+  // 3DFilamentProfiles / SpoolDB (https://3dfilamentprofiles.com/) fields
+  short_code?: string;
+  spool_url?: string;
+  material?: string;
+  material_type?: string;
+  rgb?: string;
+  td_value?: number | null;
+  notes?: string | null;
+  location?: string | null;
+  remaining_grams?: number;
+  empty_spool_weight?: number | null;
+  updated_at?: string;
+  spool_properties?: SpoolProperties;
+  filament_id?: number;
 }
 
 export interface Printer {

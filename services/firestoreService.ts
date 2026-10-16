@@ -321,6 +321,15 @@ export async function saveFilamentToRemote(userId: string, filament: Filament): 
 }
 
 /**
+ * Saves multiple filaments to remote Firestore in batch.
+ */
+export async function saveFilamentsBatchToRemote(userId: string, filaments: Filament[]): Promise<void> {
+  for (const f of filaments) {
+    await saveFilamentToRemote(userId, f);
+  }
+}
+
+/**
  * Deletes a filament from remote Firestore.
  */
 export async function deleteFilamentFromRemote(userId: string, filamentId: string): Promise<void> {

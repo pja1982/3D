@@ -20,6 +20,7 @@ import {
   savePrinterToRemote,
   deletePrinterFromRemote,
   saveFilamentToRemote,
+  saveFilamentsBatchToRemote,
   deleteFilamentFromRemote,
   saveOrderToRemote,
   deleteOrderFromRemote,
@@ -908,6 +909,31 @@ function App() {
     if (user) deleteFilamentFromRemote(user.uid, id).catch(console.error);
   };
 
+  const handleBatchAddFilaments = useCallback((newFilaments: Filament[], mode: 'merge' | 'replace') => {
+    let updatedList: Filament[] = [];
+    if (mode === 'replace') {
+      updatedList = newFilaments;
+    } else {
+      // Merge: deduplicate or update by short_code or brand+material+color
+      const existingMap = new Map<string, Filament>();
+      filaments.forEach(f => {
+        const key = f.short_code ? `code_${f.short_code}` : `${f.brand}_${f.type}_${f.colorName || ''}`;
+        existingMap.set(key, f);
+      });
+      newFilaments.forEach(nf => {
+        const key = nf.short_code ? `code_${nf.short_code}` : `${nf.brand}_${nf.type}_${nf.colorName || ''}`;
+        existingMap.set(key, nf);
+      });
+      updatedList = Array.from(existingMap.values());
+    }
+
+    setAppData(prev => ({ ...prev, filaments: updatedList }));
+
+    if (user) {
+      saveFilamentsBatchToRemote(user.uid, updatedList).catch(console.error);
+    }
+  }, [filaments, setAppData, user]);
+
   // Printer Handlers
   const handleAddPrinter = (printer: Omit<Printer, 'id'>) => {
     const newPrinter: Printer = { ...printer, id: `printer_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` };
@@ -1150,6 +1176,7 @@ function App() {
             onAdd={handleAddFilament}
             onUpdate={handleUpdateFilament}
             onDelete={handleDeleteFilament}
+            onBatchAdd={handleBatchAddFilaments}
           />
         );
       case 'printers':

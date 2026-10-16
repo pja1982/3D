@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Quote, Filament, Printer } from '../types';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
 import ImageModal from './ImageModal';
+import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
 interface JobPartsTableProps {
   quote: Quote;
@@ -120,8 +121,8 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                             <span className="inline-flex items-center gap-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] px-1.5 py-0.5 rounded">
                               {filament.colorHex && (
                                 <span
-                                  className="w-2 h-2 rounded-full border border-slate-600 flex-shrink-0"
-                                  style={{ backgroundColor: filament.colorHex }}
+                                  className="w-2.5 h-2.5 rounded-full border border-slate-600 flex-shrink-0"
+                                  style={getFilamentBackgroundStyle(filament.colorHex, filament.rgb)}
                                 />
                               )}
                               <span className="truncate max-w-[120px]">{filament.brand} {filament.type}</span>
@@ -162,8 +163,8 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                               return (
                                 <span key={c.id || ci} className="inline-flex items-center gap-1 text-[10px] bg-slate-800/80 text-slate-300 px-1 py-0.2 rounded border border-slate-700">
                                   <span
-                                    className="w-1.5 h-1.5 rounded-full"
-                                    style={{ backgroundColor: fil?.colorHex || '#94a3b8' }}
+                                    className="w-2 h-2 rounded-full"
+                                    style={getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
                                   />
                                   <span>{fil?.brand ? `${fil.brand} ${fil.type}` : 'Filament'}: {c.grams}g</span>
                                 </span>

@@ -6,6 +6,7 @@ import PhotoIcon from './icons/PhotoIcon';
 import CameraIcon from './icons/CameraIcon';
 import ImageModal from './ImageModal';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
+import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
 interface CalculatorFormProps {
   parameters: PrintParameters;
@@ -702,10 +703,10 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   )}
               </select>
               {selectedFilament && (
-                <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-slate-800/80 border border-slate-700/80 text-xs">
+                <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-slate-800/80 border border-slate-700/80 text-xs flex-wrap">
                   <span
                     className="w-3.5 h-3.5 rounded-full border border-slate-500 shadow-xs flex-shrink-0"
-                    style={{ backgroundColor: selectedFilament.colorHex || '#3b82f6' }}
+                    style={getFilamentBackgroundStyle(selectedFilament.colorHex, selectedFilament.rgb)}
                   />
                   <span className="text-slate-300">
                     Type: <strong className="text-slate-100 font-semibold">{selectedFilament.type || selectedFilament.name}</strong>
@@ -714,10 +715,20 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                         • Color: <strong className="text-slate-100">{selectedFilament.colorName}</strong>
                       </span>
                     )}
+                    {selectedFilament.remaining_grams !== undefined && (
+                      <span className="text-slate-300 ml-1.5 font-normal">
+                        • <span className="text-cyan-400 font-medium">⚖️ {selectedFilament.remaining_grams}g left</span>
+                      </span>
+                    )}
+                    {selectedFilament.location && (
+                      <span className="text-slate-400 ml-1.5 font-normal">
+                        • 📍 {selectedFilament.location}
+                      </span>
+                    )}
                   </span>
                   {selectedFilament.colorHex && (
                     <span className="font-mono text-[11px] text-slate-300 bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-700 ml-auto">
-                      {selectedFilament.colorHex.toUpperCase()}
+                      {(selectedFilament.rgb || selectedFilament.colorHex).toUpperCase()}
                     </span>
                   )}
                 </div>
@@ -742,7 +753,7 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                       <div className="flex items-center gap-2">
                         <span
                           className="w-3.5 h-3.5 rounded-full border border-slate-500 shadow-xs flex-shrink-0"
-                          style={{ backgroundColor: fil?.colorHex || '#94a3b8' }}
+                          style={getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
                         />
                         <span className="text-xs font-semibold text-slate-200">
                           Color #{index + 1} {index === 0 ? '(Primary / Base)' : ''}
