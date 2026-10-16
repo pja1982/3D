@@ -33,6 +33,7 @@ interface JobsPageProps {
   onUpdatePrice?: (id: string, newPrice: number) => void;
   onReviseQuote: (quote: Quote) => void;
   onUseAsTemplate?: (quote: Quote) => void;
+  onOpenGoogleSheets?: () => void;
 }
 
 const statusColors: Record<QuoteStatus, string> = {
@@ -217,7 +218,7 @@ const QuoteDetailView: React.FC<{
 };
 
 
-const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders, onDelete, onUpdateStatus, onCreateOrder, onUpdatePrice, onReviseQuote, onUseAsTemplate }) => {
+const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders, onDelete, onUpdateStatus, onCreateOrder, onUpdatePrice, onReviseQuote, onUseAsTemplate, onOpenGoogleSheets }) => {
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [editingPriceQuoteId, setEditingPriceQuoteId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>('');
@@ -323,6 +324,15 @@ const JobsPage: React.FC<JobsPageProps> = ({ quotes, filaments, printers, orders
               >
                 <span>🧾 Export Invoices (.md)</span>
               </button>
+              {onOpenGoogleSheets && (
+                <button
+                  onClick={onOpenGoogleSheets}
+                  className="flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
+                  title="Open Google Sheets sync and export tools"
+                >
+                  <span>📊 Google Sheets</span>
+                </button>
+              )}
               <button
                 onClick={handleExportCSV}
                 className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm"

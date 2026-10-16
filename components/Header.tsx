@@ -10,6 +10,7 @@ interface HeaderProps {
   onSignOut: () => void;
   onSyncAllLocal: () => void;
   onOpenDockerModal: () => void;
+  onOpenGoogleSheetsModal: () => void;
   onExportBackup: () => void;
 }
 
@@ -22,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({
   onSignOut,
   onSyncAllLocal,
   onOpenDockerModal,
+  onOpenGoogleSheetsModal,
   onExportBackup,
 }) => {
   return (
@@ -69,8 +71,19 @@ const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Right Side: Docker Setup, Backup & Auth Controls */}
+        {/* Right Side: Google Sheets, Docker Setup, Backup & Auth Controls */}
         <div className="flex items-center gap-2 flex-wrap ml-auto">
+          {/* Google Sheets Live Sync Modal Trigger */}
+          <button
+            type="button"
+            onClick={onOpenGoogleSheetsModal}
+            className="bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 hover:text-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-500/40 transition flex items-center gap-1.5 font-medium text-[11px] shadow-sm"
+            title="Create, sync, or export to a Google Spreadsheet"
+          >
+            <span>📊</span>
+            <span>Google Sheets</span>
+          </button>
+
           {/* Docker & Local Host Modal Trigger */}
           <button
             type="button"

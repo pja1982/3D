@@ -10,7 +10,7 @@ import {
   downloadMarkdownFile,
 } from './utils/markdownExport';
 import useLocalStorage from './hooks/useLocalStorage';
-import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, User } from './firebase';
+import { auth, googleProvider, googleSignIn, logout, getAccessToken, setCachedAccessToken, onAuthStateChanged, User } from './firebase';
 import {
   subscribeToUserData,
   saveQuoteToRemote,
@@ -30,6 +30,7 @@ import {
 } from './services/firestoreService';
 import Header from './components/Header';
 import { DockerSetupModal } from './components/DockerSetupModal';
+import { GoogleSheetsModal } from './components/GoogleSheetsModal';
 import {
   checkLocalServerStatus,
   fetchLocalServerData,
@@ -122,6 +123,8 @@ function App() {
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [remoteToast, setRemoteToast] = useState<string | null>(null);
+  const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
+  const [cachedToken, setCachedToken] = useState<string | null>(null);
 
   // Local Docker / Host Network Storage state
   const [localServerStatus, setLocalServerStatus] = useState<LocalServerStatus>({
@@ -158,13 +161,17 @@ function App() {
     return () => clearTimeout(timeout);
   }, [appData, localServerStatus.available]);
 
-  // Monitor Firebase Auth state
+  // Monitor Firebase Auth state & cache Google Workspace OAuth token
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (currentUser) => {
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
       if (currentUser) {
         saveUserProfile(currentUser).catch(console.error);
+        const token = await getAccessToken();
+        if (token) setCachedToken(token);
+      } else {
+        setCachedToken(null);
       }
     });
     return () => unsub();
@@ -229,8 +236,11 @@ function App() {
 
   const handleSignIn = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      setRemoteToast('Signed in successfully! Cloud sync active.');
+      const res = await googleSignIn();
+      if (res?.accessToken) {
+        setCachedToken(res.accessToken);
+      }
+      setRemoteToast('Signed in successfully! Google Sheets & Cloud sync active.');
       setTimeout(() => setRemoteToast(null), 3500);
     } catch (err: any) {
       console.error('Sign in failed:', err);
@@ -250,7 +260,8 @@ function App() {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await logout();
+      setCachedToken(null);
       setRemoteToast('Signed out. Local storage mode active.');
       setTimeout(() => setRemoteToast(null), 3500);
     } catch (err) {
@@ -1106,6 +1117,7 @@ function App() {
             onUpdatePrice={handleUpdateQuotePrice}
             onReviseQuote={handleReviseQuote}
             onUseAsTemplate={handleUseQuoteAsTemplate}
+            onOpenGoogleSheets={() => setIsGoogleSheetsModalOpen(true)}
           />
         );
       case 'orders':
@@ -1180,6 +1192,7 @@ function App() {
           onSignOut={handleSignOut}
           onSyncAllLocal={handleSyncAllLocal}
           onOpenDockerModal={() => setIsDockerModalOpen(true)}
+          onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
           onExportBackup={handleExportBackup}
         />
 
@@ -1189,6 +1202,20 @@ function App() {
           serverStatus={localServerStatus}
           onExportBackup={handleExportBackup}
           onImportBackup={handleImportBackup}
+        />
+
+        <GoogleSheetsModal
+          isOpen={isGoogleSheetsModalOpen}
+          onClose={() => setIsGoogleSheetsModalOpen(false)}
+          user={user}
+          appData={appData}
+          onUpdateAppData={setAppData}
+          onSignIn={handleSignIn}
+          cachedToken={cachedToken}
+          onSetToast={(msg) => {
+            setRemoteToast(msg);
+            setTimeout(() => setRemoteToast(null), 4000);
+          }}
         />
 
         {remoteToast && (
