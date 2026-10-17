@@ -33,6 +33,7 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
   showPricingDetails = true,
 }) => {
   const [internalPreview, setInternalPreview] = useState<{ url: string; title: string } | null>(null);
+  const [tableMode, setTableMode] = useState<'both' | 'price-only'>('both');
 
   const handleImageClick = (url: string, partName: string) => {
     if (onOpenPhotoModal) {
@@ -50,20 +51,53 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
     grandTotalPrice,
   } = calculateJobPartRows(quote, filaments, printers);
   const parts = computedRows.map(r => r.part);
+  const totalProfit = grandTotalPrice - grandTotalCost;
+  const totalMargin = grandTotalCost > 0 ? (totalProfit / grandTotalCost) * 100 : 0;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-700/80 pb-2.5 gap-2">
         <div className="flex items-center gap-2">
           <h4 className="font-semibold text-cyan-400 text-base">{title}</h4>
-          <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
+          <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full border border-slate-700 font-semibold">
             {parts.length} {parts.length === 1 ? 'part' : 'parts'}
           </span>
+          <span className="text-xs bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-2 py-0.5 rounded-full font-bold">
+            Quoted: {formatCurrency(quote.quotePrice)}
+          </span>
         </div>
-        <div className="text-xs text-slate-400 flex items-center gap-3">
-          <span>Total Units: <strong className="text-slate-200">{totalQuantity}</strong></span>
-          <span>•</span>
-          <span>Required: <strong className="text-cyan-300">{totalQuantityRequired}</strong></span>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-700 text-xs">
+            <button
+              type="button"
+              onClick={() => setTableMode('both')}
+              className={`px-2.5 py-1 rounded font-medium transition ${
+                tableMode === 'both'
+                  ? 'bg-cyan-600 text-white font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Cost & Price
+            </button>
+            <button
+              type="button"
+              onClick={() => setTableMode('price-only')}
+              className={`px-2.5 py-1 rounded font-medium transition ${
+                tableMode === 'price-only'
+                  ? 'bg-cyan-600 text-white font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Price Only
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-400 flex items-center gap-2 hidden md:flex">
+            <span>Total Units: <strong className="text-slate-200">{totalQuantity}</strong></span>
+            <span>•</span>
+            <span>Req: <strong className="text-cyan-300">{totalQuantityRequired}</strong></span>
+          </div>
         </div>
       </div>
 
@@ -73,15 +107,23 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
             <tr className="bg-slate-800/90 text-slate-300 border-b border-slate-700 text-xs uppercase tracking-wider font-semibold">
               <th scope="col" className="py-3 px-3.5">The Part</th>
               <th scope="col" className="py-3 px-3 text-center">Quantity</th>
-              <th scope="col" className="py-3 px-3 text-center">Quantity Required</th>
-              <th scope="col" className="py-3 px-3 text-right">Per Unit Cost</th>
-              <th scope="col" className="py-3 px-3 text-right">Total Cost</th>
+              <th scope="col" className="py-3 px-3 text-center">Required</th>
+              {tableMode === 'both' && (
+                <th scope="col" className="py-3 px-3 text-right text-slate-400">Unit Cost</th>
+              )}
+              <th scope="col" className="py-3 px-3 text-right text-cyan-400 font-bold bg-cyan-950/20">Unit Price</th>
+              {tableMode === 'both' && (
+                <th scope="col" className="py-3 px-3 text-right text-slate-400">Total Cost</th>
+              )}
+              <th scope="col" className="py-3 px-3.5 text-right text-white font-bold bg-cyan-950/30">Total Price</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/60 bg-slate-900/60">
             {computedRows.map(({ part, qty, qtyRequired, printer, perUnitCost, lineTotalCost, perUnitPrice, lineTotalPrice }, idx) => {
               const filament = filaments.find((f) => f.id === part.filamentId);
               const isMultiColor = Boolean(part.colors && part.colors.length > 1);
+              const partProfit = lineTotalPrice - lineTotalCost;
+              const partMargin = lineTotalCost > 0 ? (partProfit / lineTotalCost) * 100 : 0;
 
               return (
                 <tr key={part.id || idx} className="hover:bg-slate-800/40 transition-colors">
@@ -97,10 +139,8 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                           title="Click to view part photo"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg bg-slate-800/80 border border-dashed border-slate-700 flex items-center justify-center flex-shrink-0 text-slate-500">
-                          <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                          </svg>
+                        <div className="w-10 h-10 rounded-lg bg-slate-800/80 border border-dashed border-slate-700 flex items-center justify-center flex-shrink-0 text-slate-500 font-bold text-xs">
+                          #{idx + 1}
                         </div>
                       )}
 
@@ -110,14 +150,9 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                           <span className="text-[10px] text-slate-400 font-mono">#{idx + 1}</span>
                         </div>
 
-                        {/* Part Specifications & Metadata */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-0.5">
-                          {/* Material */}
-                          {isMultiColor && part.colors ? (
-                            <span className="inline-flex items-center gap-1 bg-purple-950/60 border border-purple-800/50 text-purple-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
-                              🎨 Multi-Color ({part.colors.length})
-                            </span>
-                          ) : filament ? (
+                        {/* Specs & Material Badges */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {filament ? (
                             <span className="inline-flex items-center gap-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] px-1.5 py-0.5 rounded">
                               {filament.colorHex && (
                                 <span
@@ -146,11 +181,6 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                           {part.postProcessingHours > 0 && (
                             <span className="text-[11px] text-slate-400">
                               🛠️ {formatHours(part.postProcessingHours)} post
-                            </span>
-                          )}
-                          {part.hardwareCost > 0 && (
-                            <span className="text-[11px] text-slate-400">
-                              🔩 {formatCurrency(part.hardwareCost)}
                             </span>
                           )}
                         </div>
@@ -203,25 +233,37 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                   </td>
 
                   {/* Per Unit Cost */}
-                  <td className="py-3 px-3 align-middle text-right whitespace-nowrap font-mono">
-                    <span className="text-sm font-semibold text-slate-200 block">
+                  {tableMode === 'both' && (
+                    <td className="py-3 px-3 align-middle text-right whitespace-nowrap font-mono text-slate-400 text-sm">
                       {formatCurrency(perUnitCost)}
+                    </td>
+                  )}
+
+                  {/* Per Unit Price */}
+                  <td className="py-3 px-3 align-middle text-right whitespace-nowrap font-mono bg-cyan-950/10">
+                    <span className="text-sm font-bold text-cyan-300 block">
+                      {formatCurrency(perUnitPrice)}
                     </span>
-                    {showPricingDetails && (
-                      <span className="text-[11px] text-slate-400 block font-sans">
-                        Price: <strong className="text-cyan-400">{formatCurrency(perUnitPrice)}</strong>
-                      </span>
-                    )}
+                    <span className="text-[10px] text-slate-500 block font-sans">
+                      / unit
+                    </span>
                   </td>
 
                   {/* Total Cost */}
-                  <td className="py-3 px-3 align-middle text-right whitespace-nowrap font-mono">
-                    <span className="text-sm font-bold text-slate-100 block">
+                  {tableMode === 'both' && (
+                    <td className="py-3 px-3 align-middle text-right whitespace-nowrap font-mono text-slate-300 text-sm">
                       {formatCurrency(lineTotalCost)}
+                    </td>
+                  )}
+
+                  {/* Total Price */}
+                  <td className="py-3 px-3.5 align-middle text-right whitespace-nowrap font-mono bg-cyan-950/20">
+                    <span className="text-base font-extrabold text-white block">
+                      {formatCurrency(lineTotalPrice)}
                     </span>
-                    {showPricingDetails && (
-                      <span className="text-[11px] text-slate-400 block font-sans">
-                        Price: <strong className="text-cyan-400 font-semibold">{formatCurrency(lineTotalPrice)}</strong>
+                    {tableMode === 'both' && (
+                      <span className="text-[10px] text-emerald-400 block font-sans">
+                        +{formatCurrency(partProfit)} ({partMargin.toFixed(0)}%)
                       </span>
                     )}
                   </td>
@@ -234,9 +276,9 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
           <tfoot>
             <tr className="bg-slate-800/90 text-slate-200 font-semibold border-t-2 border-slate-700 text-xs">
               <td className="py-3 px-3.5">
-                <div className="flex items-center gap-2">
-                  <span className="uppercase tracking-wider text-slate-400">Total ({parts.length} {parts.length === 1 ? 'part' : 'parts'})</span>
-                </div>
+                <span className="uppercase tracking-wider text-slate-300 font-bold">
+                  Total ({parts.length} {parts.length === 1 ? 'part' : 'parts'})
+                </span>
               </td>
               <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
                 {totalQuantity}
@@ -244,16 +286,27 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
               <td className="py-3 px-3 text-center font-mono font-bold text-emerald-300">
                 {totalQuantityRequired}
               </td>
-              <td className="py-3 px-3 text-right font-mono text-slate-400">
-                <span className="text-[11px] uppercase tracking-wider block">Line Totals:</span>
+              {tableMode === 'both' && (
+                <td className="py-3 px-3 text-right font-mono text-slate-400">
+                  <span className="text-[11px] block text-slate-400">Cost:</span>
+                </td>
+              )}
+              <td className="py-3 px-3 text-right font-mono bg-cyan-950/30 text-cyan-300">
+                <span className="text-[11px] text-slate-400 block font-normal">Avg / Unit:</span>
+                <span className="font-bold">{formatCurrency(totalQuantity > 0 ? grandTotalPrice / totalQuantity : 0)}</span>
               </td>
-              <td className="py-3 px-3 text-right font-mono">
-                <span className="text-sm font-bold text-slate-100 block">
+              {tableMode === 'both' && (
+                <td className="py-3 px-3 text-right font-mono text-slate-300 font-bold">
                   {formatCurrency(grandTotalCost)}
+                </td>
+              )}
+              <td className="py-3 px-3.5 text-right font-mono bg-cyan-950/40">
+                <span className="text-base font-extrabold text-cyan-300 block">
+                  {formatCurrency(grandTotalPrice)}
                 </span>
-                {showPricingDetails && (
-                  <span className="text-[11px] text-cyan-400 block font-sans font-normal">
-                    Quote: <strong>{formatCurrency(grandTotalPrice)}</strong>
+                {tableMode === 'both' && (
+                  <span className="text-[10px] text-emerald-400 block font-normal">
+                    Profit: +{formatCurrency(totalProfit)} ({totalMargin.toFixed(0)}%)
                   </span>
                 )}
               </td>

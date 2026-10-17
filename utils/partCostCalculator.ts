@@ -6,6 +6,12 @@ export interface ComputedPartRow {
   qty: number;
   qtyRequired: number;
   printer?: Printer;
+  unitMaterialCost?: number;
+  unitElectricityCost?: number;
+  unitMachineCost?: number;
+  unitLaborCost?: number;
+  unitHardwareCost?: number;
+  unitMultiColorCost?: number;
   unitDirectCost: number;
   totalDirectCost: number;
   perUnitCost: number;
@@ -100,6 +106,12 @@ export function calculateJobPartRows(
       qty,
       qtyRequired,
       printer,
+      unitMaterialCost,
+      unitElectricityCost: unitElectricity,
+      unitMachineCost: unitMachineDepreciation,
+      unitLaborCost: unitLabor,
+      unitHardwareCost: unitHardware,
+      unitMultiColorCost: unitMultiColor,
       unitDirectCost,
       totalDirectCost,
     };

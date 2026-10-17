@@ -1125,6 +1125,7 @@ function App() {
                   onCancelRevision={handleCancelRevision}
                   quoteParts={quoteParts}
                   printers={printers}
+                  filaments={filaments}
                 />
               </div>
             </div>
