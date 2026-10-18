@@ -295,7 +295,10 @@ tags:
     md += `> | **Printer Depreciation & Maintenance:** | ${formatCurrency(costBreakdown.printerCost)} |\n`;
   }
   if (costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) {
-    md += `> | **Multi-Color Processing Fee:** | ${formatCurrency(costBreakdown.multiColorFee)} |\n`;
+    const batchInfo = costBreakdown.multiColorBatchMode === 'single_batch_per_bed'
+      ? ` (Single Bed Batch: ${costBreakdown.multiColorBedCount || 1} plate${((costBreakdown.multiColorBedCount || 1) === 1) ? '' : 's'}${costBreakdown.multiColorSavedFee ? `, Saved ${formatCurrency(costBreakdown.multiColorSavedFee)}` : ''})`
+      : '';
+    md += `> | **Multi-Color Processing Fee:** | ${formatCurrency(costBreakdown.multiColorFee)}${batchInfo} |\n`;
   }
 
   md += `> | **Subtotal:** | **${formatCurrency(costBreakdown.subtotal)}** |

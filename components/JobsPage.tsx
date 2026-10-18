@@ -119,7 +119,20 @@ const QuoteDetailView: React.FC<{
             )}
             {Boolean(costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) && (
               <div className="sm:col-span-2">
-                <DetailItem label="🎨 Multi-Color Fee Included" value={formatCurrency(costBreakdown.multiColorFee || 0)} />
+                <DetailItem 
+                  label="🎨 Multi-Color Fee Included" 
+                  value={
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      <span>{formatCurrency(costBreakdown.multiColorFee || 0)}</span>
+                      {costBreakdown.multiColorBatchMode === 'single_batch_per_bed' && (
+                        <span className="text-xs text-purple-300 font-normal bg-purple-950/70 border border-purple-600/40 px-2 py-0.5 rounded-full">
+                          Single Bed Batch ({costBreakdown.multiColorBedCount || 1} {((costBreakdown.multiColorBedCount || 1) === 1) ? 'plate' : 'plates'})
+                          {costBreakdown.multiColorSavedFee ? ` • Saved ${formatCurrency(costBreakdown.multiColorSavedFee)}` : ''}
+                        </span>
+                      )}
+                    </span>
+                  } 
+                />
               </div>
             )}
           </div>

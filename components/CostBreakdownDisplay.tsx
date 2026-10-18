@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament } from '../types';
+import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament, MultiColorBatchMode } from '../types';
 import { QuoteStatus } from '../types';
 import SaveIcon from './icons/SaveIcon';
 import SaveQuoteModal from './SaveQuoteModal';
@@ -27,6 +27,10 @@ interface CostBreakdownDisplayProps {
   filaments?: Filament[];
   onUpdatePartUnitPrice?: (partId: string, unitPrice: number | null) => void;
   onResetAllPartUnitPrices?: () => void;
+  multiColorBatchMode?: MultiColorBatchMode;
+  onUpdateMultiColorBatchMode?: (mode: MultiColorBatchMode) => void;
+  multiColorBedCount?: number;
+  onUpdateMultiColorBedCount?: (count: number) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -54,6 +58,10 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
   filaments = [],
   onUpdatePartUnitPrice,
   onResetAllPartUnitPrices,
+  multiColorBatchMode,
+  onUpdateMultiColorBatchMode,
+  multiColorBedCount,
+  onUpdateMultiColorBedCount,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableQuotePrice, setEditableQuotePrice] = useState(quotePrice);
@@ -550,12 +558,63 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
           </div>
         )}
 
-        {Boolean(costBreakdown.multiColorFee && costBreakdown.multiColorFee > 0) && (
-          <div className="flex justify-between items-center text-purple-300 bg-purple-950/30 px-2.5 py-1 rounded-lg border border-purple-500/30 text-sm">
-            <span className="flex items-center gap-1.5 font-medium">
-              <span>🎨 Multi-Color Fee:</span>
-            </span>
-            <span className="font-mono font-semibold">{formatCurrency(costBreakdown.multiColorFee || 0)}</span>
+        {Boolean(costBreakdown.multiColorFee !== undefined && costBreakdown.multiColorFee > 0) && (
+          <div className="flex flex-col bg-purple-950/30 p-2.5 rounded-lg border border-purple-500/30 space-y-1.5 text-sm">
+            <div className="flex justify-between items-center text-purple-300">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span>🎨 Multi-Color Fee:</span>
+                {(costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed' ? (
+                  <span className="text-[10px] bg-purple-900/80 text-purple-200 border border-purple-400/40 px-2 py-0.5 rounded-full font-semibold">
+                    1 Bed Batch ({(costBreakdown.multiColorBedCount || multiColorBedCount || 1)} {((costBreakdown.multiColorBedCount || multiColorBedCount || 1) === 1) ? 'plate' : 'plates'})
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-600 px-2 py-0.5 rounded-full font-semibold">
+                    Per Copy
+                  </span>
+                )}
+              </span>
+              <span className="font-mono font-semibold">{formatCurrency(costBreakdown.multiColorFee || 0)}</span>
+            </div>
+
+            {(costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed' && Boolean(costBreakdown.multiColorSavedFee && costBreakdown.multiColorSavedFee > 0) && (
+              <div className="flex justify-between items-center text-[11px] text-emerald-300 bg-emerald-950/60 px-2 py-1 rounded border border-emerald-500/40 font-medium">
+                <span>🎉 Batching Discount (parts fit on 1 bed):</span>
+                <span className="font-mono font-bold">Saved {formatCurrency(costBreakdown.multiColorSavedFee)}</span>
+              </div>
+            )}
+
+            {/* Quick Toggle for batching mode directly from cost breakdown */}
+            {onUpdateMultiColorBatchMode && (
+              <div className="flex items-center justify-between pt-1 border-t border-purple-900/50 text-xs">
+                <span className="text-[11px] text-purple-300/80">Batching Mode:</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMultiColorBatchMode('single_batch_per_bed')}
+                    className={`px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                      (costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed'
+                        ? 'bg-purple-600 text-white font-semibold shadow-xs'
+                        : 'bg-purple-950 text-purple-300 hover:bg-purple-900/60'
+                    }`}
+                    title="Fit parts on 1 bed: only add multi-color fee once for the whole bed batch"
+                  >
+                    Fit on 1 Bed (1 Batch)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMultiColorBatchMode('per_copy')}
+                    className={`px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                      (costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'per_copy'
+                        ? 'bg-purple-600 text-white font-semibold shadow-xs'
+                        : 'bg-purple-950 text-purple-300 hover:bg-purple-900/60'
+                    }`}
+                    title="Charge fee on each individual part copy"
+                  >
+                    Per Copy
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

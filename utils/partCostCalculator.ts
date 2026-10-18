@@ -91,7 +91,12 @@ export function calculateJobPartRows(
     // 4. Multi-color fee
     let unitMultiColor = 0;
     if (part.colors && part.colors.length > 1) {
-      unitMultiColor = 3.0 * (part.colors.length - 1);
+      if (typeof quote.costBreakdown?.multiColorFee === 'number') {
+        const multiColorPartsCount = parts.filter(p => p.colors && p.colors.length > 1).length;
+        unitMultiColor = (quote.costBreakdown.multiColorFee / Math.max(1, multiColorPartsCount)) / qty;
+      } else {
+        unitMultiColor = 3.0 * (part.colors.length - 1);
+      }
     }
 
     const unitDirectCost =

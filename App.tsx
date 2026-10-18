@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { PrintParameters, CostBreakdown, Filament, Printer, GeneralSettings, Quote, QuoteStatus, AppData, Part, Order, OrderStatus, QuotePartConfig } from './types';
+import { PrintParameters, CostBreakdown, Filament, Printer, GeneralSettings, Quote, QuoteStatus, AppData, Part, Order, OrderStatus, QuotePartConfig, MultiColorBatchMode } from './types';
 import { calculatePrinterRates } from './utils/printerRates';
 import {
   generateAllJobsMarkdown,
@@ -334,6 +334,10 @@ function App() {
   });
   const [activePartId, setActivePartId] = useState<string>('part-1');
   const [revisingQuote, setRevisingQuote] = useState<Quote | null>(null);
+  const [multiColorBatchMode, setMultiColorBatchMode] = useState<MultiColorBatchMode>(
+    generalSettings.defaultMultiColorBatchMode || 'single_batch_per_bed'
+  );
+  const [multiColorBedCount, setMultiColorBedCount] = useState<number>(1);
 
   const activePart = useMemo(() => {
     return quoteParts.find(p => p.id === activePartId) || quoteParts[0] || {
@@ -419,9 +423,11 @@ function App() {
       printerId: activePart.printerId,
       postProcessingHours: activePart.postProcessingHours,
       hardwareCost: activePart.hardwareCost,
+      multiColorBatchMode,
+      multiColorBedCount,
       ...generalSettings,
     };
-  }, [activePart, generalSettings]);
+  }, [activePart, generalSettings, multiColorBatchMode, multiColorBedCount]);
 
   const setParameters = useCallback((value: React.SetStateAction<PrintParameters>) => {
     setQuoteParts(prev => {
@@ -434,9 +440,17 @@ function App() {
             printerId: p.printerId,
             postProcessingHours: p.postProcessingHours,
             hardwareCost: p.hardwareCost,
+            multiColorBatchMode,
+            multiColorBedCount,
             ...generalSettings,
           };
           const nextParams = typeof value === 'function' ? value(currentParams) : value;
+          if (nextParams.multiColorBatchMode !== undefined) {
+            setMultiColorBatchMode(nextParams.multiColorBatchMode);
+          }
+          if (nextParams.multiColorBedCount !== undefined) {
+            setMultiColorBedCount(nextParams.multiColorBedCount);
+          }
           return {
             ...p,
             filamentGrams: nextParams.filamentGrams,
@@ -450,10 +464,13 @@ function App() {
         return p;
       });
     });
-  }, [activePartId, generalSettings]);
+  }, [activePartId, generalSettings, multiColorBatchMode, multiColorBedCount]);
 
-  const partsBreakdowns = useMemo(() => {
-    return quoteParts.map(part => {
+  const { partsBreakdowns, totalMultiColorFee, multiColorSavedFee } = useMemo(() => {
+    const pricingMode = generalSettings.multiColorPricingMode || 'simple';
+    const beds = Math.max(1, multiColorBedCount || 1);
+
+    const initialParts = quoteParts.map(part => {
       const printer = printers.find(p => p.id === part.printerId) || null;
       const printerWatts = printer?.watts || 0;
       const printerRates = calculatePrinterRates(printer, generalSettings);
@@ -489,40 +506,37 @@ function App() {
         totalFilamentGrams = part.filamentGrams;
       }
 
-      // Multi-Color Extra Fee:
-      let multiColorFee = 0;
-      const pricingMode = generalSettings.multiColorPricingMode || 'simple';
-
+      // Unbatched multicolor fee for this part:
+      let unbatchedPartFee = 0;
       if (isMultiColor && pricingMode !== 'none') {
         if (pricingMode === 'simple') {
           const simpleType = generalSettings.simpleMultiColorType || 'per_additional_color';
           const feeRate = generalSettings.simpleMultiColorFee ?? 3.00;
           if (simpleType === 'flat_per_part') {
-            multiColorFee = feeRate * part.quantity;
+            unbatchedPartFee = feeRate * part.quantity;
           } else if (simpleType === 'percentage') {
-            multiColorFee = filamentCost * (feeRate / 100);
+            unbatchedPartFee = filamentCost * (feeRate / 100);
           } else {
             // per_additional_color
             const extraColors = Math.max(0, colorsCount - 1);
-            multiColorFee = extraColors * feeRate * part.quantity;
+            unbatchedPartFee = extraColors * feeRate * part.quantity;
           }
         } else if (pricingMode === 'complex') {
-          const spoolFee = colorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50);
+          const spoolFee = colorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50) * part.quantity;
           const purgeBuffer = filamentCost * ((generalSettings.complexPurgeWastePercent ?? 15) / 100);
           const swapFee = (part.colorChanges || 0) * (generalSettings.complexCostPerColorChange ?? 0.05) * part.quantity;
           const handlingFee = (generalSettings.complexHandlingFee ?? 4.00) * part.quantity;
-          multiColorFee = spoolFee + purgeBuffer + swapFee + handlingFee;
+          unbatchedPartFee = spoolFee + purgeBuffer + swapFee + handlingFee;
         }
       }
 
       const electricityCost = (part.printHours * (printerWatts / 1000)) * generalSettings.electricityCostKwh * part.quantity;
       const laborCost = part.postProcessingHours * generalSettings.laborCostPerHour * part.quantity;
       const hardwareCost = part.hardwareCost * part.quantity;
-      
-      const subtotal = filamentCost + electricityCost + laborCost + hardwareCost + multiColorFee + printerCost;
 
       return {
         partId: part.id,
+        partQuantity: part.quantity,
         filamentCost,
         electricityCost,
         laborCost,
@@ -532,14 +546,85 @@ function App() {
         printerMaintenanceCost,
         effectivePrinterRate,
         printerRates,
-        multiColorFee,
-        subtotal,
+        unbatchedPartFee,
         totalFilamentGrams,
         isMultiColor,
         colorsCount,
+        colorChanges: part.colorChanges || 0,
       };
     });
-  }, [quoteParts, filaments, printers, generalSettings]);
+
+    const multiColorParts = initialParts.filter(p => p.isMultiColor);
+    const hasMultiColor = multiColorParts.length > 0 && pricingMode !== 'none';
+
+    let totalUnbatchedFee = initialParts.reduce((sum, p) => sum + p.unbatchedPartFee, 0);
+    let totalBatchedFee = 0;
+
+    if (hasMultiColor) {
+      const totalMulticolorFilamentCost = multiColorParts.reduce((sum, p) => sum + p.filamentCost, 0);
+
+      // Unique spools across all multicolor parts on the bed:
+      const uniqueFilamentIds = new Set<string>();
+      quoteParts.forEach(qp => {
+        if (qp.colors && qp.colors.length > 1) {
+          qp.colors.forEach(c => {
+            if (c.filamentId) uniqueFilamentIds.add(c.filamentId);
+          });
+        }
+      });
+      const maxPartColors = Math.max(0, ...multiColorParts.map(p => p.colorsCount));
+      const bedColorsCount = Math.max(uniqueFilamentIds.size, maxPartColors);
+      const extraBedColors = Math.max(0, bedColorsCount - 1);
+
+      if (pricingMode === 'simple') {
+        const simpleType = generalSettings.simpleMultiColorType || 'per_additional_color';
+        const feeRate = generalSettings.simpleMultiColorFee ?? 3.00;
+        if (simpleType === 'flat_per_part') {
+          totalBatchedFee = feeRate * beds;
+        } else if (simpleType === 'percentage') {
+          totalBatchedFee = totalMulticolorFilamentCost * (feeRate / 100);
+        } else {
+          totalBatchedFee = extraBedColors * feeRate * beds;
+        }
+      } else if (pricingMode === 'complex') {
+        const spoolFee = bedColorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50) * beds;
+        const purgeBuffer = totalMulticolorFilamentCost * ((generalSettings.complexPurgeWastePercent ?? 15) / 100);
+        const maxSwaps = Math.max(0, ...multiColorParts.map(p => p.colorChanges));
+        const swapFee = maxSwaps * (generalSettings.complexCostPerColorChange ?? 0.05) * beds;
+        const handlingFee = (generalSettings.complexHandlingFee ?? 4.00) * beds;
+        totalBatchedFee = spoolFee + purgeBuffer + swapFee + handlingFee;
+      }
+    }
+
+    const isSingleBatch = multiColorBatchMode === 'single_batch_per_bed';
+    const finalMultiColorFee = hasMultiColor ? (isSingleBatch ? totalBatchedFee : totalUnbatchedFee) : 0;
+    const multiColorSavedFee = hasMultiColor && isSingleBatch ? Math.max(0, totalUnbatchedFee - totalBatchedFee) : 0;
+
+    // Distribute finalMultiColorFee proportionally across multicolor parts
+    const partsBreakdowns = initialParts.map(ip => {
+      let partMultiColorFee = 0;
+      if (ip.isMultiColor && hasMultiColor) {
+        if (totalUnbatchedFee > 0) {
+          partMultiColorFee = (ip.unbatchedPartFee / totalUnbatchedFee) * finalMultiColorFee;
+        } else {
+          partMultiColorFee = finalMultiColorFee / multiColorParts.length;
+        }
+      }
+      const subtotal = ip.filamentCost + ip.electricityCost + ip.laborCost + ip.hardwareCost + partMultiColorFee + ip.printerCost;
+
+      return {
+        ...ip,
+        multiColorFee: partMultiColorFee,
+        subtotal,
+      };
+    });
+
+    return {
+      partsBreakdowns,
+      totalMultiColorFee: finalMultiColorFee,
+      multiColorSavedFee,
+    };
+  }, [quoteParts, filaments, printers, generalSettings, multiColorBatchMode, multiColorBedCount]);
 
   const costBreakdown = useMemo<CostBreakdown & { quotePrice: number }>(() => {
     let filamentCost = 0;
@@ -549,7 +634,6 @@ function App() {
     let printerCost = 0;
     let printerDepreciationCost = 0;
     let printerMaintenanceCost = 0;
-    let multiColorFee = 0;
     let subtotal = 0;
 
     partsBreakdowns.forEach(pb => {
@@ -560,7 +644,6 @@ function App() {
       printerCost += (pb.printerCost || 0);
       printerDepreciationCost += (pb.printerDepreciationCost || 0);
       printerMaintenanceCost += (pb.printerMaintenanceCost || 0);
-      multiColorFee += pb.multiColorFee;
       subtotal += pb.subtotal;
     });
 
@@ -576,13 +659,16 @@ function App() {
       printerCost,
       printerDepreciationCost,
       printerMaintenanceCost,
-      multiColorFee,
+      multiColorFee: totalMultiColorFee,
+      multiColorBatchMode,
+      multiColorBedCount,
+      multiColorSavedFee,
       subtotal,
       costWithFailureRate,
       profit,
       quotePrice,
     };
-  }, [partsBreakdowns, generalSettings]);
+  }, [partsBreakdowns, totalMultiColorFee, multiColorBatchMode, multiColorBedCount, multiColorSavedFee, generalSettings]);
 
   const nextJobNumber = useMemo(() => {
     if (quotes.length === 0) {
@@ -631,10 +717,15 @@ function App() {
         quotePrice: finalQuotePrice,
         parameters: {
           ...params,
+          multiColorBatchMode,
+          multiColorBedCount,
           profitMargin: effectiveMargin,
         },
         costBreakdown: {
           ...breakdown,
+          multiColorBatchMode,
+          multiColorBedCount,
+          multiColorSavedFee,
           profit: effectiveProfit,
         },
         parts: quoteParts,
@@ -656,10 +747,15 @@ function App() {
         status: QuoteStatus.Pending,
         parameters: {
           ...params,
+          multiColorBatchMode,
+          multiColorBedCount,
           profitMargin: effectiveMargin,
         },
         costBreakdown: {
           ...breakdown,
+          multiColorBatchMode,
+          multiColorBedCount,
+          multiColorSavedFee,
           profit: effectiveProfit,
         },
         parts: quoteParts,
@@ -672,7 +768,9 @@ function App() {
       saveQuoteToRemote(user.uid, savedQuote).catch(console.error);
     }
     
-    // Reset quote parts
+    // Reset quote parts & multi-color batching
+    setMultiColorBatchMode(generalSettings.defaultMultiColorBatchMode || 'single_batch_per_bed');
+    setMultiColorBedCount(1);
     setQuoteParts([
       {
         id: 'part-1',
@@ -688,10 +786,21 @@ function App() {
     ]);
     setActivePartId('part-1');
     setView('jobs');
-  }, [quotes, revisingQuote, quoteParts, filaments, printers, setAppData]);
+  }, [quotes, revisingQuote, quoteParts, filaments, printers, setAppData, multiColorBatchMode, multiColorBedCount, multiColorSavedFee, generalSettings]);
 
   const handleReviseQuote = useCallback((quote: Quote) => {
     setRevisingQuote(quote);
+    if (quote.parameters?.multiColorBatchMode) {
+      setMultiColorBatchMode(quote.parameters.multiColorBatchMode);
+    } else if (quote.costBreakdown?.multiColorBatchMode) {
+      setMultiColorBatchMode(quote.costBreakdown.multiColorBatchMode);
+    }
+    if (quote.parameters?.multiColorBedCount) {
+      setMultiColorBedCount(quote.parameters.multiColorBedCount);
+    } else if (quote.costBreakdown?.multiColorBedCount) {
+      setMultiColorBedCount(quote.costBreakdown.multiColorBedCount);
+    }
+
     if (quote.parts && quote.parts.length > 0) {
       setQuoteParts(quote.parts);
       setActivePartId(quote.parts[0]?.id || 'part-1');
@@ -716,6 +825,17 @@ function App() {
 
   const handleUseQuoteAsTemplate = useCallback((quote: Quote) => {
     setRevisingQuote(null); // Not a revision: this is creating a fresh new quote from a template!
+    if (quote.parameters?.multiColorBatchMode) {
+      setMultiColorBatchMode(quote.parameters.multiColorBatchMode);
+    } else if (quote.costBreakdown?.multiColorBatchMode) {
+      setMultiColorBatchMode(quote.costBreakdown.multiColorBatchMode);
+    }
+    if (quote.parameters?.multiColorBedCount) {
+      setMultiColorBedCount(quote.parameters.multiColorBedCount);
+    } else if (quote.costBreakdown?.multiColorBedCount) {
+      setMultiColorBedCount(quote.costBreakdown.multiColorBedCount);
+    }
+
     if (quote.parts && quote.parts.length > 0) {
       setQuoteParts(quote.parts.map(p => ({
         ...p,
@@ -1132,6 +1252,12 @@ function App() {
                 activePartId={activePartId}
                 setActivePartId={setActivePartId}
                 generalSettings={generalSettings}
+                multiColorBatchMode={multiColorBatchMode}
+                setMultiColorBatchMode={setMultiColorBatchMode}
+                multiColorBedCount={multiColorBedCount}
+                setMultiColorBedCount={setMultiColorBedCount}
+                multiColorSavedFee={costBreakdown.multiColorSavedFee}
+                totalMultiColorFee={costBreakdown.multiColorFee}
               />
             </div>
             <div className="lg:col-span-3">
@@ -1149,6 +1275,10 @@ function App() {
                   filaments={filaments}
                   onUpdatePartUnitPrice={handleUpdatePartUnitPrice}
                   onResetAllPartUnitPrices={handleResetAllPartUnitPrices}
+                  multiColorBatchMode={multiColorBatchMode}
+                  onUpdateMultiColorBatchMode={setMultiColorBatchMode}
+                  multiColorBedCount={multiColorBedCount}
+                  onUpdateMultiColorBedCount={setMultiColorBedCount}
                 />
               </div>
             </div>

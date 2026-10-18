@@ -66,6 +66,7 @@ export interface Part {
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
 export type SimpleMultiColorType = 'flat_per_part' | 'per_additional_color' | 'percentage';
+export type MultiColorBatchMode = 'single_batch_per_bed' | 'per_copy';
 
 export interface GeneralSettings {
   electricityCostKwh: number;
@@ -88,6 +89,7 @@ export interface GeneralSettings {
   complexPurgeWastePercent?: number;
   complexCostPerColorChange?: number;
   complexHandlingFee?: number;
+  defaultMultiColorBatchMode?: MultiColorBatchMode; // Default bed batching mode
 }
 
 export interface PrintParameters {
@@ -103,6 +105,8 @@ export interface PrintParameters {
   hardwareCost: number;
   colors?: PartFilamentColor[];
   colorChanges?: number;
+  multiColorBatchMode?: MultiColorBatchMode; // 'single_batch_per_bed' | 'per_copy'
+  multiColorBedCount?: number;               // Number of beds/plates needed (default 1)
 }
 
 export interface CostBreakdown {
@@ -114,6 +118,9 @@ export interface CostBreakdown {
   printerDepreciationCost?: number;
   printerMaintenanceCost?: number;
   multiColorFee?: number;
+  multiColorBatchMode?: MultiColorBatchMode;
+  multiColorBedCount?: number;
+  multiColorSavedFee?: number; // Amount saved by batching on 1 bed
   subtotal: number;
   costWithFailureRate: number;
   profit: number;

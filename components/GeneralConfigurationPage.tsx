@@ -38,6 +38,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
     complexPurgeWastePercent: 15,
     complexCostPerColorChange: 0.05,
     complexHandlingFee: 4.00,
+    defaultMultiColorBatchMode: 'single_batch_per_bed',
     ...settings,
   }));
   const [showSuccess, setShowSuccess] = useState(false);
@@ -56,6 +57,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
       complexPurgeWastePercent: 15,
       complexCostPerColorChange: 0.05,
       complexHandlingFee: 4.00,
+      defaultMultiColorBatchMode: 'single_batch_per_bed',
       ...settings,
     }));
   }, [settings]);
@@ -522,6 +524,67 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
                 <p className="text-xs text-slate-400 bg-slate-800/60 p-3 rounded-lg border border-slate-700/60">
                   ⚙️ <strong>Complex Formula:</strong> Total Multi-Color Fee = <em>(Colors × Spool Setup) + (Material Cost × Purge %) + (Swaps × Cost/Swap) + Handling Fee</em>.
                 </p>
+              </div>
+            )}
+
+            {/* Default Bed Batching Option for Multi-Color */}
+            {multiColorMode !== 'none' && (
+              <div className="mt-5 pt-4 border-t border-slate-700/70">
+                <label className="block text-sm font-semibold text-slate-200 mb-1 flex items-center gap-2">
+                  <span>🖨️ Multi-Color Bed Batching Strategy</span>
+                  <span className="text-[11px] bg-cyan-950 text-cyan-300 border border-cyan-800/50 px-2 py-0.5 rounded-full font-normal">
+                    Recommended
+                  </span>
+                </label>
+                <p className="text-xs text-slate-400 mb-3">
+                  When a print job includes multiple parts or multiple copies, should the multi-color fee be added once for all parts that fit on the same bed, or billed separately per part copy?
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentSettings(prev => ({ ...prev, defaultMultiColorBatchMode: 'single_batch_per_bed' }))}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                      (currentSettings.defaultMultiColorBatchMode || 'single_batch_per_bed') === 'single_batch_per_bed'
+                        ? 'bg-cyan-950/40 border-cyan-500/80 shadow-md ring-1 ring-cyan-500/50'
+                        : 'bg-slate-900/40 border-slate-700 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                        <span>📦 Single Batch per Bed</span>
+                      </span>
+                      {(currentSettings.defaultMultiColorBatchMode || 'single_batch_per_bed') === 'single_batch_per_bed' && (
+                        <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-300 leading-relaxed">
+                      Only adds the multicolor fee <strong>once per bed run</strong> when parts fit on one build plate. Slices color changes together for the whole plate.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentSettings(prev => ({ ...prev, defaultMultiColorBatchMode: 'per_copy' }))}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                      currentSettings.defaultMultiColorBatchMode === 'per_copy'
+                        ? 'bg-cyan-950/40 border-cyan-500/80 shadow-md ring-1 ring-cyan-500/50'
+                        : 'bg-slate-900/40 border-slate-700 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                        <span>📑 Per Part / Copy</span>
+                      </span>
+                      {currentSettings.defaultMultiColorBatchMode === 'per_copy' && (
+                        <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-300 leading-relaxed">
+                      Multiplies the multicolor fee by each part or copy. Suitable if each item is printed in an independent print run on a clear bed.
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
