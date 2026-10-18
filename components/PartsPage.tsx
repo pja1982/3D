@@ -13,6 +13,7 @@ import {
   generateAllPartsMarkdown,
   downloadMarkdownFile,
 } from '../utils/markdownExport';
+import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
 interface PartsPageProps {
   parts: Part[];
@@ -31,6 +32,7 @@ const emptyPart: Omit<Part, 'id'> = {
   postProcessingHours: 0.25,
   hardwareCost: 0,
   imageUrl: '',
+  customUnitPrice: null,
 };
 
 const formatDuration = (hours: number) => {
@@ -66,12 +68,224 @@ const PartsPage: React.FC<PartsPageProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    const isNumeric = ['filamentGrams', 'hardwareCost'].includes(name);
+    if (name === 'customUnitPrice') {
+      const trimmed = value.trim();
+      const numVal = trimmed === '' ? null : parseFloat(trimmed);
+      setEditingPart(prev => ({
+        ...prev,
+        customUnitPrice: numVal === null || isNaN(numVal) ? null : Math.max(0, numVal),
+      }));
+    } else {
+      const isNumeric = ['filamentGrams', 'hardwareCost'].includes(name);
+      setEditingPart(prev => ({
+        ...prev,
+        [name]: isNumeric ? parseFloat(value) || 0 : value,
+      }));
+    }
+  };
+
+  // Multi-Color Handlers for Parts Catalog
+  const isPartMultiColor = Boolean(editingPart.colors && editingPart.colors.length > 1);
+  const partColors = editingPart.colors || [];
+
+  const findWhiteFilament = () => {
+    return filaments.find(f => 
+      f.colorName?.toLowerCase().includes('white') || 
+      f.colorHex?.toLowerCase() === '#ffffff' || 
+      f.colorHex?.toLowerCase() === '#f8fafc' ||
+      f.colorHex?.toLowerCase() === '#fff'
+    );
+  };
+
+  const handleEnableMultiColor = () => {
+    const totalG = editingPart.filamentGrams || 50;
+    const primaryGrams = Math.round(totalG * 0.7) || 35;
+    const secondaryGrams = Math.max(5, totalG - primaryGrams) || 15;
+    const primaryFilId = filaments[0]?.id || null;
+    const whiteFil = findWhiteFilament();
+    const secondaryFil = whiteFil || filaments.find(f => f.id !== primaryFilId) || filaments[0];
+
+    const initialColors = [
+      {
+        id: `color-${Date.now()}-1`,
+        filamentId: primaryFilId,
+        grams: primaryGrams,
+      },
+      {
+        id: `color-${Date.now()}-2`,
+        filamentId: secondaryFil ? secondaryFil.id : primaryFilId,
+        grams: secondaryGrams,
+      }
+    ];
+
     setEditingPart(prev => ({
       ...prev,
-      [name]: isNumeric ? parseFloat(value) || 0 : value,
+      colors: initialColors,
+      filamentGrams: primaryGrams + secondaryGrams,
     }));
   };
+
+  const handleSwitchToSingleColor = () => {
+    setEditingPart(prev => {
+      const total = prev.colors?.reduce((sum, c) => sum + (c.grams || 0), 0) || prev.filamentGrams || 50;
+      return {
+        ...prev,
+        colors: undefined,
+        filamentGrams: total,
+      };
+    });
+  };
+
+  const handleAddColor = () => {
+    setEditingPart(prev => {
+      const existing = prev.colors || [];
+      const usedIds = new Set(existing.map(c => c.filamentId));
+      const whiteFil = findWhiteFilament();
+      const nextFil = (whiteFil && !usedIds.has(whiteFil.id)) ? whiteFil : filaments.find(f => !usedIds.has(f.id)) || filaments[0];
+
+      const newColor = {
+        id: `color-${Date.now()}-${existing.length + 1}`,
+        filamentId: nextFil ? nextFil.id : (filaments[0]?.id || null),
+        grams: 20,
+      };
+      const updated = [...existing, newColor];
+      const total = updated.reduce((sum, c) => sum + (c.grams || 0), 0);
+      return {
+        ...prev,
+        colors: updated,
+        filamentGrams: total,
+      };
+    });
+  };
+
+  const handleRemoveColor = (colorId: string) => {
+    setEditingPart(prev => {
+      const updated = (prev.colors || []).filter(c => c.id !== colorId);
+      const total = updated.reduce((sum, c) => sum + (c.grams || 0), 0);
+      return {
+        ...prev,
+        colors: updated.length <= 1 ? undefined : updated,
+        filamentGrams: total,
+      };
+    });
+  };
+
+  const handleColorFilamentChange = (colorId: string, filamentId: string) => {
+    setEditingPart(prev => ({
+      ...prev,
+      colors: (prev.colors || []).map(c => c.id === colorId ? { ...c, filamentId } : c),
+    }));
+  };
+
+  const handleColorGramsChange = (colorId: string, grams: number) => {
+    setEditingPart(prev => {
+      const updated = (prev.colors || []).map(c => c.id === colorId ? { ...c, grams: Math.max(0, grams) } : c);
+      const total = updated.reduce((sum, c) => sum + (c.grams || 0), 0);
+      return {
+        ...prev,
+        colors: updated,
+        filamentGrams: total,
+      };
+    });
+  };
+
+  const handleAutoDistributeWeights = () => {
+    setEditingPart(prev => {
+      if (!prev.colors || prev.colors.length === 0) return prev;
+      const totalTarget = prev.filamentGrams || 100;
+      const count = prev.colors.length;
+      const base = Math.floor(totalTarget / count);
+      const remainder = totalTarget - (base * count);
+      const updated = prev.colors.map((c, i) => ({
+        ...c,
+        grams: base + (i === 0 ? remainder : 0),
+      }));
+      return { ...prev, colors: updated };
+    });
+  };
+
+  const handleFillUpWeights = () => {
+    setEditingPart(prev => {
+      if (!prev.colors || prev.colors.length === 0) return prev;
+      const totalTarget = prev.filamentGrams || 100;
+      const currentSum = prev.colors.reduce((sum, c) => sum + (c.grams || 0), 0);
+      const emptySlots = prev.colors.filter(c => !c.grams || c.grams <= 0);
+
+      if (emptySlots.length > 0 && totalTarget > currentSum) {
+        const remaining = totalTarget - currentSum;
+        const each = Math.max(5, Math.floor(remaining / emptySlots.length));
+        const remPart = remaining - (each * emptySlots.length);
+        let firstEmpty = true;
+        const updated = prev.colors.map(c => {
+          if (!c.grams || c.grams <= 0) {
+            const add = each + (firstEmpty ? remPart : 0);
+            firstEmpty = false;
+            return { ...c, grams: add };
+          }
+          return c;
+        });
+        const finalSum = updated.reduce((s, c) => s + (c.grams || 0), 0);
+        return { ...prev, colors: updated, filamentGrams: finalSum };
+      } else {
+        const base = Math.floor(totalTarget / prev.colors.length);
+        const rem = totalTarget - (base * prev.colors.length);
+        const updated = prev.colors.map((c, i) => ({
+          ...c,
+          grams: base + (i === 0 ? rem : 0),
+        }));
+        return { ...prev, colors: updated };
+      }
+    });
+  };
+
+  const handleFillWhiteAccent = () => {
+    const whiteFil = findWhiteFilament();
+    const whiteId = whiteFil ? whiteFil.id : (filaments[0]?.id || null);
+    setEditingPart(prev => {
+      const colors = prev.colors || [];
+      if (colors.length === 0) {
+        const total = prev.filamentGrams || 50;
+        const whiteGrams = Math.max(10, Math.round(total * 0.3));
+        const primaryGrams = Math.max(10, total - whiteGrams);
+        return {
+          ...prev,
+          colors: [
+            { id: `color-${Date.now()}-1`, filamentId: filaments[0]?.id || null, grams: primaryGrams },
+            { id: `color-${Date.now()}-2`, filamentId: whiteId, grams: whiteGrams },
+          ],
+          filamentGrams: primaryGrams + whiteGrams,
+        };
+      }
+      
+      const existingWhiteIdx = colors.findIndex(c => {
+        const fil = filaments.find(f => f.id === c.filamentId);
+        return fil?.colorName?.toLowerCase().includes('white') || fil?.colorHex?.toLowerCase() === '#ffffff' || fil?.colorHex?.toLowerCase() === '#f8fafc';
+      });
+
+      if (existingWhiteIdx >= 0) {
+        const updated = [...colors];
+        if (!updated[existingWhiteIdx].grams || updated[existingWhiteIdx].grams < 10) {
+          updated[existingWhiteIdx] = { ...updated[existingWhiteIdx], grams: 25 };
+        }
+        const total = updated.reduce((s, c) => s + (c.grams || 0), 0);
+        return { ...prev, colors: updated, filamentGrams: total };
+      } else {
+        const updated = [
+          ...colors,
+          { id: `color-${Date.now()}-${colors.length + 1}`, filamentId: whiteId, grams: 25 }
+        ];
+        const total = updated.reduce((s, c) => s + (c.grams || 0), 0);
+        return { ...prev, colors: updated, filamentGrams: total };
+      }
+    });
+  };
+
+  const totalPartMaterialCost = isPartMultiColor
+    ? partColors.reduce((sum, c) => {
+        const fil = filaments.find(f => f.id === c.filamentId);
+        return sum + ((c.grams || 0) / 1000) * (fil?.costPerKg || 0);
+      }, 0)
+    : ((editingPart.filamentGrams || 0) / 1000) * (filaments[0]?.costPerKg || 20);
 
   // Photo handlers
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,7 +404,10 @@ const PartsPage: React.FC<PartsPageProps> = ({
   };
   
   const handleEdit = (part: Part) => {
-    setEditingPart(part);
+    setEditingPart({
+      ...part,
+      colors: part.colors ? part.colors.map(c => ({ ...c })) : undefined,
+    });
     setIsEditing(true);
     setShowUrlInput(false);
   };
@@ -199,6 +416,7 @@ const PartsPage: React.FC<PartsPageProps> = ({
     setEditingPart({
       ...part,
       name: `${part.name} (Copy)`,
+      colors: part.colors ? part.colors.map(c => ({ ...c, id: `color-${Date.now()}-${Math.random()}` })) : undefined,
     });
     setIsEditing(false); // In add mode, pre-filled with this template!
     setShowUrlInput(false);
@@ -366,21 +584,195 @@ const PartsPage: React.FC<PartsPageProps> = ({
             )}
           </div>
 
-          <div>
-            <label htmlFor="filamentGrams" className="block text-sm font-medium text-slate-300 mb-1">
-              Filament Weight (grams)
-            </label>
-            <input
-              type="number"
-              id="filamentGrams"
-              name="filamentGrams"
-              value={editingPart.filamentGrams}
-              onChange={handleChange}
-              min="0"
-              step="0.1"
-              className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              required
-            />
+          {/* Filament Weight & Multi-Color Section */}
+          <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/80 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🧵</span>
+                <span className="text-sm font-semibold text-slate-200">
+                  {isPartMultiColor ? `Multi-Color Setup (${partColors.length} Colors)` : 'Filament & Weight'}
+                </span>
+                {isPartMultiColor ? (
+                  <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-600/50 px-2 py-0.5 rounded-full font-bold">
+                    Multi-Color Active
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
+                    Single Color
+                  </span>
+                )}
+              </div>
+
+              {!isPartMultiColor ? (
+                <button
+                  type="button"
+                  onClick={handleEnableMultiColor}
+                  className="text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 hover:text-white px-2.5 py-1 rounded-md border border-purple-500/40 transition font-medium flex items-center gap-1 shadow-xs"
+                  title="Enable multi-color print with individual filament weights"
+                >
+                  <span>🎨 + Multi-Color (AMS / MMU)</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSwitchToSingleColor}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2 py-1 rounded-md border border-slate-700 transition"
+                  title="Switch back to single filament color"
+                >
+                  Switch to Single
+                </button>
+              )}
+            </div>
+
+            {!isPartMultiColor ? (
+              <div>
+                <label htmlFor="filamentGrams" className="block text-xs font-medium text-slate-300 mb-1">
+                  Total Filament Weight (grams)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="filamentGrams"
+                    name="filamentGrams"
+                    value={editingPart.filamentGrams}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.1"
+                    className="w-full bg-slate-800 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
+                    required
+                  />
+                  <span className="absolute right-3 top-2 text-xs text-slate-400">grams</span>
+                </div>
+              </div>
+            ) : (
+              /* Multi-Color Slots */
+              <div className="space-y-2.5">
+                <div className="space-y-2">
+                  {partColors.map((colorItem, index) => {
+                    const fil = filaments.find(f => f.id === colorItem.filamentId);
+                    const itemCost = fil ? ((colorItem.grams || 0) / 1000) * fil.costPerKg : 0;
+
+                    return (
+                      <div
+                        key={colorItem.id}
+                        className="p-2.5 bg-slate-800/90 border border-slate-700 rounded-lg space-y-2 relative group hover:border-slate-600 transition"
+                      >
+                        <div className="flex justify-between items-center text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-3.5 h-3.5 rounded-full border border-slate-500 shadow-xs flex-shrink-0"
+                              style={getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
+                            />
+                            <span className="font-semibold text-slate-200">
+                              Color #{index + 1} {index === 0 ? '(Primary / Base)' : ''}
+                            </span>
+                            {fil?.colorName && (
+                              <span className="text-[11px] text-slate-400 truncate max-w-[120px]">
+                                ({fil.colorName})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-cyan-400 text-xs">
+                              ${itemCost.toFixed(2)}
+                            </span>
+                            {partColors.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveColor(colorItem.id)}
+                                className="p-1 text-slate-400 hover:text-red-400 rounded hover:bg-slate-700 transition"
+                                title="Remove this color slot"
+                              >
+                                <TrashIcon className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="sm:col-span-2">
+                            <select
+                              value={colorItem.filamentId || ''}
+                              onChange={(e) => handleColorFilamentChange(colorItem.id, e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-600 rounded-md py-1.5 px-2 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500 truncate"
+                            >
+                              {filaments.map(f => (
+                                <option key={f.id} value={f.id}>
+                                  {f.brand} - {f.type || f.name}{f.colorName ? ` (${f.colorName})` : ''} (${f.costPerKg.toFixed(2)}/kg)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={colorItem.grams}
+                              onChange={(e) => handleColorGramsChange(colorItem.id, parseFloat(e.target.value) || 0)}
+                              placeholder="Weight (g)"
+                              className="w-full bg-slate-900 border border-slate-600 rounded-md py-1.5 px-2 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500 text-right font-mono"
+                            />
+                            <span className="text-xs text-slate-400">g</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Multi-Color Action Buttons: Add, Distribute Weights, Fill Weights, Fill White */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleAddColor}
+                    className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium py-1 px-2.5 rounded-lg transition flex items-center gap-1 shadow-xs"
+                    title="Add another filament color slot"
+                  >
+                    <span>+ Add Color</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAutoDistributeWeights}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 py-1 px-2.5 rounded-lg border border-slate-700 transition"
+                    title="Evenly divide the total weight across all selected colors"
+                  >
+                    <span>⚖️ Distribute Weights</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleFillUpWeights}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 py-1 px-2.5 rounded-lg border border-slate-700 transition"
+                    title="Fill in missing or remaining weights to match total weight"
+                  >
+                    <span>⚡ Fill Weights</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleFillWhiteAccent}
+                    className="text-xs bg-slate-100 hover:bg-white text-slate-900 font-semibold py-1 px-2.5 rounded-lg transition shadow-xs flex items-center gap-1"
+                    title="Ensure a White filament slot is selected and filled with weight"
+                  >
+                    <span>⚪ Fill with White</span>
+                  </button>
+                </div>
+
+                {/* Total Summary Footer */}
+                <div className="flex justify-between items-center text-xs bg-slate-950/80 p-2 rounded-lg border border-slate-800 text-slate-300">
+                  <span>
+                    Total Part Weight: <strong className="text-white font-mono">{editingPart.filamentGrams}g</strong>
+                  </span>
+                  <span>
+                    Est. Material Cost: <strong className="text-cyan-400 font-mono">${totalPartMaterialCost.toFixed(2)}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Print Time: Hours and Minutes */}
@@ -473,6 +865,41 @@ const PartsPage: React.FC<PartsPageProps> = ({
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="customUnitPrice" className="block text-sm font-medium text-slate-300">
+                Default Selling Unit Price ($/unit, optional)
+              </label>
+              {typeof editingPart.customUnitPrice === 'number' && (
+                <button
+                  type="button"
+                  onClick={() => setEditingPart(prev => ({ ...prev, customUnitPrice: null }))}
+                  className="text-xs text-cyan-400 hover:text-cyan-200 underline"
+                  title="Clear custom unit price and use automatic calculation"
+                >
+                  ↺ Reset to Auto
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-slate-400">$</span>
+              <input
+                type="number"
+                id="customUnitPrice"
+                name="customUnitPrice"
+                value={editingPart.customUnitPrice !== undefined && editingPart.customUnitPrice !== null ? editingPart.customUnitPrice : ''}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                placeholder="Leave blank for auto cost + markup"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 pl-7 pr-3 text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Optional fixed selling price per unit. Leave blank to calculate automatically from printer, filament, and labor costs.
+            </p>
           </div>
 
           {isEditing ? (
@@ -624,7 +1051,43 @@ const PartsPage: React.FC<PartsPageProps> = ({
                             🔩 ${part.hardwareCost.toFixed(2)} h/w
                           </span>
                         )}
+                        {typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 && (
+                          <span className="bg-amber-950/70 border border-amber-600/50 px-2 py-0.5 rounded text-amber-300 font-mono font-semibold">
+                            🏷️ ${part.customUnitPrice.toFixed(2)}/unit (custom)
+                          </span>
+                        )}
+                        {part.colors && part.colors.length > 1 && (
+                          <span className="bg-purple-950/80 border border-purple-600/50 px-2 py-0.5 rounded text-purple-300 font-semibold flex items-center gap-1">
+                            🎨 {part.colors.length} Colors
+                          </span>
+                        )}
                       </div>
+
+                      {/* Expanded Multi-Color swatch list */}
+                      {part.colors && part.colors.length > 1 && (
+                        <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-1 border-t border-slate-700/50">
+                          {part.colors.map((c, ci) => {
+                            const fil = filaments.find(f => f.id === c.filamentId);
+                            return (
+                              <span
+                                key={c.id || ci}
+                                className="inline-flex items-center gap-1 text-[11px] bg-slate-900/90 border border-slate-700 px-2 py-0.5 rounded text-slate-300"
+                              >
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full border border-slate-600 flex-shrink-0"
+                                  style={getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
+                                />
+                                <span className="font-medium text-slate-200 truncate max-w-[120px]">
+                                  {fil?.colorName || fil?.brand || 'Color'}
+                                </span>
+                                <span className="text-cyan-300 font-mono font-semibold">
+                                  {c.grams}g
+                                </span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 

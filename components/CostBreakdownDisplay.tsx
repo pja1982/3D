@@ -25,6 +25,8 @@ interface CostBreakdownDisplayProps {
   quoteParts?: QuotePartConfig[];
   printers?: Printer[];
   filaments?: Filament[];
+  onUpdatePartUnitPrice?: (partId: string, unitPrice: number | null) => void;
+  onResetAllPartUnitPrices?: () => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -50,6 +52,8 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
   quoteParts,
   printers = [],
   filaments = [],
+  onUpdatePartUnitPrice,
+  onResetAllPartUnitPrices,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableQuotePrice, setEditableQuotePrice] = useState(quotePrice);
@@ -59,16 +63,6 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
   const totalPrintHours = quoteParts 
     ? quoteParts.reduce((sum, p) => sum + (p.printHours * p.quantity), 0)
     : parameters.printHours;
-
-  useEffect(() => {
-    setEditableQuotePrice(quotePrice);
-  }, [quotePrice]);
-
-  const costWithFailure = costBreakdown.costWithFailureRate;
-  const currentProfit = editableQuotePrice - costWithFailure;
-  const currentProfitMargin = costWithFailure > 0 
-    ? ((currentProfit / costWithFailure) * 100) 
-    : 0;
 
   // Construct a live quote object to compute each part's exact proportional price and cost
   const liveQuote: Quote = useMemo(() => ({
@@ -88,6 +82,25 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
     return calculateJobPartRows(liveQuote, filaments, printers);
   }, [liveQuote, filaments, printers]);
 
+  // Keep overall quote price synced when parts change or quotePrice prop changes
+  const customPartsCount = useMemo(() => {
+    return (quoteParts || []).filter(p => typeof p.customUnitPrice === 'number' && p.customUnitPrice >= 0).length;
+  }, [quoteParts]);
+
+  useEffect(() => {
+    if (customPartsCount > 0) {
+      setEditableQuotePrice(parseFloat(partsSummary.grandTotalPrice.toFixed(2)));
+    } else {
+      setEditableQuotePrice(quotePrice);
+    }
+  }, [quotePrice, partsSummary.grandTotalPrice, customPartsCount]);
+
+  const costWithFailure = costBreakdown.costWithFailureRate;
+  const currentProfit = editableQuotePrice - costWithFailure;
+  const currentProfitMargin = costWithFailure > 0 
+    ? ((currentProfit / costWithFailure) * 100) 
+    : 0;
+
   const handleSave = (jobName: string, customerName: string, jobNumber: number, isCreateNew?: boolean) => {
     const updatedBreakdown: CostBreakdown = {
       ...costBreakdown,
@@ -103,6 +116,16 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEditableQuotePrice(parseFloat(e.target.value) || 0);
+  };
+
+  const handleUnitCostChange = (partId: string, valueStr: string) => {
+    if (!onUpdatePartUnitPrice) return;
+    if (valueStr.trim() === '') {
+      onUpdatePartUnitPrice(partId, null);
+    } else {
+      const val = parseFloat(valueStr);
+      onUpdatePartUnitPrice(partId, isNaN(val) ? null : Math.max(0, val));
+    }
   };
 
   return (
@@ -168,24 +191,43 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
         </div>
       </div>
 
-      {/* FEATURED: Each Part Added with Its Exact Quoted Price & Unit Price */}
+      {/* FEATURED: Each Part Added with Its Exact Quoted Price & Unit Price Adjustment */}
       <div className="bg-slate-900/70 p-4 rounded-xl border border-slate-700/80 space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-2.5 gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-lg">🏷️</span>
             <h3 className="font-bold text-white text-base">Each Part & Price</h3>
-            <span className="text-xs bg-cyan-950 text-cyan-300 border border-cyan-700/50 px-2 py-0.5 rounded-full font-semibold">
-              Itemized Quote
+            {customPartsCount > 0 ? (
+              <span className="text-xs bg-amber-950/80 text-amber-300 border border-amber-600/50 px-2 py-0.5 rounded-full font-semibold">
+                {customPartsCount} with custom unit price
+              </span>
+            ) : (
+              <span className="text-xs bg-cyan-950 text-cyan-300 border border-cyan-700/50 px-2 py-0.5 rounded-full font-semibold">
+                Auto Markup Applied
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {customPartsCount > 0 && onResetAllPartUnitPrices && (
+              <button
+                type="button"
+                onClick={onResetAllPartUnitPrices}
+                className="text-xs text-amber-300 hover:text-amber-100 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-700/50 px-2.5 py-1 rounded-lg transition"
+                title="Reset all parts back to automatic markup formula"
+              >
+                ↺ Reset All to Auto Price
+              </button>
+            )}
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              Adjust any unit price below
             </span>
           </div>
-          <span className="text-xs text-slate-400">
-            Prices scale automatically with your quoted price
-          </span>
         </div>
 
         {partsViewMode === 'cards' ? (
           /* Cards View */
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {partsSummary.rows.map((row, idx) => {
               const part = row.part;
               const assignedFilament = filaments.find(f => f.id === part.filamentId);
@@ -194,23 +236,29 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
               const partProfitMargin = row.lineTotalCost > 0 ? (partProfit / row.lineTotalCost) * 100 : 0;
               const isExpanded = expandedPartDetailsId === (part.id || `part-${idx}`);
               const quoteShare = editableQuotePrice > 0 ? ((row.lineTotalPrice / editableQuotePrice) * 100).toFixed(0) : 0;
+              const hasCustomPrice = typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0;
+              const isBelowCost = row.perUnitPrice < row.perUnitCost;
 
               return (
                 <div
                   key={part.id || idx}
-                  className="bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700/80 p-3.5 transition shadow-sm space-y-2"
+                  className={`rounded-xl border p-3.5 transition shadow-sm space-y-2.5 ${
+                    hasCustomPrice
+                      ? 'bg-slate-800/90 border-amber-500/40 ring-1 ring-amber-500/20'
+                      : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80'
+                  }`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     {/* Part info */}
                     <div className="flex items-start gap-3 min-w-0">
                       {part.imageUrl ? (
                         <img
                           src={part.imageUrl}
                           alt={part.name}
-                          className="w-11 h-11 rounded-lg object-cover border border-slate-600 flex-shrink-0 shadow-sm"
+                          className="w-12 h-12 rounded-lg object-cover border border-slate-600 flex-shrink-0 shadow-sm"
                         />
                       ) : (
-                        <div className="w-11 h-11 rounded-lg bg-slate-900/90 border border-slate-700 flex items-center justify-center flex-shrink-0 text-cyan-400 font-bold text-sm">
+                        <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center flex-shrink-0 text-cyan-400 font-bold text-sm">
                           #{idx + 1}
                         </div>
                       )}
@@ -222,7 +270,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
                             {row.qty} {row.qty === 1 ? 'unit' : 'units'}
                           </span>
                           <span className="text-[11px] text-slate-400 bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-800">
-                            {quoteShare}% of quote
+                            {quoteShare}% of job
                           </span>
                         </div>
 
@@ -251,37 +299,80 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
                       </div>
                     </div>
 
-                    {/* Prominent Part Price Box */}
-                    <div className="flex items-center justify-between sm:justify-end gap-3 bg-slate-950/70 sm:bg-transparent p-2.5 sm:p-0 rounded-lg border border-slate-800 sm:border-0">
-                      <div className="text-left sm:text-right">
-                        <span className="text-[11px] text-slate-400 block uppercase tracking-wider font-semibold">
-                          Unit Price
-                        </span>
-                        <span className="text-base font-bold text-cyan-300 font-mono block">
-                          {formatCurrency(row.perUnitPrice)}
-                          <span className="text-[11px] text-slate-400 font-normal"> / ea</span>
-                        </span>
-                        <span className="text-[11px] text-slate-500 block font-mono">
-                          cost: {formatCurrency(row.perUnitCost)}/ea
-                        </span>
+                    {/* Adjustable Part Unit Price & Line Total Box */}
+                    <div className="flex items-center justify-between md:justify-end gap-3 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
+                      {/* Unit Price Adjustment Input */}
+                      <div className="text-left">
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block">
+                            Unit Price ($/ea)
+                          </label>
+                          {hasCustomPrice && onUpdatePartUnitPrice && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdatePartUnitPrice(part.id, null)}
+                              className="text-[10px] text-cyan-400 hover:text-cyan-200 underline"
+                              title="Reset to auto formula markup"
+                            >
+                              ↺ Auto
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-slate-400 font-mono text-xs">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={hasCustomPrice ? part.customUnitPrice! : parseFloat(row.perUnitPrice.toFixed(2))}
+                            onChange={(e) => handleUnitCostChange(part.id, e.target.value)}
+                            className={`w-28 bg-slate-900 border rounded-lg py-1 pl-6 pr-2 font-mono font-bold text-sm focus:outline-none transition ${
+                              hasCustomPrice
+                                ? 'border-amber-500/80 text-amber-300 focus:ring-1 focus:ring-amber-400'
+                                : 'border-slate-700 text-cyan-300 hover:border-slate-600 focus:ring-1 focus:ring-cyan-500'
+                            }`}
+                            title="Directly type a custom unit price for this part"
+                          />
+                        </div>
+
+                        {/* Status feedback & Cost warning */}
+                        <div className="mt-1">
+                          {isBelowCost ? (
+                            <span className="text-[10px] text-rose-400 font-medium block">
+                              ⚠️ Below cost ({formatCurrency(row.perUnitCost)})
+                            </span>
+                          ) : hasCustomPrice ? (
+                            <span className="text-[10px] text-amber-400/90 font-medium block">
+                              ✨ Custom (Auto: {formatCurrency(row.suggestedUnitPrice || row.perUnitCost * 1.3)})
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 block">
+                              Cost: {formatCurrency(row.perUnitCost)}/ea
+                            </span>
+                          )}
+                        </div>
                       </div>
 
+                      {/* Line Total Price */}
                       <div className="text-right border-l border-slate-800 pl-3">
-                        <span className="text-[11px] text-slate-400 block uppercase tracking-wider font-semibold">
-                          Total Price
+                        <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold mb-1">
+                          Part Total ({row.qty}x)
                         </span>
-                        <span className="text-lg font-extrabold text-white font-mono block bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+                        <span className="text-xl font-extrabold text-white font-mono block bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text text-transparent">
                           {formatCurrency(row.lineTotalPrice)}
                         </span>
-                        <span className="text-[11px] text-emerald-400 block font-mono">
-                          +{formatCurrency(partProfit)} ({partProfitMargin.toFixed(0)}%)
+                        <span className={`text-[10px] font-mono block mt-1 ${
+                          partProfit >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'
+                        }`}>
+                          {partProfit >= 0 ? '+' : ''}{formatCurrency(partProfit)} ({partProfitMargin.toFixed(0)}%)
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Toggle Cost Breakdown for this Part */}
-                  <div className="pt-1 flex justify-between items-center text-xs">
+                  <div className="pt-1 flex justify-between items-center text-xs border-t border-slate-700/50">
                     <button
                       type="button"
                       onClick={() => setExpandedPartDetailsId(isExpanded ? null : (part.id || `part-${idx}`))}
@@ -289,7 +380,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
                     >
                       <span>{isExpanded ? '▲ Hide cost breakdown' : '▼ View cost breakdown for this part'}</span>
                     </button>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-slate-400 font-mono">
                       Batch cost: {formatCurrency(row.lineTotalCost)}
                     </span>
                   </div>
@@ -320,7 +411,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
             })}
           </div>
         ) : (
-          /* Table View */
+          /* Table View with Inline Unit Price Editing */
           <div className="overflow-x-auto rounded-lg border border-slate-800">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/90 text-slate-300 uppercase tracking-wider border-b border-slate-700">
@@ -328,43 +419,86 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
                   <th className="py-2.5 px-3">Part Name</th>
                   <th className="py-2.5 px-2 text-center">Qty</th>
                   <th className="py-2.5 px-2 text-right">Unit Cost</th>
-                  <th className="py-2.5 px-2 text-right">Unit Price</th>
-                  <th className="py-2.5 px-2 text-right">Total Cost</th>
-                  <th className="py-2.5 px-3 text-right">Total Price</th>
+                  <th className="py-2.5 px-3 text-right bg-cyan-950/20 text-cyan-300 font-bold">
+                    Adjust Unit Price ($)
+                  </th>
+                  <th className="py-2.5 px-2 text-right">Line Cost</th>
+                  <th className="py-2.5 px-3 text-right text-white font-bold bg-cyan-950/30">
+                    Line Price
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 bg-slate-950/50">
-                {partsSummary.rows.map((row, idx) => (
-                  <tr key={row.part.id || idx} className="hover:bg-slate-800/40 transition">
-                    <td className="py-2 px-3 font-semibold text-slate-100 truncate max-w-[150px]">
-                      {row.part.name}
-                    </td>
-                    <td className="py-2 px-2 text-center font-mono font-bold text-cyan-300">
-                      {row.qty}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono text-slate-400">
-                      {formatCurrency(row.perUnitCost)}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-cyan-300">
-                      {formatCurrency(row.perUnitPrice)}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono text-slate-400">
-                      {formatCurrency(row.lineTotalCost)}
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-white">
-                      {formatCurrency(row.lineTotalPrice)}
-                    </td>
-                  </tr>
-                ))}
+                {partsSummary.rows.map((row, idx) => {
+                  const part = row.part;
+                  const hasCustomPrice = typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0;
+
+                  return (
+                    <tr key={part.id || idx} className="hover:bg-slate-800/40 transition">
+                      <td className="py-2.5 px-3 font-semibold text-slate-100 truncate max-w-[150px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate">{part.name}</span>
+                          {hasCustomPrice && (
+                            <span className="text-[9px] bg-amber-950 text-amber-300 border border-amber-600/40 px-1 py-0.2 rounded font-mono">
+                              custom
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2 text-center font-mono font-bold text-cyan-300">
+                        {row.qty}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-400">
+                        {formatCurrency(row.perUnitCost)}
+                      </td>
+                      <td className="py-2 px-3 text-right bg-cyan-950/10">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="text-slate-400 font-mono text-xs">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={hasCustomPrice ? part.customUnitPrice! : parseFloat(row.perUnitPrice.toFixed(2))}
+                            onChange={(e) => handleUnitCostChange(part.id, e.target.value)}
+                            className={`w-20 bg-slate-900 border rounded py-1 px-1.5 font-mono text-right text-xs font-bold focus:outline-none ${
+                              hasCustomPrice
+                                ? 'border-amber-500 text-amber-300'
+                                : 'border-slate-700 text-cyan-300 focus:border-cyan-400'
+                            }`}
+                            title="Adjust unit price for this part"
+                          />
+                          {hasCustomPrice && onUpdatePartUnitPrice && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdatePartUnitPrice(part.id, null)}
+                              className="text-slate-400 hover:text-white text-xs"
+                              title="Reset to auto formula markup"
+                            >
+                              ↺
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-400">
+                        {formatCurrency(row.lineTotalCost)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-white bg-cyan-950/20">
+                        {formatCurrency(row.lineTotalPrice)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot className="bg-slate-800/90 font-bold border-t border-slate-700 text-slate-200">
                 <tr>
-                  <td className="py-2 px-3 uppercase text-slate-400">Total ({partsSummary.rows.length} parts)</td>
-                  <td className="py-2 px-2 text-center text-cyan-300 font-mono">{partsSummary.totalQuantity}</td>
-                  <td className="py-2 px-2 text-right text-slate-400 font-mono">-</td>
-                  <td className="py-2 px-2 text-right text-slate-400 font-mono">-</td>
-                  <td className="py-2 px-2 text-right text-slate-300 font-mono">{formatCurrency(costBreakdown.costWithFailureRate)}</td>
-                  <td className="py-2 px-3 text-right text-cyan-400 font-mono text-sm">{formatCurrency(editableQuotePrice)}</td>
+                  <td className="py-2.5 px-3 uppercase text-slate-400">Total ({partsSummary.rows.length} parts)</td>
+                  <td className="py-2.5 px-2 text-center text-cyan-300 font-mono">{partsSummary.totalQuantity}</td>
+                  <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                  <td className="py-2.5 px-3 text-right text-cyan-300 font-mono text-xs font-normal">
+                    Avg: {formatCurrency(partsSummary.totalQuantity > 0 ? partsSummary.grandTotalPrice / partsSummary.totalQuantity : 0)}/ea
+                  </td>
+                  <td className="py-2.5 px-2 text-right text-slate-300 font-mono">{formatCurrency(costBreakdown.costWithFailureRate)}</td>
+                  <td className="py-2.5 px-3 text-right text-cyan-400 font-mono text-sm">{formatCurrency(partsSummary.grandTotalPrice)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -447,7 +581,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
           <div>
             <span className="text-xs uppercase tracking-wider text-cyan-100 font-semibold block">
-              Suggested Quoted Price ({partsSummary.totalQuantity} total units)
+              Suggested Formula Price ({partsSummary.totalQuantity} total units)
             </span>
             <span className="text-3xl font-extrabold font-mono tracking-tight text-white">
               {formatCurrency(quotePrice)}
@@ -471,11 +605,19 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
           <div className="flex justify-between items-center mb-1.5">
             <label htmlFor="quotedPrice" className="text-sm font-bold text-white flex items-center gap-1.5">
               <span>Final Quoted Price:</span>
+              {customPartsCount > 0 && (
+                <span className="text-[11px] bg-white/20 px-2 py-0.2 rounded font-normal">
+                  (Sum of adjusted parts)
+                </span>
+              )}
             </label>
             {editableQuotePrice !== quotePrice && (
               <button
                 type="button"
-                onClick={() => setEditableQuotePrice(quotePrice)}
+                onClick={() => {
+                  setEditableQuotePrice(quotePrice);
+                  if (onResetAllPartUnitPrices) onResetAllPartUnitPrices();
+                }}
                 className="text-xs text-cyan-200 hover:text-white underline"
               >
                 Reset to Suggested ({formatCurrency(quotePrice)})

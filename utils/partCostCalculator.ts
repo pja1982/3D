@@ -18,6 +18,9 @@ export interface ComputedPartRow {
   lineTotalCost: number;
   perUnitPrice: number;
   lineTotalPrice: number;
+  suggestedUnitPrice?: number;
+  suggestedTotalPrice?: number;
+  isCustomPrice?: boolean;
 }
 
 export interface ComputedJobPartsSummary {
@@ -137,7 +140,17 @@ export function calculateJobPartRows(
     }
 
     const perUnitCost = lineTotalCost / item.qty;
-    const perUnitPrice = lineTotalPrice / item.qty;
+    const suggestedUnitPrice = lineTotalPrice / item.qty;
+    const suggestedTotalPrice = lineTotalPrice;
+
+    let perUnitPrice = suggestedUnitPrice;
+    let isCustomPrice = false;
+
+    if (typeof item.part.customUnitPrice === 'number' && item.part.customUnitPrice >= 0) {
+      perUnitPrice = item.part.customUnitPrice;
+      lineTotalPrice = perUnitPrice * item.qty;
+      isCustomPrice = true;
+    }
 
     return {
       ...item,
@@ -145,6 +158,9 @@ export function calculateJobPartRows(
       lineTotalCost,
       perUnitPrice,
       lineTotalPrice,
+      suggestedUnitPrice,
+      suggestedTotalPrice,
+      isCustomPrice,
     };
   });
 

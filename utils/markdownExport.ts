@@ -99,6 +99,24 @@ ${part.description}
 `;
   }
 
+  if (part.colors && part.colors.length > 1) {
+    const totalG = part.filamentGrams || part.colors.reduce((s, c) => s + (c.grams || 0), 0) || 1;
+    md += `
+---
+
+## 🎨 Multi-Color Filament Setup (${part.colors.length} Colors)
+| Color # | Filament Spool | Hex / Swatch | Weight (g) | Share (%) |
+| :---: | :--- | :---: | :---: | :---: |
+`;
+    part.colors.forEach((c, idx) => {
+      const fil = filaments.find(f => f.id === c.filamentId);
+      const filName = fil ? `${fil.brand} - ${fil.type || fil.name}${fil.colorName ? ` (${fil.colorName})` : ''}` : `Color #${idx + 1}`;
+      const hex = fil?.rgb || fil?.colorHex || '#94a3b8';
+      const share = ((c.grams / totalG) * 100).toFixed(1);
+      md += `| Color #${idx + 1} | ${filName} | \`${hex}\` | **${c.grams}g** | ${share}% |\n`;
+    });
+  }
+
   if (part.imageUrl) {
     md += `
 ---

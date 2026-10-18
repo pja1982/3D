@@ -61,6 +61,7 @@ export interface Part {
   hardwareCost: number;
   colors?: PartFilamentColor[];
   imageUrl?: string; // Photo of the part / prototype
+  customUnitPrice?: number | null; // Optional default selling unit price ($)
 }
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
@@ -132,6 +133,7 @@ export interface QuotePartConfig {
   colors?: PartFilamentColor[];
   colorChanges?: number;
   imageUrl?: string; // Photo of this part
+  customUnitPrice?: number | null; // User-adjusted manual unit price ($)
 }
 
 export enum QuoteStatus {

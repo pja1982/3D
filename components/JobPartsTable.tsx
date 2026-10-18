@@ -11,6 +11,7 @@ interface JobPartsTableProps {
   onOpenPhotoModal?: (imageUrl: string, title: string) => void;
   title?: string;
   showPricingDetails?: boolean;
+  onUpdatePartUnitPrice?: (partId: string, unitPrice: number | null) => void;
 }
 
 const formatCurrency = (val: number) =>
@@ -31,6 +32,7 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
   onOpenPhotoModal,
   title = 'Job Parts Breakdown',
   showPricingDetails = true,
+  onUpdatePartUnitPrice,
 }) => {
   const [internalPreview, setInternalPreview] = useState<{ url: string; title: string } | null>(null);
   const [tableMode, setTableMode] = useState<'both' | 'price-only'>('both');
@@ -119,7 +121,7 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/60 bg-slate-900/60">
-            {computedRows.map(({ part, qty, qtyRequired, printer, perUnitCost, lineTotalCost, perUnitPrice, lineTotalPrice }, idx) => {
+            {computedRows.map(({ part, qty, qtyRequired, printer, perUnitCost, lineTotalCost, perUnitPrice, lineTotalPrice, isCustomPrice }, idx) => {
               const filament = filaments.find((f) => f.id === part.filamentId);
               const isMultiColor = Boolean(part.colors && part.colors.length > 1);
               const partProfit = lineTotalPrice - lineTotalCost;
@@ -241,12 +243,58 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
 
                   {/* Per Unit Price */}
                   <td className="py-3 px-3 align-middle text-right whitespace-nowrap font-mono bg-cyan-950/10">
-                    <span className="text-sm font-bold text-cyan-300 block">
-                      {formatCurrency(perUnitPrice)}
-                    </span>
-                    <span className="text-[10px] text-slate-500 block font-sans">
-                      / unit
-                    </span>
+                    {onUpdatePartUnitPrice ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-slate-400 font-mono text-xs">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : parseFloat(perUnitPrice.toFixed(2))}
+                          onChange={(e) => {
+                            const valStr = e.target.value.trim();
+                            if (valStr === '') {
+                              onUpdatePartUnitPrice(part.id, null);
+                            } else {
+                              const parsed = parseFloat(valStr);
+                              onUpdatePartUnitPrice(part.id, isNaN(parsed) ? null : Math.max(0, parsed));
+                            }
+                          }}
+                          className={`w-20 bg-slate-900 border rounded py-1 px-1.5 font-mono text-right text-xs font-bold focus:outline-none ${
+                            isCustomPrice
+                              ? 'border-amber-500 text-amber-300'
+                              : 'border-slate-700 text-cyan-300 focus:border-cyan-400'
+                          }`}
+                          title="Adjust unit price for this part"
+                        />
+                        {isCustomPrice && (
+                          <button
+                            type="button"
+                            onClick={() => onUpdatePartUnitPrice(part.id, null)}
+                            className="text-slate-400 hover:text-white text-xs px-1"
+                            title="Reset to auto formula markup"
+                          >
+                            ↺
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className={`text-sm font-bold block ${isCustomPrice ? 'text-amber-300' : 'text-cyan-300'}`}>
+                            {formatCurrency(perUnitPrice)}
+                          </span>
+                          {isCustomPrice && (
+                            <span className="text-[9px] bg-amber-950/80 text-amber-300 border border-amber-600/40 px-1 py-0.2 rounded font-sans font-bold">
+                              custom
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 block font-sans">
+                          / unit
+                        </span>
+                      </>
+                    )}
                   </td>
 
                   {/* Total Cost */}

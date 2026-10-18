@@ -53,6 +53,7 @@ import OrdersPage from './components/OrdersPage';
 type View = 'calculator' | 'jobs' | 'orders' | 'parts' | 'filaments' | 'printers' | 'settings';
 
 const DEFAULT_FILAMENTS: Filament[] = [
+  { id: 'pla-white-default', type: 'PLA', brand: 'Generic', colorName: 'Jade White', colorHex: '#ffffff', costPerKg: 20 },
   { id: 'pla-default', type: 'PLA', brand: 'Generic', colorName: 'Royal Blue', colorHex: '#3b82f6', costPerKg: 20 },
   { id: 'petg-default', type: 'PETG', brand: 'Generic', colorName: 'Emerald Green', colorHex: '#10b981', costPerKg: 25 },
   { id: 'abs-default', type: 'ABS', brand: 'Generic', colorName: 'Amber Gold', colorHex: '#f59e0b', costPerKg: 22 },
@@ -829,12 +830,32 @@ function App() {
                       hardwareCost: part.hardwareCost,
                       colors: part.colors ? [...part.colors] : undefined,
                       imageUrl: part.imageUrl,
+                      customUnitPrice: typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : undefined,
                   };
               }
               return p;
           }));
       }
   }, [activePartId]);
+
+  const handleUpdatePartUnitPrice = useCallback((partId: string, unitPrice: number | null) => {
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === partId) {
+        return {
+          ...p,
+          customUnitPrice: unitPrice !== null && !isNaN(unitPrice) && unitPrice >= 0 ? unitPrice : undefined,
+        };
+      }
+      return p;
+    }));
+  }, []);
+
+  const handleResetAllPartUnitPrices = useCallback(() => {
+    setQuoteParts(prev => prev.map(p => ({
+      ...p,
+      customUnitPrice: undefined,
+    })));
+  }, []);
 
   // Order Handlers
   const handleCreateOrder = (quoteId: string) => {
@@ -1126,6 +1147,8 @@ function App() {
                   quoteParts={quoteParts}
                   printers={printers}
                   filaments={filaments}
+                  onUpdatePartUnitPrice={handleUpdatePartUnitPrice}
+                  onResetAllPartUnitPrices={handleResetAllPartUnitPrices}
                 />
               </div>
             </div>

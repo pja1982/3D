@@ -297,6 +297,114 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
     }));
   };
 
+  const findWhiteFilament = () => {
+    return filaments.find(f => 
+      f.colorName?.toLowerCase().includes('white') || 
+      f.colorHex?.toLowerCase() === '#ffffff' || 
+      f.colorHex?.toLowerCase() === '#f8fafc' ||
+      f.colorHex?.toLowerCase() === '#fff'
+    );
+  };
+
+  const handleAutoDistributeWeights = () => {
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id && p.colors && p.colors.length > 0) {
+        const totalTarget = p.filamentGrams || 100;
+        const count = p.colors.length;
+        const base = Math.floor(totalTarget / count);
+        const remainder = totalTarget - (base * count);
+        const updated = p.colors.map((c, i) => ({
+          ...c,
+          grams: base + (i === 0 ? remainder : 0),
+        }));
+        return { ...p, colors: updated };
+      }
+      return p;
+    }));
+  };
+
+  const handleFillUpWeights = () => {
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id && p.colors && p.colors.length > 0) {
+        const totalTarget = p.filamentGrams || 100;
+        const currentSum = p.colors.reduce((sum, c) => sum + (c.grams || 0), 0);
+        const emptySlots = p.colors.filter(c => !c.grams || c.grams <= 0);
+
+        if (emptySlots.length > 0 && totalTarget > currentSum) {
+          const remaining = totalTarget - currentSum;
+          const each = Math.max(5, Math.floor(remaining / emptySlots.length));
+          const remPart = remaining - (each * emptySlots.length);
+          let firstEmpty = true;
+          const updated = p.colors.map(c => {
+            if (!c.grams || c.grams <= 0) {
+              const add = each + (firstEmpty ? remPart : 0);
+              firstEmpty = false;
+              return { ...c, grams: add };
+            }
+            return c;
+          });
+          const finalSum = updated.reduce((s, c) => s + (c.grams || 0), 0);
+          return { ...p, colors: updated, filamentGrams: finalSum };
+        } else {
+          const base = Math.floor(totalTarget / p.colors.length);
+          const rem = totalTarget - (base * p.colors.length);
+          const updated = p.colors.map((c, i) => ({
+            ...c,
+            grams: base + (i === 0 ? rem : 0),
+          }));
+          return { ...p, colors: updated };
+        }
+      }
+      return p;
+    }));
+  };
+
+  const handleFillWhiteAccent = () => {
+    const whiteFil = findWhiteFilament();
+    const whiteId = whiteFil ? whiteFil.id : (filaments[0]?.id || null);
+
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id) {
+        const colors = p.colors || [];
+        if (colors.length === 0) {
+          const total = p.filamentGrams || 100;
+          const whiteGrams = Math.max(10, Math.round(total * 0.3));
+          const primaryGrams = Math.max(10, total - whiteGrams);
+          return {
+            ...p,
+            colors: [
+              { id: `color-${Date.now()}-1`, filamentId: p.filamentId || filaments[0]?.id || null, grams: primaryGrams },
+              { id: `color-${Date.now()}-2`, filamentId: whiteId, grams: whiteGrams },
+            ],
+            filamentGrams: primaryGrams + whiteGrams,
+          };
+        }
+
+        const existingWhiteIdx = colors.findIndex(c => {
+          const fil = filaments.find(f => f.id === c.filamentId);
+          return fil?.colorName?.toLowerCase().includes('white') || fil?.colorHex?.toLowerCase() === '#ffffff' || fil?.colorHex?.toLowerCase() === '#f8fafc';
+        });
+
+        if (existingWhiteIdx >= 0) {
+          const updated = [...colors];
+          if (!updated[existingWhiteIdx].grams || updated[existingWhiteIdx].grams < 10) {
+            updated[existingWhiteIdx] = { ...updated[existingWhiteIdx], grams: 25 };
+          }
+          const total = updated.reduce((s, c) => s + (c.grams || 0), 0);
+          return { ...prev, colors: updated, filamentGrams: total };
+        } else {
+          const updated = [
+            ...colors,
+            { id: `color-${Date.now()}-${colors.length + 1}`, filamentId: whiteId, grams: 25 }
+          ];
+          const total = updated.reduce((s, c) => s + (c.grams || 0), 0);
+          return { ...prev, colors: updated, filamentGrams: total };
+        }
+      }
+      return p;
+    }));
+  };
+
   // Calculate multi-color totals for the active part preview
   const totalPartWeight = isMultiColor 
     ? activePartColors.reduce((sum, c) => sum + (c.grams || 0), 0)
@@ -311,9 +419,29 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
 
   const selectedFilament = filaments.find(f => f.id === parameters.filamentId);
   const selectedPrinter = printers.find(p => p.id === parameters.printerId);
-  const selectedPrinterRates = calculatePrinterRates(selectedPrinter, generalSettings);
   const isDepreciationActive = generalSettings?.enablePrinterDepreciation !== false;
-  const activePartMachineCost = (activePart.printHours || 0) * (isDepreciationActive ? selectedPrinterRates.totalHourlyRate : 0) * (activePart.quantity || 1);
+
+  const activePrinter = printers.find(p => p.id === activePart.printerId) || selectedPrinter;
+  const activePrinterRates = calculatePrinterRates(activePrinter, generalSettings);
+  const selectedPrinterRates = calculatePrinterRates(selectedPrinter, generalSettings);
+  const activePartMachineCost = (activePart.printHours || 0) * (isDepreciationActive ? activePrinterRates.totalHourlyRate : 0) * (activePart.quantity || 1);
+
+  // Accurate unit cost and auto suggested price for active part
+  const kwhRate = generalSettings?.electricityCostKwh ?? 0.15;
+  const activePartElectricity = (activePart.printHours || 0) * ((activePrinter?.watts || 0) / 1000) * kwhRate;
+  const activePartDepreciation = (activePart.printHours || 0) * (isDepreciationActive ? activePrinterRates.totalHourlyRate : 0);
+  const laborRate = generalSettings?.laborCostPerHour ?? 20;
+  const activePartLabor = (activePart.postProcessingHours || 0) * laborRate;
+  const activePartHardware = activePart.hardwareCost || 0;
+  const activePartMultiColorFee = isMultiColor && activePartColors.length > 1 ? 3.0 * (activePartColors.length - 1) : 0;
+
+  const activePartDirectUnitCost = totalPartMaterialCost + activePartElectricity + activePartDepreciation + activePartLabor + activePartHardware + activePartMultiColorFee;
+  const failureRate = generalSettings?.failureRate ?? 5;
+  const failureMultiplier = failureRate < 100 ? 1 / (1 - failureRate / 100) : 1;
+  const activePartEstimatedUnitCost = activePartDirectUnitCost * failureMultiplier;
+
+  const profitMargin = generalSettings?.profitMargin ?? 30;
+  const activePartSuggestedUnitPrice = activePartEstimatedUnitCost * (1 + profitMargin / 100);
 
   return (
     <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
@@ -442,6 +570,15 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                           </span>
                         ) : null;
                       })()}
+                      {typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? (
+                        <span className="ml-1 text-amber-300 font-mono font-bold text-[11px] bg-amber-950/70 border border-amber-600/40 px-1.5 py-0.2 rounded" title="Custom unit price set">
+                          🏷️ ${part.customUnitPrice.toFixed(2)}/ea
+                        </span>
+                      ) : (
+                        <span className="ml-1 text-cyan-400/70 font-mono text-[11px]" title="Auto formula price">
+                          (auto price)
+                        </span>
+                      )}
                     </span>
                   </span>
                 </div>
@@ -815,22 +952,52 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
               })}
             </div>
 
-            <div className="flex justify-between items-center pt-1">
-              <button
-                type="button"
-                onClick={handleAddColor}
-                className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium py-1.5 px-3 rounded-lg transition flex items-center gap-1.5 shadow-sm"
-              >
-                <span>+ Add Color Filament</span>
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-700/60">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleAddColor}
+                  className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium py-1.5 px-3 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+                  title="Add another color filament slot"
+                >
+                  <span>+ Add Color</span>
+                </button>
 
-              <div className="text-xs text-slate-300 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleAutoDistributeWeights}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2.5 rounded-lg border border-slate-700 transition"
+                  title="Evenly divide the part weight across all colors"
+                >
+                  <span>⚖️ Distribute Weights</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFillUpWeights}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2.5 rounded-lg border border-slate-700 transition"
+                  title="Auto-fill missing or remaining weight across colors"
+                >
+                  <span>⚡ Fill Weights</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFillWhiteAccent}
+                  className="text-xs bg-slate-100 hover:bg-white text-slate-900 font-semibold py-1.5 px-2.5 rounded-lg transition shadow-xs flex items-center gap-1"
+                  title="Ensure a White filament slot is selected and filled with weight"
+                >
+                  <span>⚪ Fill with White</span>
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-300 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center justify-between sm:justify-end gap-3 shrink-0">
                 <span>
-                  Total Weight: <strong className="text-slate-100 font-semibold">{totalPartWeight}g</strong>
+                  Total: <strong className="text-slate-100 font-semibold font-mono">{totalPartWeight}g</strong>
                 </span>
-                <span className="text-slate-500">|</span>
+                <span className="text-slate-600">|</span>
                 <span>
-                  Material Cost: <strong className="text-cyan-400 font-mono">${totalPartMaterialCost.toFixed(2)}</strong>
+                  Cost: <strong className="text-cyan-400 font-mono">${totalPartMaterialCost.toFixed(2)}</strong>
                 </span>
               </div>
             </div>
@@ -1051,8 +1218,91 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
               }}
               className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
             />
-            <span className="text-[11px] text-slate-400 mt-1 block">Total customer requirement for fulfillment</span>
           </div>
+        </div>
+
+        {/* Adjustable Quoted Unit Price for Active Part */}
+        <div className="pt-3 border-t border-slate-700/60 bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🏷️</span>
+              <label htmlFor="activePartUnitPrice" className="text-sm font-bold text-slate-100">
+                Unit Quoted Price ({activePart.name})
+              </label>
+              {typeof activePart.customUnitPrice === 'number' && activePart.customUnitPrice >= 0 ? (
+                <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-600/50 px-2 py-0.5 rounded-full font-bold">
+                  Custom Price
+                </span>
+              ) : (
+                <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/50 px-2 py-0.5 rounded-full font-semibold">
+                  Auto Formula
+                </span>
+              )}
+            </div>
+
+            {typeof activePart.customUnitPrice === 'number' && activePart.customUnitPrice >= 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { ...p, customUnitPrice: undefined } : p));
+                }}
+                className="text-xs text-amber-300 hover:text-amber-100 bg-amber-950/60 hover:bg-amber-900/80 border border-amber-700/50 px-2.5 py-1 rounded-md transition"
+                title="Reset this part to automatic markup formula"
+              >
+                ↺ Reset to Auto
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-2.5 text-slate-400 font-mono text-sm">$</span>
+              <input
+                type="number"
+                id="activePartUnitPrice"
+                step="0.01"
+                min="0"
+                value={typeof activePart.customUnitPrice === 'number' && activePart.customUnitPrice >= 0 ? activePart.customUnitPrice : ''}
+                placeholder={activePartSuggestedUnitPrice > 0 ? `Auto: $${activePartSuggestedUnitPrice.toFixed(2)} / unit` : 'Auto unit price'}
+                onChange={(e) => {
+                  const valStr = e.target.value.trim();
+                  if (valStr === '') {
+                    setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { ...p, customUnitPrice: undefined } : p));
+                  } else {
+                    const parsed = parseFloat(valStr);
+                    setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+                      ...p,
+                      customUnitPrice: isNaN(parsed) ? undefined : Math.max(0, parsed),
+                    } : p));
+                  }
+                }}
+                className={`w-full bg-slate-900 border rounded-lg py-2 pl-7 pr-3 text-sm font-mono font-bold focus:outline-none transition ${
+                  typeof activePart.customUnitPrice === 'number' && activePart.customUnitPrice >= 0
+                    ? 'border-amber-500/80 text-amber-300 focus:ring-2 focus:ring-amber-500'
+                    : 'border-slate-700 text-cyan-300 placeholder-slate-400 focus:ring-2 focus:ring-cyan-500'
+                }`}
+                title="Directly enter a selling price per unit for this part"
+              />
+            </div>
+
+            {/* Live Part Line Total feedback */}
+            <div className="flex items-center justify-between sm:justify-end gap-3 bg-slate-950 px-3 py-2 rounded-lg border border-slate-800 shrink-0 text-xs font-mono">
+              <div>
+                <span className="text-[10px] text-slate-400 block font-sans">Est. Unit Cost:</span>
+                <span className="text-slate-300 font-semibold">${activePartEstimatedUnitCost.toFixed(2)}</span>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-[10px] text-slate-400 block font-sans">Part Total ({activePart.quantity}x):</span>
+                <span className="text-cyan-300 font-bold text-sm">
+                  ${((typeof activePart.customUnitPrice === 'number' && activePart.customUnitPrice >= 0 ? activePart.customUnitPrice : activePartSuggestedUnitPrice) * (activePart.quantity || 1)).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-400">
+            Set or adjust the unit price for <strong>{activePart.name}</strong>. Entering a price overrides the formula; leaving blank uses the automatic markup.
+          </p>
         </div>
       </div>
 
