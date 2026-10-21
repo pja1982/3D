@@ -1,5 +1,6 @@
 import React from 'react';
 import type { User } from '../firebase';
+import { APP_VERSION } from '../constants/version';
 
 interface HeaderProps {
   user: User | null;
@@ -11,6 +12,7 @@ interface HeaderProps {
   onSyncAllLocal: () => void;
   onOpenDockerModal: () => void;
   onOpenGoogleSheetsModal: () => void;
+  onOpenChangeLogModal: () => void;
   onExportBackup: () => void;
 }
 
@@ -24,6 +26,7 @@ const Header: React.FC<HeaderProps> = ({
   onSyncAllLocal,
   onOpenDockerModal,
   onOpenGoogleSheetsModal,
+  onOpenChangeLogModal,
   onExportBackup,
 }) => {
   return (
@@ -82,6 +85,17 @@ const Header: React.FC<HeaderProps> = ({
           >
             <span>📊</span>
             <span>Google Sheets</span>
+          </button>
+
+          {/* Version & Change Log Trigger */}
+          <button
+            type="button"
+            onClick={onOpenChangeLogModal}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg border border-slate-700 hover:border-cyan-500/50 transition flex items-center gap-1.5 font-medium text-[11px] cursor-pointer shadow-xs"
+            title="View app version history and detailed change logs"
+          >
+            <span className="font-mono text-cyan-400 font-bold">v{APP_VERSION}</span>
+            <span className="text-slate-400 hidden sm:inline">• Change Log</span>
           </button>
 
           {/* Docker & Local Host Modal Trigger */}
@@ -184,9 +198,20 @@ const Header: React.FC<HeaderProps> = ({
             alt="3D Print Cost & Quote Tracker Icon"
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl shadow-lg shadow-cyan-500/10 border border-cyan-500/30 hover:scale-105 transition-transform"
           />
-          <h1 className="text-3xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 text-center sm:text-left">
-            3D Print Cost & Quote Tracker
-          </h1>
+          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+            <h1 className="text-3xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 text-center sm:text-left">
+              3D Print Cost & Quote Tracker
+            </h1>
+            <button
+              type="button"
+              onClick={onOpenChangeLogModal}
+              className="text-xs font-mono font-bold bg-cyan-950/90 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 hover:border-cyan-400 px-2.5 py-1 rounded-full transition-all shadow-xs cursor-pointer flex items-center gap-1 group"
+              title="Click to view v2.5.0 change logs and release notes"
+            >
+              <span>v{APP_VERSION}</span>
+              <span className="text-[10px] text-cyan-400/80 group-hover:text-cyan-200">📋</span>
+            </button>
+          </div>
         </div>
         <p className="mt-1 text-sm sm:text-lg text-slate-400">
           Calculate fabrication costs and manage your additive manufacturing quotes with precision.

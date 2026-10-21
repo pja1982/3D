@@ -34,6 +34,8 @@ import { getFilamentEffectiveFailureRate, MaterialDifficultyRisk } from './utils
 import Header from './components/Header';
 import { DockerSetupModal } from './components/DockerSetupModal';
 import { GoogleSheetsModal } from './components/GoogleSheetsModal';
+import ChangeLogModal from './components/ChangeLogModal';
+import { APP_VERSION, APP_RELEASE_DATE } from './constants/version';
 import {
   checkLocalServerStatus,
   fetchLocalServerData,
@@ -137,6 +139,7 @@ function App() {
     lastChecked: 0,
   });
   const [isDockerModalOpen, setIsDockerModalOpen] = useState<boolean>(false);
+  const [isChangeLogModalOpen, setIsChangeLogModalOpen] = useState<boolean>(false);
 
   // Check and connect to Local Docker Backend Storage
   useEffect(() => {
@@ -1427,6 +1430,7 @@ function App() {
             onExportInvoicesMarkdown={handleExportInvoicesMarkdown}
             onExportPartsMarkdown={handleExportPartsMarkdown}
             onExportVaultZip={handleExportVaultZip}
+            onOpenChangeLogModal={() => setIsChangeLogModalOpen(true)}
           />
         );
       default:
@@ -1447,6 +1451,7 @@ function App() {
           onSyncAllLocal={handleSyncAllLocal}
           onOpenDockerModal={() => setIsDockerModalOpen(true)}
           onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
+          onOpenChangeLogModal={() => setIsChangeLogModalOpen(true)}
           onExportBackup={handleExportBackup}
         />
 
@@ -1472,6 +1477,11 @@ function App() {
           }}
         />
 
+        <ChangeLogModal
+          isOpen={isChangeLogModalOpen}
+          onClose={() => setIsChangeLogModalOpen(false)}
+        />
+
         {remoteToast && (
           <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-sm rounded-xl flex items-center justify-between shadow-lg animate-fadeIn">
             <span className="flex items-center gap-2">
@@ -1480,7 +1490,7 @@ function App() {
             </span>
             <button
               onClick={() => setRemoteToast(null)}
-              className="text-emerald-400 hover:text-emerald-100 font-bold ml-2 text-xs"
+              className="text-emerald-400 hover:text-emerald-100 font-bold ml-2 text-xs cursor-pointer"
             >
               ✕
             </button>
@@ -1489,6 +1499,27 @@ function App() {
 
         <Nav currentView={view} onViewChange={setView} />
         {renderContent()}
+
+        {/* Global Footer with Version & Change Log trigger */}
+        <footer className="mt-14 pt-6 pb-8 border-t border-slate-800 text-center text-xs text-slate-500 space-y-2">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-slate-400">
+            <span className="font-semibold text-slate-300">3D Print Cost &amp; Quote Tracker</span>
+            <span>&bull;</span>
+            <button
+              type="button"
+              onClick={() => setIsChangeLogModalOpen(true)}
+              className="font-mono text-cyan-400 hover:text-cyan-300 font-semibold underline decoration-cyan-500/40 hover:decoration-cyan-300 transition cursor-pointer"
+              title="Open full version change logs"
+            >
+              v{APP_VERSION} Change Log
+            </button>
+            <span>&bull;</span>
+            <span>{APP_RELEASE_DATE}</span>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Precision additive manufacturing cost estimation, quote generation, and print farm job management.
+          </p>
+        </footer>
       </div>
     </div>
   );

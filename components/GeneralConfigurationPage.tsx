@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { GeneralSettings, MultiColorPricingMode, SimpleMultiColorType } from '../types';
 import MarkdownIcon from './icons/MarkdownIcon';
+import { APP_VERSION, APP_RELEASE_DATE, APP_CODENAME } from '../constants/version';
 
 interface GeneralConfigurationPageProps {
   settings: GeneralSettings;
@@ -12,6 +13,7 @@ interface GeneralConfigurationPageProps {
   onExportInvoicesMarkdown?: () => void;
   onExportPartsMarkdown?: () => void;
   onExportVaultZip?: () => void;
+  onOpenChangeLogModal?: () => void;
 }
 
 const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
@@ -24,6 +26,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
   onExportInvoicesMarkdown,
   onExportPartsMarkdown,
   onExportVaultZip,
+  onOpenChangeLogModal,
 }) => {
   const [currentSettings, setCurrentSettings] = useState<GeneralSettings>(() => ({
     enablePrinterDepreciation: true,
@@ -945,6 +948,57 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* About & Release Version History Card */}
+      <div className="bg-slate-800/60 p-6 rounded-2xl shadow-lg border border-slate-700/80 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-xl shadow-xs">
+              🏷️
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-100">About & Version History</h3>
+                <span className="font-mono text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/50 px-2 py-0.5 rounded-full">
+                  v{APP_VERSION}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Released {APP_RELEASE_DATE} &bull; Codename: <strong className="text-slate-200">{APP_CODENAME}</strong>
+              </p>
+            </div>
+          </div>
+
+          {onOpenChangeLogModal && (
+            <button
+              type="button"
+              onClick={onOpenChangeLogModal}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2 px-3.5 rounded-xl transition-all shadow-md text-xs flex items-center gap-2 cursor-pointer"
+            >
+              <span>📜 View Full Change Log</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+            <span className="text-slate-400 block mb-0.5 font-medium">Current Build:</span>
+            <span className="text-cyan-300 font-mono font-bold text-sm">v{APP_VERSION}</span>
+          </div>
+          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+            <span className="text-slate-400 block mb-0.5 font-medium">Release Date:</span>
+            <span className="text-slate-200 font-medium text-sm">{APP_RELEASE_DATE}</span>
+          </div>
+          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+            <span className="text-slate-400 block mb-0.5 font-medium">Changelog Entries:</span>
+            <span className="text-emerald-400 font-bold text-sm">7 Releases Documented</span>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-400 leading-relaxed">
+          The 3D Print Cost &amp; Quote Tracker provides precision pricing, multi-part manufacturing quotes, equipment depreciation budgeting, digital scale inventory tracking, and seamless Obsidian markdown / Google Sheets integration.
+        </p>
       </div>
     </div>
   );
