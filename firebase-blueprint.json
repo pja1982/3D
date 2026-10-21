@@ -80,7 +80,10 @@
         "brand": { "type": "string", "maxLength": 256 },
         "costPerKg": { "type": "number" },
         "colorHex": { "type": "string", "maxLength": 32 },
-        "colorName": { "type": "string", "maxLength": 128 }
+        "colorName": { "type": "string", "maxLength": 128 },
+        "remaining_grams": { "type": "number" },
+        "empty_spool_weight": { "type": "number" },
+        "actual_spool_weight": { "type": "number" }
       },
       "required": ["id", "ownerId", "type", "brand", "costPerKg"]
     },

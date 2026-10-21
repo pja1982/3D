@@ -219,13 +219,16 @@ export async function syncDataToSpreadsheet(
 
   // Build Filaments sheet data
   const filamentRows = [
-    ['Material Type', 'Brand', 'Color Name', 'Color Hex Code', 'Cost per kg ($)', 'Filament ID'],
+    ['Material Type', 'Brand', 'Color Name', 'Color Hex Code', 'Cost per kg ($)', 'Remaining (g)', 'Actual Spool (g)', 'Tare (g)', 'Filament ID'],
     ...filaments.map((f) => [
       f.type,
       f.brand,
       f.colorName || '',
       f.colorHex || '',
       Number(f.costPerKg || 0),
+      f.remaining_grams ?? '',
+      f.actual_spool_weight ?? '',
+      f.empty_spool_weight ?? '',
       f.id,
     ]),
   ];
@@ -481,13 +484,16 @@ export function generateTSVForClipboard(appData: AppData, table: 'quotes' | 'par
   }
 
   if (table === 'filaments') {
-    const headers = ['Material', 'Brand', 'Color', 'Color Hex', 'Cost / kg ($)'];
+    const headers = ['Material', 'Brand', 'Color', 'Color Hex', 'Cost / kg ($)', 'Remaining (g)', 'Actual Spool (g)', 'Tare (g)'];
     const rows = appData.filaments.map((f) => [
       f.type,
       f.brand,
       f.colorName || '',
       f.colorHex || '',
       f.costPerKg,
+      f.remaining_grams ?? '',
+      f.actual_spool_weight ?? '',
+      f.empty_spool_weight ?? '',
     ]);
     return [headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n');
   }

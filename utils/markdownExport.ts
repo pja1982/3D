@@ -301,8 +301,10 @@ tags:
     md += `> | **Multi-Color Processing Fee:** | ${formatCurrency(costBreakdown.multiColorFee)}${batchInfo} |\n`;
   }
 
+  const failureRatePercent = costBreakdown.effectiveFailureRate ?? parameters.failureRate;
+  const failureLabel = costBreakdown.materialRiskApplied ? `Failure Buffer (${failureRatePercent}% - Technical Risk)` : `Failure Buffer (${failureRatePercent}%)`;
   md += `> | **Subtotal:** | **${formatCurrency(costBreakdown.subtotal)}** |
-> | **Failure Buffer (${parameters.failureRate}%):** | ${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} |
+> | **${failureLabel}:** | ${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} |
 > | **Net Profit Margin (${parameters.profitMargin}%):** | ${formatCurrency(costBreakdown.profit)} |
 > | **Final Quoted Price:** | **${formatCurrency(quote.quotePrice)}** |
 

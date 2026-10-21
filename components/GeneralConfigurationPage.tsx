@@ -39,6 +39,15 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
     complexCostPerColorChange: 0.05,
     complexHandlingFee: 4.00,
     defaultMultiColorBatchMode: 'single_batch_per_bed',
+    enableMaterialDifficultyRates: true,
+    materialFailureRates: {
+      tpu: 15,
+      abs: 18,
+      nylon: 20,
+      pc: 20,
+      carbon: 12,
+      standard: 5,
+    },
     ...settings,
   }));
   const [showSuccess, setShowSuccess] = useState(false);
@@ -58,6 +67,15 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
       complexCostPerColorChange: 0.05,
       complexHandlingFee: 4.00,
       defaultMultiColorBatchMode: 'single_batch_per_bed',
+      enableMaterialDifficultyRates: true,
+      materialFailureRates: {
+        tpu: 15,
+        abs: 18,
+        nylon: 20,
+        pc: 20,
+        carbon: 12,
+        standard: 5,
+      },
       ...settings,
     }));
   }, [settings]);
@@ -584,6 +602,242 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
                       Multiplies the multicolor fee by each part or copy. Suitable if each item is printed in an independent print run on a clear bed.
                     </span>
                   </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Technical Material Failure Rate Section */}
+          <div className="pt-6 border-t border-slate-700 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-amber-400 flex items-center gap-2">
+                  <span>⚡ Material Difficulty & Technical Failure Rates</span>
+                  <span className="text-xs bg-amber-950 text-amber-300 border border-amber-600/40 px-2 py-0.5 rounded-full font-medium">
+                    TPU & ABS Protection
+                  </span>
+                </h3>
+                <p className="text-slate-400 text-sm mt-0.5">
+                  Protect profit margins by charging higher failure buffers on materials with higher print failure, warping, or clogging risks.
+                </p>
+              </div>
+            </div>
+
+            {/* Enable/Disable Toggle */}
+            <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80 flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-slate-100 text-sm block">
+                  Auto-charge Higher Failure Rate for Difficult Filaments (TPU, ABS, Nylon, PC)
+                </span>
+                <span className="text-xs text-slate-400">
+                  When enabled, quotes using technical filaments automatically apply their respective failure rate buffer instead of the default {currentSettings.failureRate}%.
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                <input
+                  type="checkbox"
+                  name="enableMaterialDifficultyRates"
+                  checked={currentSettings.enableMaterialDifficultyRates !== false}
+                  onChange={(e) => setCurrentSettings(prev => ({ ...prev, enableMaterialDifficultyRates: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+              </label>
+            </div>
+
+            {currentSettings.enableMaterialDifficultyRates !== false && (
+              <div className="bg-slate-900/40 p-4 rounded-xl border border-amber-500/30 space-y-4">
+                <div className="text-xs text-amber-200/90 bg-amber-950/40 p-3 rounded-lg border border-amber-500/30 leading-relaxed">
+                  💡 <strong>Why Technical Failure Buffers?</strong> Flexible filaments (TPU) prone to extruder bunching and stringing, as well as high-temperature engineering plastics (ABS/ASA, Nylon, PC) prone to thermal warping and layer splitting, experience failure rates of 15%–20%. Applying this risk buffer guarantees your business does not absorb the cost of aborted prints.
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {/* TPU / Flexible */}
+                  <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+                        <span>TPU / TPE (Flexibles)</span>
+                      </label>
+                      <span className="text-[10px] text-cyan-300 bg-cyan-950 px-1.5 py-0.2 rounded font-semibold border border-cyan-800">
+                        Jamming Risk
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={currentSettings.materialFailureRates?.tpu ?? 15}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setCurrentSettings(prev => ({
+                            ...prev,
+                            materialFailureRates: { ...prev.materialFailureRates, tpu: val },
+                          }));
+                        }}
+                        className="w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">Recommended: 15%</span>
+                  </div>
+
+                  {/* ABS / ASA */}
+                  <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-orange-400"></span>
+                        <span>ABS / ASA (Engineering)</span>
+                      </label>
+                      <span className="text-[10px] text-orange-300 bg-orange-950 px-1.5 py-0.2 rounded font-semibold border border-orange-800">
+                        Warping Risk
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={currentSettings.materialFailureRates?.abs ?? 18}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setCurrentSettings(prev => ({
+                            ...prev,
+                            materialFailureRates: { ...prev.materialFailureRates, abs: val },
+                          }));
+                        }}
+                        className="w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">Recommended: 18%</span>
+                  </div>
+
+                  {/* Nylon / PA */}
+                  <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+                        <span>Nylon / PA (Polyamide)</span>
+                      </label>
+                      <span className="text-[10px] text-purple-300 bg-purple-950 px-1.5 py-0.2 rounded font-semibold border border-purple-800">
+                        Moisture Risk
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={currentSettings.materialFailureRates?.nylon ?? 20}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setCurrentSettings(prev => ({
+                            ...prev,
+                            materialFailureRates: { ...prev.materialFailureRates, nylon: val },
+                          }));
+                        }}
+                        className="w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">Recommended: 20%</span>
+                  </div>
+
+                  {/* Polycarbonate (PC) */}
+                  <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span>
+                        <span>Polycarbonate (PC)</span>
+                      </label>
+                      <span className="text-[10px] text-blue-300 bg-blue-950 px-1.5 py-0.2 rounded font-semibold border border-blue-800">
+                        Adhesion Risk
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={currentSettings.materialFailureRates?.pc ?? 20}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setCurrentSettings(prev => ({
+                            ...prev,
+                            materialFailureRates: { ...prev.materialFailureRates, pc: val },
+                          }));
+                        }}
+                        className="w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">Recommended: 20%</span>
+                  </div>
+
+                  {/* Carbon Fiber / Composites */}
+                  <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <span>Carbon / Glass Fiber (CF)</span>
+                      </label>
+                      <span className="text-[10px] text-emerald-300 bg-emerald-950 px-1.5 py-0.2 rounded font-semibold border border-emerald-800">
+                        Clogging Risk
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={currentSettings.materialFailureRates?.carbon ?? 12}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setCurrentSettings(prev => ({
+                            ...prev,
+                            materialFailureRates: { ...prev.materialFailureRates, carbon: val },
+                          }));
+                        }}
+                        className="w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">Recommended: 12%</span>
+                  </div>
+
+                  {/* Standard Base Materials (PLA, PETG) */}
+                  <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <span>PLA / PETG (Standard)</span>
+                      </label>
+                      <span className="text-[10px] text-slate-300 bg-slate-900 px-1.5 py-0.2 rounded font-semibold border border-slate-700">
+                        Base Rate
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={currentSettings.failureRate}
+                        onChange={handleChange}
+                        name="failureRate"
+                        className="w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">Global Base Rate</span>
+                  </div>
                 </div>
               </div>
             )}

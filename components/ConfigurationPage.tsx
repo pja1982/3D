@@ -11,6 +11,7 @@ import {
   parse3DFilamentProfiles,
   download3DFilamentProfilesJson,
 } from '../utils/filamentProfilesSync';
+import { detectMaterialCategory, DEFAULT_MATERIAL_FAILURE_RATES } from '../utils/filamentFailureRates';
 
 interface ConfigurationPageProps {
   filaments: Filament[];
@@ -18,6 +19,7 @@ interface ConfigurationPageProps {
   onUpdate: (filament: Filament) => void;
   onDelete: (id: string) => void;
   onBatchAdd?: (newFilaments: Filament[], mode: 'merge' | 'replace') => void;
+  onReorder?: (filaments: Filament[]) => void;
 }
 
 const POPULAR_COLORS = [
@@ -44,6 +46,7 @@ const emptyFilament: Omit<Filament, 'id'> = {
   material_type: 'Basic',
   remaining_grams: 1000,
   empty_spool_weight: 240,
+  actual_spool_weight: 1240,
   td_value: null,
   location: 'Shelf: Home',
 };
@@ -54,6 +57,7 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
   onUpdate,
   onDelete,
   onBatchAdd,
+  onReorder,
 }) => {
   const [editingFilament, setEditingFilament] = useState<Omit<Filament, 'id'> | Filament>(emptyFilament);
   const [isEditing, setIsEditing] = useState(false);
@@ -62,6 +66,131 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTag, setActiveFilterTag] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [weighingFilament, setWeighingFilament] = useState<Filament | null>(null);
+  const [scaleWeightInput, setScaleWeightInput] = useState<string>('');
+
+  const handleOpenWeighModal = (filament: Filament) => {
+    setWeighingFilament(filament);
+    setScaleWeightInput(
+      filament.actual_spool_weight !== null && filament.actual_spool_weight !== undefined
+        ? String(filament.actual_spool_weight)
+        : (typeof filament.remaining_grams === 'number' && typeof filament.empty_spool_weight === 'number'
+            ? String(filament.remaining_grams + filament.empty_spool_weight)
+            : '')
+    );
+  };
+
+  const handleSaveScaleWeight = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!weighingFilament) return;
+    const grossVal = scaleWeightInput.trim() === '' ? null : parseFloat(scaleWeightInput);
+    if (grossVal !== null && isNaN(grossVal)) return;
+
+    const tare = weighingFilament.empty_spool_weight ?? 0;
+    const newRemaining = grossVal !== null
+      ? Math.max(0, parseFloat((grossVal - tare).toFixed(1)))
+      : weighingFilament.remaining_grams;
+
+    const updated: Filament = {
+      ...weighingFilament,
+      actual_spool_weight: grossVal,
+      remaining_grams: newRemaining,
+      updated_at: new Date().toISOString(),
+    };
+
+    onUpdate(updated);
+    setToastMessage(`Updated ${weighingFilament.brand} ${weighingFilament.type || weighingFilament.name}: Scale Weight ${grossVal !== null ? `${grossVal}g` : 'Cleared'} (Net: ${newRemaining ?? 0}g)`);
+    setTimeout(() => setToastMessage(null), 3000);
+    setWeighingFilament(null);
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverId !== id) {
+      setDragOverId(id);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropTargetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === dropTargetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const sourceIndex = filaments.findIndex(f => f.id === draggedId);
+    const targetIndex = filaments.findIndex(f => f.id === dropTargetId);
+
+    if (sourceIndex === -1 || targetIndex === -1) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const reordered = [...filaments];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    const updated = reordered.map((f, idx) => ({
+      ...f,
+      sortOrder: idx,
+      isDefault: idx === 0,
+    }));
+
+    setDraggedId(null);
+    setDragOverId(null);
+    if (onReorder) {
+      onReorder(updated);
+    }
+    setToastMessage(`Reordered: ${moved.brand} ${moved.type || moved.name} moved`);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleSetDefault = (filamentId: string) => {
+    const updated = filaments.map(f => ({
+      ...f,
+      isDefault: f.id === filamentId,
+    }));
+
+    if (onReorder) {
+      onReorder(updated);
+    }
+    const target = filaments.find(f => f.id === filamentId);
+    setToastMessage(`⭐ Set ${target?.brand || ''} ${target?.type || target?.name || ''} as Default Filament`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleMove = (filamentId: string, direction: 'up' | 'down') => {
+    const index = filaments.findIndex(f => f.id === filamentId);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= filaments.length) return;
+
+    const reordered = [...filaments];
+    const temp = reordered[index];
+    reordered[index] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    const updated = reordered.map((f, idx) => ({
+      ...f,
+      sortOrder: idx,
+      isDefault: idx === 0,
+    }));
+
+    if (onReorder) {
+      onReorder(updated);
+    }
+  };
 
   useEffect(() => {
     // If the filament being edited is deleted from the main list, reset the form.
@@ -72,10 +201,69 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+
+    if (name === 'actual_spool_weight') {
+      const gross = value === '' ? null : parseFloat(value) || 0;
+      setEditingFilament(prev => {
+        const tare = prev.empty_spool_weight;
+        const newRemaining = gross !== null && typeof tare === 'number'
+          ? Math.max(0, parseFloat((gross - tare).toFixed(1)))
+          : prev.remaining_grams;
+        return {
+          ...prev,
+          actual_spool_weight: gross,
+          remaining_grams: newRemaining,
+        };
+      });
+      return;
+    }
+
+    if (name === 'remaining_grams') {
+      const net = value === '' ? 0 : parseFloat(value) || 0;
+      setEditingFilament(prev => {
+        const tare = prev.empty_spool_weight;
+        const newGross = typeof tare === 'number'
+          ? parseFloat((net + tare).toFixed(1))
+          : prev.actual_spool_weight;
+        return {
+          ...prev,
+          remaining_grams: net,
+          actual_spool_weight: newGross,
+        };
+      });
+      return;
+    }
+
+    if (name === 'empty_spool_weight') {
+      const tare = value === '' ? null : parseFloat(value) || 0;
+      setEditingFilament(prev => {
+        if (tare !== null) {
+          if (typeof prev.actual_spool_weight === 'number' && prev.actual_spool_weight > 0) {
+            return {
+              ...prev,
+              empty_spool_weight: tare,
+              remaining_grams: Math.max(0, parseFloat((prev.actual_spool_weight - tare).toFixed(1))),
+            };
+          } else if (typeof prev.remaining_grams === 'number') {
+            return {
+              ...prev,
+              empty_spool_weight: tare,
+              actual_spool_weight: parseFloat((prev.remaining_grams + tare).toFixed(1)),
+            };
+          }
+        }
+        return {
+          ...prev,
+          empty_spool_weight: tare,
+        };
+      });
+      return;
+    }
+
     setEditingFilament(prev => ({
       ...prev,
-      [name]: name === 'costPerKg' || name === 'remaining_grams' || name === 'empty_spool_weight' || name === 'td_value'
-        ? value === '' ? (name === 'td_value' || name === 'empty_spool_weight' ? null : 0) : parseFloat(value) || 0
+      [name]: name === 'costPerKg' || name === 'td_value' || name === 'failureRate'
+        ? value === '' ? (name === 'td_value' || name === 'failureRate' ? null : 0) : parseFloat(value) || 0
         : value,
     }));
   };
@@ -93,7 +281,7 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
       ...prev,
       colorHex: preset.hex,
       rgb: preset.hex,
-      colorName: (!prev.colorName || POPULAR_COLORS.some(p => p.name === prev.colorName)) ? preset.name : prev.colorName,
+      colorName: (!prev.colorName || POPULAR_COLORS.some(p => p.name === preset.name)) ? preset.name : prev.colorName,
     }));
   };
 
@@ -106,6 +294,12 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
     const normalizedColor = normalizeHex(editingFilament.colorHex || '#3b82f6');
     const colorName = (editingFilament.colorName || '').trim();
 
+    const finalActualWeight = typeof editingFilament.actual_spool_weight === 'number'
+      ? editingFilament.actual_spool_weight
+      : (typeof editingFilament.remaining_grams === 'number' && typeof editingFilament.empty_spool_weight === 'number'
+          ? editingFilament.remaining_grams + editingFilament.empty_spool_weight
+          : null);
+
     const filamentData = {
       ...editingFilament,
       type: filType,
@@ -115,6 +309,7 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
       colorHex: normalizedColor,
       rgb: editingFilament.rgb || normalizedColor,
       remaining_grams: editingFilament.remaining_grams ?? 1000,
+      actual_spool_weight: finalActualWeight,
     };
 
     if (isEditing && 'id' in editingFilament) {
@@ -408,35 +603,172 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="costPerKg" className="block text-sm font-medium text-slate-300 mb-1">Cost / Kg ($)</label>
-                <input
-                  type="number"
-                  id="costPerKg"
-                  name="costPerKg"
-                  value={editingFilament.costPerKg}
-                  onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  required
-                />
+            <div>
+              <label htmlFor="costPerKg" className="block text-sm font-medium text-slate-300 mb-1">Cost / Kg ($)</label>
+              <input
+                type="number"
+                id="costPerKg"
+                name="costPerKg"
+                value={editingFilament.costPerKg}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                required
+              />
+            </div>
+
+            {/* Spool Weight & Scale Inventory Section */}
+            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-700 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                  <span>⚖️ Spool Weight & Scale Inventory</span>
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Gross Scale − Tare = Usable Filament
+                </span>
               </div>
-              <div>
-                <label htmlFor="remaining_grams" className="block text-sm font-medium text-slate-300 mb-1">
-                  Remaining (g)
-                </label>
-                <input
-                  type="number"
-                  id="remaining_grams"
-                  name="remaining_grams"
-                  value={editingFilament.remaining_grams ?? 1000}
-                  onChange={handleChange}
-                  min="0"
-                  step="10"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* 1. Actual Spool Weight on Scale */}
+                <div>
+                  <label htmlFor="actual_spool_weight" className="text-xs font-semibold text-slate-200 block mb-1">
+                    ⚖️ Actual Spool (g)
+                  </label>
+                  <input
+                    type="number"
+                    id="actual_spool_weight"
+                    name="actual_spool_weight"
+                    value={editingFilament.actual_spool_weight ?? ''}
+                    onChange={handleChange}
+                    placeholder="Scale gross (e.g. 1240)"
+                    min="0"
+                    step="1"
+                    className="w-full bg-slate-800 border border-cyan-500/50 rounded-md py-1.5 px-2.5 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                    title="Total weight of spool + filament measured on digital scale"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Scale gross reading</span>
+                </div>
+
+                {/* 2. Empty Spool / Tare Weight */}
+                <div>
+                  <label htmlFor="empty_spool_weight" className="text-xs font-semibold text-slate-200 block mb-1">
+                    📦 Empty Tare (g)
+                  </label>
+                  <input
+                    type="number"
+                    id="empty_spool_weight"
+                    name="empty_spool_weight"
+                    value={editingFilament.empty_spool_weight ?? ''}
+                    onChange={handleChange}
+                    placeholder="Empty spool (e.g. 240)"
+                    min="0"
+                    step="1"
+                    className="w-full bg-slate-800 border border-slate-600 rounded-md py-1.5 px-2.5 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                    title="Weight of empty plastic/cardboard spool alone (default 240g)"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Empty spool alone</span>
+                </div>
+
+                {/* 3. Remaining Net Filament */}
+                <div>
+                  <label htmlFor="remaining_grams" className="text-xs font-semibold text-slate-200 block mb-1">
+                    🧵 Usable Net (g)
+                  </label>
+                  <input
+                    type="number"
+                    id="remaining_grams"
+                    name="remaining_grams"
+                    value={editingFilament.remaining_grams ?? ''}
+                    onChange={handleChange}
+                    placeholder="Remaining (e.g. 1000)"
+                    min="0"
+                    step="10"
+                    className="w-full bg-slate-800 border border-slate-600 rounded-md py-1.5 px-2.5 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                    title="Net usable filament remaining"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Usable filament left</span>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                <span className="text-slate-400 text-[11px] mr-1">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tare = typeof editingFilament.empty_spool_weight === 'number' ? editingFilament.empty_spool_weight : 240;
+                    setEditingFilament(prev => ({
+                      ...prev,
+                      empty_spool_weight: tare,
+                      remaining_grams: 1000,
+                      actual_spool_weight: 1000 + tare,
+                    }));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[11px] border border-slate-700 transition cursor-pointer"
+                >
+                  Full (1kg+Tare)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tare = typeof editingFilament.empty_spool_weight === 'number' ? editingFilament.empty_spool_weight : 240;
+                    setEditingFilament(prev => ({
+                      ...prev,
+                      empty_spool_weight: tare,
+                      remaining_grams: 750,
+                      actual_spool_weight: 750 + tare,
+                    }));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[11px] border border-slate-700 transition cursor-pointer"
+                >
+                  750g
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tare = typeof editingFilament.empty_spool_weight === 'number' ? editingFilament.empty_spool_weight : 240;
+                    setEditingFilament(prev => ({
+                      ...prev,
+                      empty_spool_weight: tare,
+                      remaining_grams: 500,
+                      actual_spool_weight: 500 + tare,
+                    }));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[11px] border border-slate-700 transition cursor-pointer"
+                >
+                  Half (500g)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tare = typeof editingFilament.empty_spool_weight === 'number' ? editingFilament.empty_spool_weight : 240;
+                    setEditingFilament(prev => ({
+                      ...prev,
+                      empty_spool_weight: tare,
+                      remaining_grams: 250,
+                      actual_spool_weight: 250 + tare,
+                    }));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[11px] border border-slate-700 transition cursor-pointer"
+                >
+                  250g
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tare = typeof editingFilament.empty_spool_weight === 'number' ? editingFilament.empty_spool_weight : 240;
+                    setEditingFilament(prev => ({
+                      ...prev,
+                      empty_spool_weight: tare,
+                      remaining_grams: 0,
+                      actual_spool_weight: tare,
+                    }));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-rose-300 px-2 py-0.5 rounded text-[11px] border border-slate-700 transition cursor-pointer"
+                >
+                  Empty Spool (0g)
+                </button>
               </div>
             </div>
 
@@ -492,6 +824,49 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                     placeholder="e.g., Shelf: Home, AMS Slot 1"
                     className="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-slate-100"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="failureRate" className="text-slate-300 text-xs font-medium flex items-center gap-1.5">
+                      <span>⚡ Technical Failure Buffer (%)</span>
+                      <span className="text-[10px] text-amber-300 bg-amber-950 px-1.5 py-0.2 rounded border border-amber-800">
+                        TPU / ABS Risk
+                      </span>
+                    </label>
+                    {(() => {
+                      const detected = detectMaterialCategory((editingFilament.type || (editingFilament as any).name || '') + ' ' + (editingFilament.material || ''));
+                      if (detected !== 'standard') {
+                        return (
+                          <span className="text-[11px] text-amber-300 font-medium">
+                            Auto: {DEFAULT_MATERIAL_FAILURE_RATES[detected]}% ({detected.toUpperCase()})
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      id="failureRate"
+                      name="failureRate"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={editingFilament.failureRate ?? ''}
+                      onChange={handleChange}
+                      placeholder={(() => {
+                        const detected = detectMaterialCategory((editingFilament.type || (editingFilament as any).name || '') + ' ' + (editingFilament.material || ''));
+                        return detected !== 'standard' ? `Auto: ${DEFAULT_MATERIAL_FAILURE_RATES[detected]}%` : 'Base: 5% (Leave blank for auto-detection)';
+                      })()}
+                      className="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-slate-100 placeholder-slate-500 text-xs font-mono"
+                    />
+                    <span className="text-xs text-slate-400 font-mono">%</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Custom risk buffer for this spool. If blank, automatically applies preset rate when difficult material (e.g. TPU: 15%, ABS: 18%) is detected.
+                  </span>
                 </div>
 
                 <div>
@@ -670,18 +1045,70 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                 const isLightBg = theme === 'dark-on-light';
                 const remainingGrams = filament.remaining_grams ?? 1000;
                 const isLowStock = remainingGrams < 250;
+                const mainIndex = filaments.findIndex(f => f.id === filament.id);
+                const hasExplicitDefault = filaments.some(f => f.isDefault);
+                const isDefaultSpool = Boolean(filament.isDefault || (!hasExplicitDefault && mainIndex === 0));
+                const isBeingDragged = draggedId === filament.id;
+                const isDragTarget = dragOverId === filament.id;
+                const materialCat = detectMaterialCategory(filament.type || filament.material || filament.name);
+                const isTechnicalRisk = (typeof filament.failureRate === 'number' && filament.failureRate > 5) || materialCat !== 'standard';
+                const displayRiskRate = typeof filament.failureRate === 'number'
+                  ? filament.failureRate
+                  : (materialCat !== 'standard' ? DEFAULT_MATERIAL_FAILURE_RATES[materialCat] : null);
 
                 return (
                   <li
                     key={filament.id}
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, filament.id)}
+                    onDragOver={(e) => handleDragOver(e, filament.id)}
+                    onDrop={(e) => handleDrop(e, filament.id)}
+                    onDragEnd={() => {
+                      setDraggedId(null);
+                      setDragOverId(null);
+                    }}
                     style={bgStyle}
-                    className={`p-3.5 rounded-xl border shadow-md flex justify-between items-center transition-all hover:shadow-lg ${
+                    className={`p-3.5 rounded-xl border shadow-md flex justify-between items-center transition-all hover:shadow-lg relative select-none ${
                       isLightBg
                         ? 'border-black/20 text-slate-900 shadow-slate-950/5'
                         : 'border-white/20 text-white shadow-black/40'
-                    }`}
+                    } ${isBeingDragged ? 'opacity-40 scale-[0.99] border-dashed border-cyan-400' : ''} ${
+                      isDragTarget && !isBeingDragged ? 'ring-2 ring-cyan-400 border-cyan-400' : ''
+                    } ${isDefaultSpool ? 'ring-1 ring-amber-400/50' : ''}`}
                   >
-                    <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* Drag Handle & Nudge Buttons */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <div
+                          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-white p-1 rounded hover:bg-black/20 select-none flex-shrink-0"
+                          title="Drag to reorder spools (Top spool is default for new quotes)"
+                        >
+                          <span className="text-sm font-mono font-bold">⠿</span>
+                        </div>
+                        <div className="flex flex-col">
+                          {mainIndex > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleMove(filament.id, 'up')}
+                              className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-black/20 text-[9px] leading-none"
+                              title="Move spool up"
+                            >
+                              ▲
+                            </button>
+                          )}
+                          {mainIndex < filaments.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleMove(filament.id, 'down')}
+                              className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-black/20 text-[9px] leading-none"
+                              title="Move spool down"
+                            >
+                              ▼
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Swatch indicator */}
                       <span
                         className={`w-7 h-7 rounded-full border shadow-inner flex-shrink-0 ${
@@ -705,6 +1132,22 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                               {filament.colorName}
                             </span>
                           )}
+
+                          {isDefaultSpool && (
+                            <span className="text-[10px] bg-amber-500/25 border border-amber-400/50 text-amber-200 px-2 py-0.2 rounded-full font-bold flex-shrink-0 flex items-center gap-1 shadow-xs">
+                              <span>⭐ Default Spool</span>
+                            </span>
+                          )}
+
+                          {isTechnicalRisk && displayRiskRate !== null && (
+                            <span
+                              className="text-[10px] bg-amber-950/90 border border-amber-500/60 text-amber-300 px-2 py-0.2 rounded-full font-bold flex-shrink-0 flex items-center gap-1"
+                              title={`Elevated failure risk rate applied in quotes: ${displayRiskRate}%`}
+                            >
+                              <span>⚡ {materialCat.toUpperCase()} ({displayRiskRate}%)</span>
+                            </span>
+                          )}
+
                           {isMultiColor && (
                             <span className="text-[10px] bg-purple-950/80 border border-purple-400/40 text-purple-200 px-1.5 py-0.2 rounded font-semibold flex-shrink-0">
                               🌈 Multi-color
@@ -732,6 +1175,14 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                           }`}>
                             <span>⚖️ {remainingGrams}g left</span>
                           </span>
+
+                          {filament.actual_spool_weight !== null && filament.actual_spool_weight !== undefined && (
+                            <span className={`px-1.5 py-0.2 rounded border text-[11px] font-mono ${
+                              isLightBg ? 'bg-black/10 border-black/20 text-slate-900 font-medium' : 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300'
+                            }`} title="Measured gross spool weight on digital scale">
+                              ⚖️ Scale: {filament.actual_spool_weight}g
+                            </span>
+                          )}
 
                           {filament.empty_spool_weight && (
                             <span className="opacity-90">📦 Tare: {filament.empty_spool_weight}g</span>
@@ -768,7 +1219,21 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                      {!isDefaultSpool && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefault(filament.id)}
+                          className={`text-[11px] font-medium px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+                            isLightBg
+                              ? 'bg-black/10 hover:bg-black/20 text-slate-900'
+                              : 'bg-amber-500/20 hover:bg-amber-500/35 text-amber-200'
+                          }`}
+                          title="Make this spool the default for new quotes"
+                        >
+                          <span>⭐ Set Default</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => handleUseAsTemplate(filament)}
                         className={`p-2 rounded-lg transition-colors ${
@@ -781,6 +1246,18 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenWeighModal(filament)}
+                        className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                          isLightBg
+                            ? 'bg-black/10 hover:bg-black/20 text-slate-900'
+                            : 'bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-300'
+                        }`}
+                        title="Weigh this spool on your digital scale to update actual weight & usable filament"
+                      >
+                        <span className="text-sm">⚖️</span>
                       </button>
                       <button
                         onClick={() => handleEdit(filament)}
@@ -828,6 +1305,162 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
           setTimeout(() => setToastMessage(null), 4000);
         }}
       />
+
+      {/* Quick Weigh Modal */}
+      {weighingFilament && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">⚖️</span>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Weigh Spool on Scale</h3>
+                  <p className="text-xs text-slate-400">Record actual gross weight from digital scale</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeighingFilament(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 text-lg transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Spool Info */}
+            <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80 flex items-center gap-3">
+              <span
+                className="w-8 h-8 rounded-full border border-white/20 shadow-inner flex-shrink-0"
+                style={{ backgroundColor: weighingFilament.colorHex || '#3b82f6' }}
+              />
+              <div className="min-w-0">
+                <div className="font-bold text-slate-100 text-sm truncate">
+                  {weighingFilament.brand} {weighingFilament.type || weighingFilament.name}
+                </div>
+                <div className="text-xs text-slate-400 flex items-center gap-2">
+                  <span>{weighingFilament.colorName || 'Default Color'}</span>
+                  <span>•</span>
+                  <span>Tare: {weighingFilament.empty_spool_weight ?? 240}g</span>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveScaleWeight} className="space-y-4">
+              <div>
+                <label htmlFor="modalScaleWeight" className="block text-xs font-semibold text-slate-300 mb-1">
+                  Actual Scale Reading (Gross Grams)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="modalScaleWeight"
+                    autoFocus
+                    value={scaleWeightInput}
+                    onChange={(e) => setScaleWeightInput(e.target.value)}
+                    placeholder="e.g. 1240"
+                    step="1"
+                    min="0"
+                    className="w-full bg-slate-800 border border-cyan-500/70 rounded-xl py-2.5 px-3.5 text-xl font-mono font-bold text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner"
+                  />
+                  <span className="absolute right-3.5 top-3 text-sm font-semibold text-slate-400">grams</span>
+                </div>
+                <span className="text-[11px] text-slate-400 block mt-1">
+                  Weigh the entire spool on your digital scale and enter the gross reading.
+                </span>
+              </div>
+
+              {/* Live Math Calculation Preview */}
+              {(() => {
+                const parsedGross = parseFloat(scaleWeightInput);
+                const tare = weighingFilament.empty_spool_weight ?? 240;
+                const hasValidGross = !isNaN(parsedGross) && parsedGross >= 0;
+                const calcNet = hasValidGross ? Math.max(0, parseFloat((parsedGross - tare).toFixed(1))) : (weighingFilament.remaining_grams ?? 0);
+                const isUnderTare = hasValidGross && parsedGross < tare;
+
+                return (
+                  <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>Scale Gross Reading:</span>
+                      <span className="font-mono font-semibold text-slate-200">
+                        {hasValidGross ? `${parsedGross}g` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>Empty Spool Tare:</span>
+                      <span className="font-mono font-semibold text-slate-300">− {tare}g</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
+                      <span className="font-bold text-slate-200">Net Usable Filament:</span>
+                      <span className={`font-mono font-extrabold text-base ${isUnderTare ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {hasValidGross ? `${calcNet}g` : `${weighingFilament.remaining_grams ?? 0}g (current)`}
+                      </span>
+                    </div>
+                    {isUnderTare && (
+                      <div className="text-[11px] text-amber-300 bg-amber-950/50 p-1.5 rounded border border-amber-800">
+                        ⚠️ Scale reading is lower than tare ({tare}g). Double-check tare or zero your scale.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Quick Presets */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">Quick Presets:</label>
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tare = weighingFilament.empty_spool_weight ?? 240;
+                      setScaleWeightInput(String(1000 + tare));
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2 rounded-lg border border-slate-700 transition font-medium cursor-pointer"
+                  >
+                    Full (1kg+Tare)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tare = weighingFilament.empty_spool_weight ?? 240;
+                      setScaleWeightInput(String(500 + tare));
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2 rounded-lg border border-slate-700 transition font-medium cursor-pointer"
+                  >
+                    Half (500g+Tare)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tare = weighingFilament.empty_spool_weight ?? 240;
+                      setScaleWeightInput(String(tare));
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-rose-300 py-1.5 px-2 rounded-lg border border-slate-700 transition font-medium cursor-pointer"
+                  >
+                    Empty ({weighingFilament.empty_spool_weight ?? 240}g)
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setWeighingFilament(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>✓ Save Spool Weight</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

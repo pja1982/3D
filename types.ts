@@ -25,9 +25,15 @@ export interface Filament {
   location?: string | null;
   remaining_grams?: number;
   empty_spool_weight?: number | null;
+  actual_spool_weight?: number | null; // Total weight of spool + filament measured on scale (gross grams)
   updated_at?: string;
   spool_properties?: SpoolProperties;
   filament_id?: number;
+
+  // Technical Difficulty & Ordering
+  failureRate?: number | null; // Technical failure rate risk override (%) for difficult materials (e.g. 15% for TPU, 18% for ABS)
+  sortOrder?: number;
+  isDefault?: boolean;
 }
 
 export interface Printer {
@@ -43,6 +49,8 @@ export interface Printer {
   maintenanceCostPerHour?: number;  // Wear & tear, nozzles, belts, spare parts ($/hr)
   hourlyUsageFee?: number;          // Additional equipment usage/runtime fee ($/hr)
   customHourlyRate?: boolean;       // Whether user entered a direct hourly override
+  sortOrder?: number;
+  isDefault?: boolean;
 }
 
 export interface PartFilamentColor {
@@ -90,6 +98,18 @@ export interface GeneralSettings {
   complexCostPerColorChange?: number;
   complexHandlingFee?: number;
   defaultMultiColorBatchMode?: MultiColorBatchMode; // Default bed batching mode
+
+  // Material Difficulty & Technical Failure Rates (TPU, ABS, Nylon, PC, etc.)
+  enableMaterialDifficultyRates?: boolean; // Whether material difficulty failure rate rules are active
+  materialFailureRates?: {
+    tpu?: number;    // e.g. 15% (TPU / TPE / Flexible)
+    abs?: number;    // e.g. 18% (ABS / ASA - warping & delamination)
+    nylon?: number;  // e.g. 20% (Nylon / PA)
+    pc?: number;     // e.g. 20% (Polycarbonate)
+    carbon?: number; // e.g. 12% (Carbon fiber filled)
+    standard?: number; // e.g. 5% (PLA, PETG base fallback)
+    [key: string]: number | undefined;
+  };
 }
 
 export interface PrintParameters {
@@ -124,6 +144,9 @@ export interface CostBreakdown {
   subtotal: number;
   costWithFailureRate: number;
   profit: number;
+  effectiveFailureRate?: number;
+  materialRiskApplied?: boolean;
+  materialRiskReason?: string;
 }
 
 export interface QuotePartConfig {
@@ -141,6 +164,7 @@ export interface QuotePartConfig {
   colorChanges?: number;
   imageUrl?: string; // Photo of this part
   customUnitPrice?: number | null; // User-adjusted manual unit price ($)
+  failureRate?: number; // Technical failure rate applied for this part (%)
 }
 
 export enum QuoteStatus {

@@ -18,6 +18,7 @@ import {
   savePartToRemote,
   deletePartFromRemote,
   savePrinterToRemote,
+  savePrintersBatchToRemote,
   deletePrinterFromRemote,
   saveFilamentToRemote,
   saveFilamentsBatchToRemote,
@@ -29,6 +30,7 @@ import {
   syncAllLocalDataToRemote,
   sanitizeDocId,
 } from './services/firestoreService';
+import { getFilamentEffectiveFailureRate, MaterialDifficultyRisk } from './utils/filamentFailureRates';
 import Header from './components/Header';
 import { DockerSetupModal } from './components/DockerSetupModal';
 import { GoogleSheetsModal } from './components/GoogleSheetsModal';
@@ -316,8 +318,10 @@ function App() {
   };
 
   const [quoteParts, setQuoteParts] = useState<QuotePartConfig[]>(() => {
-    const initialFilamentId = filaments.length > 0 ? filaments[0].id : null;
-    const initialPrinterId = printers.length > 0 ? printers[0].id : null;
+    const defaultFil = filaments.find(f => f.isDefault) || (filaments.length > 0 ? filaments[0] : null);
+    const defaultPrn = printers.find(p => p.isDefault) || (printers.length > 0 ? printers[0] : null);
+    const initialFilamentId = defaultFil ? defaultFil.id : null;
+    const initialPrinterId = defaultPrn ? defaultPrn.id : null;
     return [
       {
         id: 'part-1',
@@ -340,14 +344,16 @@ function App() {
   const [multiColorBedCount, setMultiColorBedCount] = useState<number>(1);
 
   const activePart = useMemo(() => {
+    const defaultFil = filaments.find(f => f.isDefault) || (filaments.length > 0 ? filaments[0] : null);
+    const defaultPrn = printers.find(p => p.isDefault) || (printers.length > 0 ? printers[0] : null);
     return quoteParts.find(p => p.id === activePartId) || quoteParts[0] || {
       id: 'part-1',
       name: 'Part 1',
       quantity: 1,
       filamentGrams: 100,
-      filamentId: filaments.length > 0 ? filaments[0].id : null,
+      filamentId: defaultFil ? defaultFil.id : null,
       printHours: 5,
-      printerId: printers.length > 0 ? printers[0].id : null,
+      printerId: defaultPrn ? defaultPrn.id : null,
       postProcessingHours: 0.5,
       hardwareCost: 0,
     };
@@ -600,7 +606,7 @@ function App() {
     const finalMultiColorFee = hasMultiColor ? (isSingleBatch ? totalBatchedFee : totalUnbatchedFee) : 0;
     const multiColorSavedFee = hasMultiColor && isSingleBatch ? Math.max(0, totalUnbatchedFee - totalBatchedFee) : 0;
 
-    // Distribute finalMultiColorFee proportionally across multicolor parts
+    // Distribute finalMultiColorFee proportionally across multicolor parts and compute technical material failure rates
     const partsBreakdowns = initialParts.map(ip => {
       let partMultiColorFee = 0;
       if (ip.isMultiColor && hasMultiColor) {
@@ -612,10 +618,39 @@ function App() {
       }
       const subtotal = ip.filamentCost + ip.electricityCost + ip.laborCost + ip.hardwareCost + partMultiColorFee + ip.printerCost;
 
+      // Effective material failure rate calculation
+      const rawPart = quoteParts.find(qp => qp.id === ip.partId);
+      let partRisk: MaterialDifficultyRisk;
+
+      if (rawPart?.colors && rawPart.colors.length > 1) {
+        let maxRisk: MaterialDifficultyRisk = getFilamentEffectiveFailureRate(null, generalSettings);
+        rawPart.colors.forEach(col => {
+          const fil = filaments.find(f => f.id === col.filamentId);
+          const r = getFilamentEffectiveFailureRate(fil, generalSettings);
+          if (r.rate > maxRisk.rate) {
+            maxRisk = r;
+          }
+        });
+        partRisk = maxRisk;
+      } else {
+        const fil = filaments.find(f => f.id === rawPart?.filamentId);
+        partRisk = getFilamentEffectiveFailureRate(fil, generalSettings);
+      }
+
+      const effectiveFailureRate = partRisk.rate;
+      const partCostWithFailureRate = effectiveFailureRate < 100 
+        ? subtotal / (1 - (effectiveFailureRate / 100))
+        : subtotal;
+
       return {
         ...ip,
         multiColorFee: partMultiColorFee,
         subtotal,
+        effectiveFailureRate,
+        costWithFailureRate: partCostWithFailureRate,
+        isTechnical: partRisk.isTechnical,
+        riskReason: partRisk.reason,
+        riskBadge: partRisk.badgeLabel,
       };
     });
 
@@ -635,6 +670,7 @@ function App() {
     let printerDepreciationCost = 0;
     let printerMaintenanceCost = 0;
     let subtotal = 0;
+    let totalCostWithFailureRate = 0;
 
     partsBreakdowns.forEach(pb => {
       filamentCost += pb.filamentCost;
@@ -645,11 +681,19 @@ function App() {
       printerDepreciationCost += (pb.printerDepreciationCost || 0);
       printerMaintenanceCost += (pb.printerMaintenanceCost || 0);
       subtotal += pb.subtotal;
+      totalCostWithFailureRate += pb.costWithFailureRate;
     });
 
-    const costWithFailureRate = subtotal / (1 - (generalSettings.failureRate / 100));
+    const costWithFailureRate = totalCostWithFailureRate;
+    const overallEffectiveFailureRate = costWithFailureRate > 0 && subtotal > 0
+      ? parseFloat((((costWithFailureRate - subtotal) / costWithFailureRate) * 100).toFixed(1))
+      : generalSettings.failureRate;
+
     const profit = costWithFailureRate * (generalSettings.profitMargin / 100);
     const quotePrice = parseFloat((costWithFailureRate + profit).toFixed(2));
+    const materialRiskApplied = partsBreakdowns.some(pb => pb.isTechnical);
+    const techPart = partsBreakdowns.find(pb => pb.isTechnical);
+    const materialRiskReason = techPart ? techPart.riskReason : undefined;
 
     return {
       filamentCost,
@@ -667,6 +711,9 @@ function App() {
       costWithFailureRate,
       profit,
       quotePrice,
+      effectiveFailureRate: overallEffectiveFailureRate,
+      materialRiskApplied,
+      materialRiskReason,
     };
   }, [partsBreakdowns, totalMultiColorFee, multiColorBatchMode, multiColorBedCount, multiColorSavedFee, generalSettings]);
 
@@ -1094,6 +1141,30 @@ function App() {
     if (user) deletePrinterFromRemote(user.uid, id).catch(console.error);
   };
 
+  const handleReorderPrinters = useCallback((reorderedPrinters: Printer[]) => {
+    const updated = reorderedPrinters.map((p, idx) => ({
+      ...p,
+      sortOrder: idx,
+      isDefault: idx === 0,
+    }));
+    setAppData(prev => ({ ...prev, printers: updated }));
+    if (user) {
+      savePrintersBatchToRemote(user.uid, updated).catch(console.error);
+    }
+  }, [setAppData, user]);
+
+  const handleReorderFilaments = useCallback((reorderedFilaments: Filament[]) => {
+    const updated = reorderedFilaments.map((f, idx) => ({
+      ...f,
+      sortOrder: idx,
+      isDefault: idx === 0,
+    }));
+    setAppData(prev => ({ ...prev, filaments: updated }));
+    if (user) {
+      saveFilamentsBatchToRemote(user.uid, updated).catch(console.error);
+    }
+  }, [setAppData, user]);
+
   // Settings Handler
   const handleSaveSettings = (newSettings: GeneralSettings) => {
     setAppData(prev => ({ ...prev, generalSettings: newSettings }));
@@ -1331,6 +1402,7 @@ function App() {
             onUpdate={handleUpdateFilament}
             onDelete={handleDeleteFilament}
             onBatchAdd={handleBatchAddFilaments}
+            onReorder={handleReorderFilaments}
           />
         );
       case 'printers':
@@ -1340,6 +1412,7 @@ function App() {
             onAdd={handleAddPrinter}
             onUpdate={handleUpdatePrinter}
             onDelete={handleDeletePrinter}
+            onReorder={handleReorderPrinters}
           />
         );
       case 'settings':

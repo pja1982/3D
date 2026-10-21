@@ -7,6 +7,7 @@ import CameraIcon from './icons/CameraIcon';
 import ImageModal from './ImageModal';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
+import { getFilamentEffectiveFailureRate } from '../utils/filamentFailureRates';
 
 interface CalculatorFormProps {
   parameters: PrintParameters;
@@ -175,10 +176,9 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
     id: 'part-1',
     name: 'Part 1',
     quantity: 1,
-    filamentGrams: 100,
-    filamentId: filaments[0]?.id || null,
+    filamentId: (filaments.find(f => f.isDefault) || filaments[0])?.id || null,
     printHours: 5,
-    printerId: printers[0]?.id || null,
+    printerId: (printers.find(p => p.isDefault) || printers[0])?.id || null,
     postProcessingHours: 0.5,
     hardwareCost: 0,
   };
@@ -468,14 +468,16 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
             type="button"
             onClick={() => {
               const newPartIndex = quoteParts.length + 1;
+              const defaultFil = filaments.find(f => f.isDefault) || (filaments.length > 0 ? filaments[0] : null);
+              const defaultPrn = printers.find(p => p.isDefault) || (printers.length > 0 ? printers[0] : null);
               const newPart: QuotePartConfig = {
                 id: `part-${Date.now()}`,
                 name: `Part ${newPartIndex}`,
                 quantity: 1,
                 filamentGrams: 100,
-                filamentId: filaments.length > 0 ? filaments[0].id : null,
+                filamentId: defaultFil ? defaultFil.id : null,
                 printHours: 5,
-                printerId: printers.length > 0 ? printers[0].id : null,
+                printerId: defaultPrn ? defaultPrn.id : null,
                 postProcessingHours: 0.5,
                 hardwareCost: 0,
               };
@@ -844,11 +846,15 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   {filaments.length === 0 ? (
                     <option disabled value="">No filaments configured</option>
                   ) : (
-                    filaments.map(filament => (
+                    filaments.map(filament => {
+                      const scaleText = filament.actual_spool_weight ? ` • Scale: ${filament.actual_spool_weight}g` : '';
+                      const remText = filament.remaining_grams !== undefined ? ` [${filament.remaining_grams}g left]` : '';
+                      return (
                         <option key={filament.id} value={filament.id}>
-                            {filament.brand} - {filament.type || filament.name}{filament.colorName ? ` (${filament.colorName})` : ''} (${filament.costPerKg.toFixed(2)}/kg)
+                          {filament.brand} - {filament.type || filament.name}{filament.colorName ? ` (${filament.colorName})` : ''} (${filament.costPerKg.toFixed(2)}/kg){remText}{scaleText}
                         </option>
-                    ))
+                      );
+                    })
                   )}
               </select>
               {selectedFilament && (
@@ -867,6 +873,11 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                     {selectedFilament.remaining_grams !== undefined && (
                       <span className="text-slate-300 ml-1.5 font-normal">
                         • <span className="text-cyan-400 font-medium">⚖️ {selectedFilament.remaining_grams}g left</span>
+                        {selectedFilament.actual_spool_weight !== null && selectedFilament.actual_spool_weight !== undefined && (
+                          <span className="text-slate-400 font-mono text-[11px] ml-1">
+                            (Scale: {selectedFilament.actual_spool_weight}g)
+                          </span>
+                        )}
                       </span>
                     )}
                     {selectedFilament.location && (
@@ -882,6 +893,34 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   )}
                 </div>
               )}
+
+              {/* Technical Material Risk Banner */}
+              {(() => {
+                if (!selectedFilament) return null;
+                const risk = getFilamentEffectiveFailureRate(selectedFilament, generalSettings);
+                if (!risk.isTechnical) return null;
+                return (
+                  <div className="p-2.5 bg-amber-950/40 border border-amber-500/40 rounded-lg flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-amber-200">
+                      <span className="text-base">⚡</span>
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5">
+                          <span>{risk.badgeLabel} Active</span>
+                          <span className="text-[10px] bg-amber-900/80 text-amber-300 border border-amber-500/50 px-1.5 py-0.2 rounded font-semibold">
+                            Technical Difficulty
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-amber-300/80 block mt-0.5">
+                          {risk.reason}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs bg-amber-900/80 text-amber-200 border border-amber-600/50 px-2 py-1 rounded font-mono font-bold whitespace-nowrap ml-2">
+                      {risk.rate}% Buffer
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
             <InputGroup label="Filament Weight" id="filamentGrams" value={parameters.filamentGrams} onChange={handleInputChange} unit="grams" />
           </>
@@ -938,11 +977,15 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                           onChange={(e) => handleColorFilamentChange(colorItem.id, e.target.value)}
                           className="w-full bg-slate-700 border border-slate-600 rounded-md py-1.5 px-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         >
-                          {filaments.map(f => (
-                            <option key={f.id} value={f.id}>
-                              {f.brand} - {f.type || f.name}{f.colorName ? ` (${f.colorName})` : ''} (${f.costPerKg.toFixed(2)}/kg)
-                            </option>
-                          ))}
+                          {filaments.map(f => {
+                            const scaleText = f.actual_spool_weight ? ` • Scale: ${f.actual_spool_weight}g` : '';
+                            const remText = f.remaining_grams !== undefined ? ` [${f.remaining_grams}g left]` : '';
+                            return (
+                              <option key={f.id} value={f.id}>
+                                {f.brand} - {f.type || f.name}{f.colorName ? ` (${f.colorName})` : ''} (${f.costPerKg.toFixed(2)}/kg){remText}{scaleText}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 

@@ -89,7 +89,7 @@ const QuoteDetailView: React.FC<{
               <DetailItem label="Subtotal (All Parts)" value={formatCurrency(costBreakdown.subtotal)} />
             </div>
             <div>
-              <DetailItem label="Failure Adj." value={`${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} (${parameters.failureRate}%)`} />
+              <DetailItem label="Failure Adj." value={`${formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)} (${costBreakdown.effectiveFailureRate ?? parameters.failureRate}%${costBreakdown.materialRiskApplied ? ' ⚡' : ''})`} />
             </div>
             <div>
               <DetailItem label="Total Cost" value={formatCurrency(costWithFailure)} />

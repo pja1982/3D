@@ -623,10 +623,30 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
           <span>Subtotal (Direct Cost):</span>
           <span className="font-mono">{formatCurrency(costBreakdown.subtotal)}</span>
         </div>
-        <div className="flex justify-between text-xs text-slate-400">
-          <span>+ Failure Rate Risk Adj:</span>
+        <div className="flex justify-between items-center text-xs text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span>+ Failure Rate Risk Adj:</span>
+            {costBreakdown.effectiveFailureRate !== undefined ? (
+              <span className={`px-1.5 py-0.2 rounded font-mono font-medium text-[11px] ${
+                costBreakdown.materialRiskApplied
+                  ? 'bg-amber-950/80 text-amber-300 border border-amber-600/40'
+                  : 'bg-slate-800 text-slate-300'
+              }`}>
+                {costBreakdown.effectiveFailureRate}%
+                {costBreakdown.materialRiskApplied && ' ⚡ Technical Risk'}
+              </span>
+            ) : (
+              <span>({parameters.failureRate}%)</span>
+            )}
+          </span>
           <span className="font-mono">{formatCurrency(costBreakdown.costWithFailureRate - costBreakdown.subtotal)}</span>
         </div>
+        {Boolean(costBreakdown.materialRiskApplied && costBreakdown.materialRiskReason) && (
+          <div className="text-[11px] text-amber-300/90 bg-amber-950/30 px-2 py-1 rounded border border-amber-600/30 flex items-center gap-1.5">
+            <span>⚠️</span>
+            <span>{costBreakdown.materialRiskReason}</span>
+          </div>
+        )}
         <div className="flex justify-between text-xs text-slate-400">
           <span>+ Total Net Profit:</span> 
           <span className={`font-mono font-medium ${currentProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>

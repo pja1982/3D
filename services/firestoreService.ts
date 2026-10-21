@@ -103,6 +103,7 @@ export function subscribeToUserData(
           const { ownerId: _ownerId, ...rest } = data;
           printers.push(rest as Printer);
         });
+        printers.sort((a, b) => ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
         callbacks.onPrinters(printers);
       },
       (error) => {
@@ -130,6 +131,7 @@ export function subscribeToUserData(
           const { ownerId: _ownerId, ...rest } = data;
           filaments.push(rest as Filament);
         });
+        filaments.sort((a, b) => ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
         callbacks.onFilaments(filaments);
       },
       (error) => {
@@ -290,6 +292,15 @@ export async function savePrinterToRemote(userId: string, printer: Printer): Pro
 }
 
 /**
+ * Saves multiple printers to remote Firestore in batch.
+ */
+export async function savePrintersBatchToRemote(userId: string, printers: Printer[]): Promise<void> {
+  for (let i = 0; i < printers.length; i++) {
+    await savePrinterToRemote(userId, { ...printers[i], sortOrder: i });
+  }
+}
+
+/**
  * Deletes a printer from remote Firestore.
  */
 export async function deletePrinterFromRemote(userId: string, printerId: string): Promise<void> {
@@ -324,8 +335,8 @@ export async function saveFilamentToRemote(userId: string, filament: Filament): 
  * Saves multiple filaments to remote Firestore in batch.
  */
 export async function saveFilamentsBatchToRemote(userId: string, filaments: Filament[]): Promise<void> {
-  for (const f of filaments) {
-    await saveFilamentToRemote(userId, f);
+  for (let i = 0; i < filaments.length; i++) {
+    await saveFilamentToRemote(userId, { ...filaments[i], sortOrder: i });
   }
 }
 

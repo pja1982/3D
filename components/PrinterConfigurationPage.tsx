@@ -9,6 +9,7 @@ interface PrinterConfigurationPageProps {
   onAdd: (printer: Omit<Printer, 'id'>) => void;
   onUpdate: (printer: Printer) => void;
   onDelete: (id: string) => void;
+  onReorder?: (printers: Printer[]) => void;
 }
 
 const emptyPrinter: Omit<Printer, 'id'> = {
@@ -23,10 +24,81 @@ const emptyPrinter: Omit<Printer, 'id'> = {
   customHourlyRate: false,
 };
 
-const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ printers, onAdd, onUpdate, onDelete }) => {
+const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ printers, onAdd, onUpdate, onDelete, onReorder }) => {
   const [formData, setFormData] = useState<Omit<Printer, 'id'> | Printer>(emptyPrinter);
   const [isEditing, setIsEditing] = useState(false);
   const [isCustomDepreciation, setIsCustomDepreciation] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const reordered = [...printers];
+    const [moved] = reordered.splice(draggedIndex, 1);
+    reordered.splice(dropIndex, 0, moved);
+
+    const updated = reordered.map((p, idx) => ({
+      ...p,
+      sortOrder: idx,
+      isDefault: idx === 0,
+    }));
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    if (onReorder) {
+      onReorder(updated);
+    }
+  };
+
+  const handleSetDefault = (index: number) => {
+    const updated = printers.map((p, idx) => ({
+      ...p,
+      isDefault: idx === index,
+    }));
+
+    if (onReorder) {
+      onReorder(updated);
+    }
+  };
+
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= printers.length) return;
+    const reordered = [...printers];
+    const temp = reordered[index];
+    reordered[index] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    const updated = reordered.map((p, idx) => ({
+      ...p,
+      sortOrder: idx,
+      isDefault: idx === 0,
+    }));
+
+    if (onReorder) {
+      onReorder(updated);
+    }
+  };
 
   useEffect(() => {
     if (isEditing && 'id' in formData && !printers.find(p => p.id === formData.id)) {
@@ -427,9 +499,14 @@ const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ pri
 
       {/* Saved Printers List */}
       <div className="lg:col-span-2 bg-slate-800/60 p-6 rounded-2xl shadow-xl border border-slate-700">
-        <div className="flex justify-between items-center border-b border-slate-700 pb-2 mb-6">
-          <h2 className="text-2xl font-semibold text-cyan-400">Saved Printers</h2>
-          <span className="text-xs bg-slate-700 text-slate-300 font-semibold px-2.5 py-1 rounded-full">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-700 pb-3 mb-4 gap-2">
+          <div>
+            <h2 className="text-2xl font-semibold text-cyan-400">Saved Printers</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Top printer is the <strong>Default Printer</strong> auto-selected for new quotes. Drag ⠿ or click &ldquo;Set as Default&rdquo; to reorder.
+            </p>
+          </div>
+          <span className="text-xs bg-slate-700 text-slate-300 font-semibold px-2.5 py-1 rounded-full self-start sm:self-auto">
             {printers.length} {printers.length === 1 ? 'Printer' : 'Printers'}
           </span>
         </div>
@@ -441,14 +518,89 @@ const PrinterConfigurationPage: React.FC<PrinterConfigurationPageProps> = ({ pri
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {printers.map(printer => {
+            {printers.map((printer, index) => {
               const pRates = calculatePrinterRates(printer);
+              const hasExplicitDefault = printers.some(p => p.isDefault);
+              const isDefault = Boolean(printer.isDefault || (!hasExplicitDefault && index === 0));
+              const isBeingDragged = draggedIndex === index;
+              const isDragTarget = dragOverIndex === index;
+
               return (
                 <div
                   key={printer.id}
-                  className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-all flex flex-col justify-between shadow-md"
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={() => {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  className={`p-4 rounded-xl border transition-all flex flex-col justify-between shadow-md relative ${
+                    isDefault
+                      ? 'bg-slate-800/95 border-cyan-500/60 ring-1 ring-cyan-500/30'
+                      : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                  } ${isBeingDragged ? 'opacity-40 scale-98 border-dashed border-cyan-400' : ''} ${
+                    isDragTarget && !isBeingDragged ? 'ring-2 ring-cyan-400 border-cyan-400 bg-slate-800/90' : ''
+                  }`}
                 >
                   <div>
+                    {/* Default badge & Drag handle bar */}
+                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-700/60">
+                      <div className="flex items-center gap-2">
+                        {/* Drag Handle */}
+                        <div
+                          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-200 p-1 -ml-1 rounded hover:bg-slate-700/50 transition select-none"
+                          title="Drag to reorder printers"
+                        >
+                          <span className="text-sm font-mono tracking-tight font-bold">⠿</span>
+                        </div>
+
+                        {isDefault ? (
+                          <span className="text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                            <span>⭐ Default Printer</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            #{index + 1}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {!isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefault(index)}
+                            className="text-[11px] bg-slate-700/80 hover:bg-cyan-600 text-slate-300 hover:text-white px-2 py-0.5 rounded font-medium transition flex items-center gap-1 cursor-pointer"
+                            title="Make this printer the default for new quotes"
+                          >
+                            <span>⭐ Set Default</span>
+                          </button>
+                        )}
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleMove(index, 'up')}
+                            className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded transition text-xs cursor-pointer"
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                        )}
+                        {index < printers.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleMove(index, 'down')}
+                            className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded transition text-xs cursor-pointer"
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Header */}
                     <div className="flex justify-between items-start gap-2">
                       <div>
