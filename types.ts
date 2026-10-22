@@ -184,6 +184,8 @@ export interface Quote {
   parameters: PrintParameters;
   costBreakdown: CostBreakdown;
   parts?: QuotePartConfig[];
+  isArchived?: boolean;
+  archivedAt?: string;
 }
 
 export enum OrderStatus {
@@ -202,6 +204,8 @@ export interface Order {
   completedImageUrl?: string; // Photo of the completed 3D print
   completedAt?: string;       // Timestamp when finished / photo attached
   completionNotes?: string;   // Optional notes on the finished print / inspection
+  isArchived?: boolean;
+  archivedAt?: string;
 }
 
 export interface AppData {

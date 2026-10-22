@@ -973,6 +973,27 @@ function App() {
     }
   };
 
+  const handleArchiveQuote = (id: string, archive: boolean) => {
+    let targetQuote: Quote | null = null;
+    setAppData(prev => ({
+      ...prev,
+      quotes: prev.quotes.map(q => {
+        if (q.id === id) {
+          targetQuote = {
+            ...q,
+            isArchived: archive,
+            archivedAt: archive ? new Date().toISOString() : undefined,
+          };
+          return targetQuote;
+        }
+        return q;
+      })
+    }));
+    if (user && targetQuote) {
+      saveQuoteToRemote(user.uid, targetQuote).catch(console.error);
+    }
+  };
+
   // Part Handlers
   const handleAddPart = (part: Omit<Part, 'id'>) => {
     const newPart: Part = { ...part, id: `part_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` };
@@ -1079,6 +1100,27 @@ function App() {
   const handleDeleteOrder = (orderId: string) => {
     setAppData(prev => ({ ...prev, orders: prev.orders.filter(o => o.id !== orderId) }));
     if (user) deleteOrderFromRemote(user.uid, orderId).catch(console.error);
+  };
+
+  const handleArchiveOrder = (orderId: string, archive: boolean) => {
+    let targetOrder: Order | null = null;
+    setAppData(prev => ({
+      ...prev,
+      orders: prev.orders.map(o => {
+        if (o.id === orderId) {
+          targetOrder = {
+            ...o,
+            isArchived: archive,
+            archivedAt: archive ? new Date().toISOString() : undefined,
+          };
+          return targetOrder;
+        }
+        return o;
+      })
+    }));
+    if (user && targetOrder) {
+      saveOrderToRemote(user.uid, targetOrder).catch(console.error);
+    }
   };
 
   // Filament Handlers
@@ -1372,6 +1414,7 @@ function App() {
             onReviseQuote={handleReviseQuote}
             onUseAsTemplate={handleUseQuoteAsTemplate}
             onOpenGoogleSheets={() => setIsGoogleSheetsModalOpen(true)}
+            onArchive={handleArchiveQuote}
           />
         );
       case 'orders':
@@ -1384,6 +1427,7 @@ function App() {
             onDelete={handleDeleteOrder}
             onUpdateStatus={handleUpdateOrderStatus}
             onUpdateOrderPhoto={handleUpdateOrderPhoto}
+            onArchive={handleArchiveOrder}
           />
         );
        case 'parts':

@@ -13,16 +13,50 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.5.0';
-export const APP_RELEASE_DATE = 'October 20, 2026';
-export const APP_CODENAME = 'Precision Scale & Technical Resins';
+export const APP_VERSION = '2.6.0';
+export const APP_RELEASE_DATE = 'October 22, 2026';
+export const APP_CODENAME = 'Jobs & Orders Archiving';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.6.0',
+    releaseDate: 'October 22, 2026',
+    title: 'Job & Order Archiving with Dedicated Filter Views and Fast Search',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Archive & Restore options for both Saved Jobs (Quotes) and Active Orders',
+      'Clean active workspace: archived items are safely hidden by default and preserved indefinitely',
+      'Fast tab filtering: switch seamlessly between Active, Archived, and All views with instant counts',
+      'Visual archive badges and quick Restore / Archive buttons directly on table rows and detail drawers',
+      'Instant search filter by job/order number, part/job name, or customer name across any view'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          'Archive and Restore action buttons on every Job row, Order row, and expandable detail drawer',
+          'Active, Archived, and All filter tabs with live counters on both the Jobs and Orders tracking pages',
+          'Instant keyword search bar for Jobs and Orders matching job #, order #, job name, and customer',
+          'Visual 🗄️ Archived badge indicator on archived job and order cards',
+          'Persistent isArchived and archivedAt fields synchronized across cloud Firestore and local data',
+          'Export to CSV and Obsidian Markdown updated to respect the currently active view filter (Active, Archived, or All)'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Default view shows active jobs and orders so completed/historical data never clutters daily production',
+          'Contextual empty state messages informing users when all items are archived or when search yields no matches'
+        ]
+      }
+    ]
+  },
   {
     version: '2.5.0',
     releaseDate: 'October 20, 2026',
     title: 'Digital Scale Inventory, Drag-and-Drop Defaults & Technical Resin Risk',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Digital Scale Spool Weight tracking with gross weight reading and empty spool tare subtraction',

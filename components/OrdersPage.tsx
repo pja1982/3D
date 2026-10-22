@@ -7,6 +7,8 @@ import CreateOrderIcon from './icons/CreateOrderIcon';
 import MarkdownIcon from './icons/MarkdownIcon';
 import CameraIcon from './icons/CameraIcon';
 import PhotoIcon from './icons/PhotoIcon';
+import ArchiveIcon from './icons/ArchiveIcon';
+import RestoreIcon from './icons/RestoreIcon';
 import ImageModal from './ImageModal';
 import JobPartsTable from './JobPartsTable';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
@@ -27,6 +29,7 @@ interface OrdersPageProps {
   onDelete: (id: string) => void;
   onUpdateStatus: (id: string, status: OrderStatus) => void;
   onUpdateOrderPhoto?: (id: string, imageUrl?: string) => void;
+  onArchive?: (id: string, archive: boolean) => void;
 }
 
 const statusColors: Record<OrderStatus, string> = {
@@ -53,7 +56,8 @@ const OrderDetailView: React.FC<{
   printers?: Printer[];
   onUpdateOrderPhoto?: (id: string, imageUrl?: string) => void;
   onOpenPhotoModal: (url: string, title: string) => void;
-}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal }) => {
+  onArchive?: (id: string, archive: boolean) => void;
+}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal, onArchive }) => {
   const [copied, setCopied] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -301,7 +305,7 @@ const OrderDetailView: React.FC<{
         )}
       </div>
 
-      {/* Obsidian Markdown Export Actions */}
+      {/* Actions & Obsidian Markdown Exports */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-700/60 pt-3">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -338,9 +342,24 @@ const OrderDetailView: React.FC<{
             <span>{copiedInvoice ? '✓ Copied Invoice!' : 'Copy Invoice'}</span>
           </button>
         </div>
-        <span className="text-xs text-slate-400">
-          Ready to save into your Obsidian Vault for order tracking & fulfillment logs.
-        </span>
+
+        <div className="flex items-center gap-2">
+          {onArchive && (
+            <button
+              type="button"
+              onClick={() => onArchive(order.id, !order.isArchived)}
+              className={`flex items-center gap-1.5 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors cursor-pointer ${
+                order.isArchived
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+              }`}
+              title={order.isArchived ? "Restore this order to active orders" : "Archive this order to remove from active list"}
+            >
+              {order.isArchived ? <RestoreIcon className="w-3.5 h-3.5" /> : <ArchiveIcon className="w-3.5 h-3.5" />}
+              <span>{order.isArchived ? 'Restore to Active' : 'Archive Order'}</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -354,9 +373,31 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
   onDelete,
   onUpdateStatus,
   onUpdateOrderPhoto,
+  onArchive,
 }) => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const activeCount = orders.filter(o => !o.isArchived).length;
+  const archivedCount = orders.filter(o => o.isArchived).length;
+  const totalCount = orders.length;
+
+  const displayOrders = orders.filter(o => {
+    if (archiveFilter === 'active' && o.isArchived) return false;
+    if (archiveFilter === 'archived' && !o.isArchived) return false;
+    if (searchQuery.trim()) {
+      const qLower = searchQuery.toLowerCase();
+      const quote = quotes.find(q => q.id === o.quoteId);
+      const matchOrderNum = o.orderNumber.toString().includes(qLower);
+      const matchJob = quote ? quote.jobName.toLowerCase().includes(qLower) : false;
+      const matchCust = quote ? quote.customerName.toLowerCase().includes(qLower) : false;
+      const matchStatus = o.status.toLowerCase().includes(qLower);
+      if (!matchOrderNum && !matchJob && !matchCust && !matchStatus) return false;
+    }
+    return true;
+  });
 
   const handleToggleExpand = (orderId: string) => {
     setExpandedOrderId(prevId => prevId === orderId ? null : orderId);
@@ -371,32 +412,34 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
   };
 
   const handleExportAllMarkdown = () => {
-    if (orders.length === 0) return;
+    const listToExport = displayOrders.length > 0 ? displayOrders : orders;
+    if (listToExport.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
-    const md = generateAllOrdersMarkdown(orders, quotes, filaments, printers);
-    downloadMarkdownFile(`3D_Print_Orders_Obsidian_${today}.md`, md);
+    const md = generateAllOrdersMarkdown(listToExport, quotes, filaments, printers);
+    downloadMarkdownFile(`3D_Print_Orders_${archiveFilter}_${today}.md`, md);
   };
 
   const handleExportAllInvoicesMarkdown = () => {
-    if (orders.length === 0) return;
+    const listToExport = displayOrders.length > 0 ? displayOrders : orders;
+    if (listToExport.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
     // Gather quotes for current orders
-    const orderQuotes = orders.map(o => quotes.find(q => q.id === o.quoteId)).filter(Boolean) as Quote[];
+    const orderQuotes = listToExport.map(o => quotes.find(q => q.id === o.quoteId)).filter(Boolean) as Quote[];
     const md = generateAllInvoicesMarkdown(orderQuotes, filaments, printers);
-    downloadMarkdownFile(`3D_Print_Invoices_Obsidian_${today}.md`, md);
+    downloadMarkdownFile(`3D_Print_Invoices_${archiveFilter}_${today}.md`, md);
   };
   
   return (
     <div className="mt-8 pb-12">
       <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
-        <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-600 pb-2 mb-6">
+        <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-600 pb-3 mb-6">
           <div className="flex items-center gap-3">
             <CreateOrderIcon className="w-7 h-7 text-cyan-400" />
             <h2 className="text-2xl font-semibold text-cyan-400">
-              Active Orders
+              Orders Tracking
             </h2>
             <span className="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-              {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+              {displayOrders.length} shown ({activeCount} active{archivedCount > 0 ? `, ${archivedCount} archived` : ''})
             </span>
           </div>
           {orders.length > 0 && (
@@ -404,7 +447,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
               <button
                 onClick={handleExportAllMarkdown}
                 className="flex items-center gap-2 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
-                title="Export all orders as an Obsidian-ready Markdown archive note (.md)"
+                title="Export shown orders as an Obsidian-ready Markdown archive note (.md)"
               >
                 <MarkdownIcon className="w-4 h-4" />
                 <span>Export Orders (.md)</span>
@@ -412,7 +455,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
               <button
                 onClick={handleExportAllInvoicesMarkdown}
                 className="flex items-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 font-semibold py-2 px-3.5 rounded-lg transition-colors text-sm shadow-sm"
-                title="Export all customer invoices for these orders as an Obsidian-ready note (.md) linking to parts/"
+                title="Export customer invoices for shown orders as an Obsidian-ready note (.md)"
               >
                 <span>🧾 Export Invoices (.md)</span>
               </button>
@@ -420,10 +463,105 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
           )}
         </div>
 
+        {/* View Filter Tabs & Search Controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6 bg-slate-900/40 p-3 rounded-xl border border-slate-700/60">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-800/90 rounded-lg border border-slate-700">
+            <button
+              type="button"
+              onClick={() => setArchiveFilter('active')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                archiveFilter === 'active'
+                  ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <span>Active Orders</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${archiveFilter === 'active' ? 'bg-slate-900/30 text-slate-950 font-bold' : 'bg-slate-700 text-slate-300'}`}>
+                {activeCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setArchiveFilter('archived')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                archiveFilter === 'archived'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <ArchiveIcon className="w-3.5 h-3.5" />
+              <span>Archived</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${archiveFilter === 'archived' ? 'bg-slate-900/30 text-slate-950 font-bold' : 'bg-slate-700 text-slate-300'}`}>
+                {archivedCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setArchiveFilter('all')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                archiveFilter === 'all'
+                  ? 'bg-purple-500 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <span>All Orders</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${archiveFilter === 'all' ? 'bg-purple-900/60 text-purple-200' : 'bg-slate-700 text-slate-300'}`}>
+                {totalCount}
+              </span>
+            </button>
+          </div>
+
+          {/* Quick Search */}
+          <div className="relative flex-1 max-w-xs">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by order #, job, customer..."
+              className="w-full bg-slate-900/90 border border-slate-700 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
         {orders.length === 0 ? (
           <div className="text-center py-16 text-slate-500">
-            <h3 className="text-xl font-semibold">No Active Orders</h3>
+            <h3 className="text-xl font-semibold">No Orders Found</h3>
             <p className="mt-2">Accept a job from the 'Jobs' page to create a new order.</p>
+          </div>
+        ) : displayOrders.length === 0 ? (
+          <div className="text-center py-16 text-slate-500">
+            <h3 className="text-xl font-semibold">
+              {searchQuery
+                ? `No orders match "${searchQuery}"`
+                : archiveFilter === 'archived'
+                ? 'No Archived Orders'
+                : 'No Active Orders Found'}
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-cyan-400 underline hover:text-cyan-300"
+                >
+                  Clear search query
+                </button>
+              ) : archiveFilter === 'archived' ? (
+                'Orders you archive will be kept here safely without cluttering active production.'
+              ) : (
+                'All orders are currently archived. Switch to the Archived tab to view or restore them.'
+              )}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -442,7 +580,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {orders.map(order => {
+                {displayOrders.map(order => {
                   const quote = quotes.find(q => q.id === order.quoteId);
                   if (!quote) {
                     return (
@@ -467,7 +605,16 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                       <td className="px-2 py-4 text-center">
                         <ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandedOrderId === order.id ? 'rotate-180' : ''}`} />
                       </td>
-                      <td className="px-6 py-4 font-medium text-slate-300">#{order.orderNumber}</td>
+                      <td className="px-6 py-4 font-medium text-slate-300">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>#{order.orderNumber}</span>
+                          {order.isArchived && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded-full">
+                              🗄️ Archived
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 font-bold text-slate-100">{quote.jobName}</td>
                       <td className="px-6 py-4 text-slate-300">{quote.customerName}</td>
                       <td className="px-6 py-4 text-slate-400">{formatDate(order.createdAt)}</td>
@@ -543,6 +690,19 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                           >
                             🧾
                           </button>
+                          {onArchive && (
+                            <button
+                              onClick={() => onArchive(order.id, !order.isArchived)}
+                              className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                                order.isArchived
+                                  ? 'bg-amber-500/20 hover:bg-amber-500/40 text-amber-300'
+                                  : 'bg-slate-700/60 hover:bg-amber-500/30 text-slate-300 hover:text-amber-300'
+                              }`}
+                              title={order.isArchived ? "Restore to Active Orders" : "Archive Order"}
+                            >
+                              {order.isArchived ? <RestoreIcon className="w-4 h-4" /> : <ArchiveIcon className="w-4 h-4" />}
+                            </button>
+                          )}
                           <button
                             onClick={() => onDelete(order.id)}
                             className="p-1.5 rounded-full bg-slate-600 hover:bg-red-500/40 text-slate-300 hover:text-red-300 transition-colors"
@@ -563,6 +723,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                             printers={printers}
                             onUpdateOrderPhoto={onUpdateOrderPhoto}
                             onOpenPhotoModal={(url, title) => setModalImage({ url, title })}
+                            onArchive={onArchive}
                           />
                         </td>
                       </tr>
