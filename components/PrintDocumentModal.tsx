@@ -6,6 +6,7 @@ import PrinterIcon from './icons/PrinterIcon';
 import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
 import XIcon from './icons/XIcon';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
+import { MILESTONES, getOrderMilestoneRows } from '../utils/orderMilestones';
 
 interface PrintDocumentModalProps {
   isOpen: boolean;
@@ -94,64 +95,9 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
 
   // Compute individual print lines (one line per quantity required / print unit)
   const milestonePrintRows = useMemo(() => {
-    interface MilestoneRowItem {
-      id: string;
-      unitIndex: number;
-      unitLabel: string;
-      partName: string;
-      materialLabel: string;
-      colorName?: string;
-    }
-    const items: MilestoneRowItem[] = [];
-    let globalIndex = 1;
-
-    if (computedParts.rows && computedParts.rows.length > 0) {
-      computedParts.rows.forEach((row, rowIdx) => {
-        const fil = filaments.find(f => f.id === row.part.filamentId);
-        const materialLabel = fil 
-          ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
-          : 'Standard Material';
-        const quantity = Math.max(1, row.qty || 1);
-
-        if (milestoneGrouping === 'per_unit') {
-          for (let i = 1; i <= quantity; i++) {
-            items.push({
-              id: `${row.part.id || rowIdx}-unit-${i}`,
-              unitIndex: globalIndex++,
-              unitLabel: quantity > 1 ? `#${i} of ${quantity}` : '1 of 1',
-              partName: row.part.name || `Part ${rowIdx + 1}`,
-              materialLabel,
-              colorName: fil?.colorName,
-            });
-          }
-        } else {
-          items.push({
-            id: `${row.part.id || rowIdx}-line-item`,
-            unitIndex: globalIndex++,
-            unitLabel: `Qty: ${quantity}`,
-            partName: row.part.name || `Part ${rowIdx + 1}`,
-            materialLabel,
-            colorName: fil?.colorName,
-          });
-        }
-      });
-    } else {
-      const fil = filaments.find(f => f.id === quote.parameters?.filamentId);
-      const materialLabel = fil 
-        ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
-        : 'Standard Material';
-      items.push({
-        id: 'single-unit-1',
-        unitIndex: 1,
-        unitLabel: '1 of 1',
-        partName: quote.jobName || '3D Printed Model',
-        materialLabel,
-        colorName: fil?.colorName,
-      });
-    }
-
-    return items;
-  }, [computedParts, quote, filaments, milestoneGrouping]);
+    if (!quote) return [];
+    return getOrderMilestoneRows(quote, filaments, printers, milestoneGrouping);
+  }, [quote, filaments, printers, milestoneGrouping]);
 
   const primaryPrinter = useMemo(() => {
     const firstPartPrinterId = quote.parts?.[0]?.printerId || quote.parameters?.printerId;
@@ -627,7 +573,8 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                       <tbody className="divide-y divide-slate-200">
                         {computedParts.rows.map((row, idx) => {
                           const fil = filaments.find(f => f.id === row.part.filamentId);
-                          const materialLabel = fil ? `${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard';
+                          const codePrefix = fil?.masterCode ? `[#${fil.masterCode}] ` : '';
+                          const materialLabel = fil ? `${codePrefix}${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard';
                           return (
                             <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
                               <td className="py-2.5 px-2 text-center">
@@ -720,38 +667,23 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                           <td className="py-1.5 px-2 text-slate-600 text-[10px] leading-tight">
                             {row.materialLabel}
                           </td>
-                          {/* Slicing */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* Spool checked */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* Build plate clean */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* First layer */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* Print completed */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* Post-processing completed */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* QA */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
-                          {/* Documentation */}
-                          <td className="py-1.5 px-1 text-center">
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
-                          </td>
+                          {MILESTONES.map((m) => {
+                            const isChecked = Boolean(order?.milestones?.[row.id]?.[m.key]);
+                            return (
+                              <td key={m.key} className="py-1.5 px-1 text-center align-middle">
+                                <span
+                                  className={`inline-flex items-center justify-center w-3.5 h-3.5 border-2 rounded-sm text-[9px] font-black ${
+                                    isChecked
+                                      ? 'border-purple-800 bg-purple-100 text-purple-900 print:border-black print:text-black print:bg-slate-100'
+                                      : 'border-slate-400 text-transparent print:border-slate-500'
+                                  }`}
+                                  title={`${m.label}: ${isChecked ? 'Checked' : 'Pending'}`}
+                                >
+                                  {isChecked ? '✓' : ''}
+                                </span>
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>

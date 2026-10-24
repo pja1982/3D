@@ -33,6 +33,7 @@ const emptyPart: Omit<Part, 'id'> = {
   hardwareCost: 0,
   imageUrl: '',
   customUnitPrice: null,
+  filamentId: null,
 };
 
 const formatDuration = (hours: number) => {
@@ -625,23 +626,48 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </div>
 
             {!isPartMultiColor ? (
-              <div>
-                <label htmlFor="filamentGrams" className="block text-xs font-medium text-slate-300 mb-1">
-                  Total Filament Weight (grams)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    id="filamentGrams"
-                    name="filamentGrams"
-                    value={editingPart.filamentGrams}
-                    onChange={handleChange}
-                    min="0"
-                    step="0.1"
-                    className="w-full bg-slate-800 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
-                    required
-                  />
-                  <span className="absolute right-3 top-2 text-xs text-slate-400">grams</span>
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="filamentId" className="block text-xs font-medium text-slate-300 mb-1">
+                    Base Filament / Material
+                  </label>
+                  <select
+                    id="filamentId"
+                    name="filamentId"
+                    value={editingPart.filamentId || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingPart(prev => ({ ...prev, filamentId: val || null }));
+                    }}
+                    className="w-full bg-slate-800 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-xs"
+                  >
+                    <option value="">Default Material (Quote Fallback)</option>
+                    {filaments.map(fil => (
+                      <option key={fil.id} value={fil.id}>
+                        {fil.brand} - {fil.type}{fil.colorName ? ` (${fil.colorName})` : ''} — ${fil.costPerKg.toFixed(2)}/kg
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="filamentGrams" className="block text-xs font-medium text-slate-300 mb-1">
+                    Total Filament Weight (grams)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      id="filamentGrams"
+                      name="filamentGrams"
+                      value={editingPart.filamentGrams}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.1"
+                      className="w-full bg-slate-800 border border-slate-600 rounded-md py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
+                      required
+                    />
+                    <span className="absolute right-3 top-2 text-xs text-slate-400">grams</span>
+                  </div>
                 </div>
               </div>
             ) : (

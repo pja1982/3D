@@ -14,6 +14,8 @@ import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
 import ImageModal from './ImageModal';
 import JobPartsTable from './JobPartsTable';
 import PrintDocumentModal from './PrintDocumentModal';
+import OrderMilestonesTracker from './OrderMilestonesTracker';
+import { getOrderMilestoneStats } from '../utils/orderMilestones';
 import type { GeneralSettings } from '../types';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
 import { 
@@ -36,6 +38,7 @@ interface OrdersPageProps {
   onArchive?: (id: string, archive: boolean) => void;
   generalSettings?: GeneralSettings;
   onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
+  onUpdateOrderMilestones?: (orderId: string, milestones: Record<string, Partial<Record<string, boolean>>>) => void;
 }
 
 const statusColors: Record<OrderStatus, string> = {
@@ -64,7 +67,9 @@ const OrderDetailView: React.FC<{
   onOpenPhotoModal: (url: string, title: string) => void;
   onArchive?: (id: string, archive: boolean) => void;
   onPrint?: (order: Order, quote: Quote, docType: 'quote' | 'checklist') => void;
-}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal, onArchive, onPrint }) => {
+  onUpdateOrderMilestones?: (orderId: string, milestones: Record<string, Partial<Record<string, boolean>>>) => void;
+  onUpdateStatus?: (id: string, status: OrderStatus) => void;
+}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal, onArchive, onPrint, onUpdateOrderMilestones, onUpdateStatus }) => {
   const [copied, setCopied] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -160,6 +165,18 @@ const OrderDetailView: React.FC<{
           printers={printers}
           onOpenPhotoModal={onOpenPhotoModal}
           title={`Order #${order.orderNumber} Parts & Production Table`}
+        />
+      </div>
+
+      {/* Fabrication & Quality Milestones Interactive Tracker */}
+      <div className="border-t border-slate-700/60 pt-4">
+        <OrderMilestonesTracker
+          order={order}
+          quote={quote}
+          filaments={filaments}
+          printers={printers}
+          onUpdateMilestones={onUpdateOrderMilestones}
+          onUpdateStatus={onUpdateStatus}
         />
       </div>
 
@@ -405,6 +422,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
   onArchive,
   generalSettings,
   onUpdateGeneralSettings,
+  onUpdateOrderMilestones,
 }) => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
@@ -634,6 +652,8 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                     );
                   }
 
+                  const milestoneStats = getOrderMilestoneStats(order, quote, filaments, printers);
+
                   return (
                   <React.Fragment key={order.id}>
                     <tr 
@@ -693,18 +713,52 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                         )}
                       </td>
 
-                      {/* Status Dropdown */}
-                      <td className="px-6 py-4">
-                        <select 
-                          value={order.status}
-                          onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                          onClick={e => e.stopPropagation()}
-                          className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusColors[order.status]} bg-transparent appearance-none text-center focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer`}
-                        >
-                          {Object.values(OrderStatus).map(status => (
-                            <option key={status} value={status} className="bg-slate-800 text-slate-200">{status}</option>
-                          ))}
-                        </select>
+                      {/* Status Dropdown & Fabrication Milestone Progress */}
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <select 
+                            value={order.status}
+                            onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
+                            onClick={e => e.stopPropagation()}
+                            className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusColors[order.status]} bg-transparent appearance-none text-center focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer`}
+                          >
+                            {Object.values(OrderStatus).map(status => (
+                              <option key={status} value={status} className="bg-slate-800 text-slate-200">{status}</option>
+                            ))}
+                          </select>
+
+                          {/* Interactive Checklist Quick Indicator */}
+                          {milestoneStats.totalSteps > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleExpand(order.id)}
+                              className="group flex items-center gap-1.5 py-0.5 text-left cursor-pointer transition hover:opacity-90"
+                              title={`${milestoneStats.completedSteps} of ${milestoneStats.totalSteps} milestones checked (${milestoneStats.percent}% complete) - Click to open fabrication checklist`}
+                            >
+                              <div className="w-14 h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-300 ${
+                                    milestoneStats.percent === 100 
+                                      ? 'bg-emerald-400' 
+                                      : milestoneStats.completedSteps > 0 
+                                        ? 'bg-purple-400' 
+                                        : 'bg-transparent'
+                                  }`}
+                                  style={{ width: `${milestoneStats.percent}%` }}
+                                />
+                              </div>
+                              <span className={`text-[10px] font-mono font-medium ${
+                                milestoneStats.percent === 100 
+                                  ? 'text-emerald-400 font-bold' 
+                                  : milestoneStats.completedSteps > 0 
+                                    ? 'text-purple-300 group-hover:text-purple-200' 
+                                    : 'text-slate-500 group-hover:text-slate-400'
+                              }`}>
+                                {milestoneStats.completedSteps}/{milestoneStats.totalSteps}
+                              </span>
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}
@@ -787,6 +841,8 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                             onOpenPhotoModal={(url, title) => setModalImage({ url, title })}
                             onArchive={onArchive}
                             onPrint={(o, q, docType) => setPrintModalState({ isOpen: true, order: o, quote: q, docType })}
+                            onUpdateOrderMilestones={onUpdateOrderMilestones}
+                            onUpdateStatus={onUpdateStatus}
                           />
                         </td>
                       </tr>

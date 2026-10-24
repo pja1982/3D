@@ -1130,6 +1130,26 @@ function App() {
     }
   };
 
+  const handleUpdateOrderMilestones = (orderId: string, milestones: Record<string, Partial<Record<string, boolean>>>) => {
+    let targetOrder: Order | null = null;
+    setAppData(prev => ({
+      ...prev,
+      orders: prev.orders.map(o => {
+        if (o.id === orderId) {
+          targetOrder = {
+            ...o,
+            milestones,
+          };
+          return targetOrder;
+        }
+        return o;
+      })
+    }));
+    if (user && targetOrder) {
+      saveOrderToRemote(user.uid, targetOrder).catch(console.error);
+    }
+  };
+
   // Filament Handlers
   const handleAddFilament = (filament: Omit<Filament, 'id'>) => {
     const newFilament: Filament = { ...filament, id: `filament_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` };
@@ -1447,6 +1467,7 @@ function App() {
             onUpdateStatus={handleUpdateOrderStatus}
             onUpdateOrderPhoto={handleUpdateOrderPhoto}
             onArchive={handleArchiveOrder}
+            onUpdateOrderMilestones={handleUpdateOrderMilestones}
             generalSettings={generalSettings}
             onUpdateGeneralSettings={handleUpdatePartialSettings}
           />

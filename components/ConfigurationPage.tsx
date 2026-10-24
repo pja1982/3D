@@ -12,6 +12,13 @@ import {
   download3DFilamentProfilesJson,
 } from '../utils/filamentProfilesSync';
 import { detectMaterialCategory, DEFAULT_MATERIAL_FAILURE_RATES } from '../utils/filamentFailureRates';
+import { FilamentMasterCodeModal } from './FilamentMasterCodeModal';
+import {
+  decodeMasterCode,
+  suggestMasterCode,
+  MASTER_CODE_BRANDS,
+  MASTER_CODE_POLYMERS,
+} from '../utils/filamentMasterCode';
 
 interface ConfigurationPageProps {
   filaments: Filament[];
@@ -49,6 +56,7 @@ const emptyFilament: Omit<Filament, 'id'> = {
   actual_spool_weight: 1240,
   td_value: null,
   location: 'Shelf: Home',
+  masterCode: '',
 };
 
 const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
@@ -63,8 +71,10 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showAdvancedSpoolFields, setShowAdvancedSpoolFields] = useState(false);
+  const [showMasterCodeBuilder, setShowMasterCodeBuilder] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTag, setActiveFilterTag] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('default');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -285,6 +295,38 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
     }));
   };
 
+  const handleApplyMasterCode = (code: string, autoFillAttributes: boolean = true) => {
+    const cleanCode = code.trim().toUpperCase();
+    setEditingFilament(prev => {
+      const next = { ...prev, masterCode: cleanCode };
+      if (autoFillAttributes && cleanCode.length === 4) {
+        const decoded = decodeMasterCode(cleanCode);
+        if (decoded.brandCode in MASTER_CODE_BRANDS) {
+          next.brand = MASTER_CODE_BRANDS[decoded.brandCode].name;
+        }
+        if (decoded.polymerCode in MASTER_CODE_POLYMERS) {
+          next.type = MASTER_CODE_POLYMERS[decoded.polymerCode].short;
+          if (decoded.polymerCode === '1') next.material_type = 'Silk';
+          else if (decoded.polymerCode === '2' || decoded.polymerCode === '4') next.material_type = 'Matte';
+          else if (decoded.polymerCode === '0' || decoded.polymerCode === '3') next.material_type = 'Basic';
+        }
+        if (decoded.isSpecialty && decoded.specialtyLabel) {
+          if (!next.colorName) next.colorName = decoded.specialtyLabel;
+        }
+      }
+      return next;
+    });
+    setToastMessage(`Assigned Master Code #${cleanCode}`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleAutoSuggestMasterCode = () => {
+    const suggestion = suggestMasterCode(editingFilament);
+    handleApplyMasterCode(suggestion.code, false);
+    setToastMessage(`Auto-suggested Master Code #${suggestion.code} (${suggestion.decoded.summary})`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const filType = (editingFilament.type || (editingFilament as any).name || '').trim();
@@ -310,6 +352,7 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
       rgb: editingFilament.rgb || normalizedColor,
       remaining_grams: editingFilament.remaining_grams ?? 1000,
       actual_spool_weight: finalActualWeight,
+      masterCode: (editingFilament.masterCode || '').trim().toUpperCase(),
     };
 
     if (isEditing && 'id' in editingFilament) {
@@ -393,29 +436,84 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
     }
   };
 
-  // Search & Filtered Filaments
+  // Dynamic material categories from collection
+  const availableMaterialTypes = useMemo(() => {
+    const types = new Set<string>();
+    filaments.forEach(f => {
+      const raw = (f.type || (f as any).name || '').trim();
+      if (!raw) return;
+      const upper = raw.toUpperCase();
+      if (upper.includes('PLA')) types.add('PLA');
+      else if (upper.includes('PETG')) types.add('PETG');
+      else if (upper.includes('ABS')) types.add('ABS');
+      else if (upper.includes('TPU')) types.add('TPU');
+      else if (upper.includes('ASA')) types.add('ASA');
+      else if (upper.includes('PC')) types.add('PC');
+      else if (upper.includes('NYLON') || upper.includes('PA')) types.add('Nylon');
+      else {
+        const clean = raw.split(/[\s-_]+/)[0];
+        if (clean && clean.length >= 2 && clean.length <= 10) types.add(clean);
+      }
+    });
+    return Array.from(types).sort();
+  }, [filaments]);
+
+  // Search, Filtered, and Sorted Filaments
   const filteredFilaments = useMemo(() => {
-    return filaments.filter(f => {
+    const list = filaments.filter(f => {
       const q = searchQuery.toLowerCase().trim();
       const brand = (f.brand || '').toLowerCase();
-      const type = (f.type || f.name || '').toLowerCase();
+      const type = (f.type || (f as any).name || '').toLowerCase();
       const color = (f.colorName || '').toLowerCase();
       const location = (f.location || '').toLowerCase();
       const shortCode = (f.short_code || '').toLowerCase();
+      const masterCode = (f.masterCode || '').toLowerCase();
 
-      const matchesSearch = !q || brand.includes(q) || type.includes(q) || color.includes(q) || location.includes(q) || shortCode.includes(q);
+      const matchesSearch = !q || brand.includes(q) || type.includes(q) || color.includes(q) || location.includes(q) || shortCode.includes(q) || masterCode.includes(q);
       if (!matchesSearch) return false;
 
-      if (activeFilterTag === 'pla') return type.includes('pla');
-      if (activeFilterTag === 'petg') return type.includes('petg');
-      if (activeFilterTag === 'bambu') return brand.includes('bambu');
-      if (activeFilterTag === 'sunlu') return brand.includes('sunlu');
-      if (activeFilterTag === 'multicolor') return Boolean(f.rgb && f.rgb.includes(','));
+      if (activeFilterTag === 'all') return true;
       if (activeFilterTag === 'lowstock') return (f.remaining_grams !== undefined && f.remaining_grams < 250);
-
-      return true;
+      if (activeFilterTag === 'instock') return (f.remaining_grams === undefined || f.remaining_grams >= 250);
+      if (activeFilterTag === 'multicolor') return Boolean(f.rgb && f.rgb.includes(','));
+      if (activeFilterTag.startsWith('brand:')) {
+        const targetBrand = activeFilterTag.replace('brand:', '').toLowerCase();
+        return brand.includes(targetBrand);
+      }
+      return type.includes(activeFilterTag.toLowerCase());
     });
-  }, [filaments, searchQuery, activeFilterTag]);
+
+    if (sortBy === 'default') {
+      return list;
+    }
+
+    return [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'mastercode-asc':
+          return (a.masterCode || 'ZZZZ').localeCompare(b.masterCode || 'ZZZZ');
+        case 'mastercode-desc':
+          return (b.masterCode || '').localeCompare(a.masterCode || '');
+        case 'brand-asc':
+          return (a.brand || '').localeCompare(b.brand || '');
+        case 'brand-desc':
+          return (b.brand || '').localeCompare(a.brand || '');
+        case 'type-asc':
+          return (a.type || (a as any).name || '').localeCompare(b.type || (b as any).name || '');
+        case 'color-asc':
+          return (a.colorName || '').localeCompare(b.colorName || '');
+        case 'price-asc':
+          return (a.costPerKg || 0) - (b.costPerKg || 0);
+        case 'price-desc':
+          return (b.costPerKg || 0) - (a.costPerKg || 0);
+        case 'weight-desc':
+          return (b.remaining_grams ?? 1000) - (a.remaining_grams ?? 1000);
+        case 'weight-asc':
+          return (a.remaining_grams ?? 1000) - (b.remaining_grams ?? 1000);
+        default:
+          return 0;
+      }
+    });
+  }, [filaments, searchQuery, activeFilterTag, sortBy]);
 
   const currentPreviewHex = normalizeHex(editingFilament.colorHex || '#3b82f6');
   const previewBgStyle = getFilamentBackgroundStyle(editingFilament.colorHex, editingFilament.rgb);
@@ -484,6 +582,99 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
             {isEditing ? 'Edit Filament Spool' : 'Add New Filament'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Filament Master Code v0.1 Card */}
+            <div className="bg-slate-900/90 border border-cyan-500/40 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono font-black px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/60">
+                    ID
+                  </span>
+                  <label htmlFor="masterCode" className="text-xs font-bold text-slate-200 tracking-wide">
+                    Master Code <span className="text-cyan-400 font-mono text-[10px]">v0.1</span>
+                  </label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleAutoSuggestMasterCode}
+                    className="text-[10px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-1 rounded border border-slate-700 transition font-semibold flex items-center gap-1 cursor-pointer"
+                    title="Auto-detect 4-digit master code based on brand, material, and color name"
+                  >
+                    <span>⚡ Auto-Detect</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMasterCodeBuilder(true)}
+                    className="text-[10px] bg-cyan-600 hover:bg-cyan-500 text-white px-2 py-1 rounded font-semibold transition flex items-center gap-1 shadow cursor-pointer"
+                    title="Open interactive 4-digit code builder modal"
+                  >
+                    <span>🛠️ Builder</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2 font-mono text-cyan-400 font-bold text-sm">#</span>
+                  <input
+                    type="text"
+                    id="masterCode"
+                    name="masterCode"
+                    maxLength={4}
+                    value={editingFilament.masterCode || ''}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 4);
+                      setEditingFilament(prev => ({ ...prev, masterCode: val }));
+                    }}
+                    placeholder="e.g. 00G1, 10W1, 2301"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg py-1.5 pl-7 pr-3 font-mono text-sm tracking-widest text-cyan-300 font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 uppercase placeholder-slate-600"
+                  />
+                </div>
+                {editingFilament.masterCode && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingFilament(prev => ({ ...prev, masterCode: '' }))}
+                    className="p-1.5 text-slate-400 hover:text-white text-xs cursor-pointer"
+                    title="Clear master code"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Live decoded breakdown badge */}
+              {(() => {
+                const code = (editingFilament.masterCode || '').trim();
+                if (!code) {
+                  return (
+                    <p className="text-[10px] text-slate-400 leading-tight">
+                      System: <span className="text-slate-300 font-mono">D1</span> Brand (0-5) • <span className="text-slate-300 font-mono">D2</span> Polymer (0-6) • <span className="text-slate-300 font-mono">D3-4</span> Color (01-99 or G1, R1, T1, D1, L1, W1, C1)
+                    </p>
+                  );
+                }
+                const decoded = decodeMasterCode(code);
+                return (
+                  <div className={`p-2 rounded-lg text-[11px] leading-snug border ${
+                    decoded.isValid 
+                      ? 'bg-cyan-950/60 border-cyan-500/50 text-cyan-200' 
+                      : 'bg-amber-950/40 border-amber-600/40 text-amber-200'
+                  }`}>
+                    <div className="font-semibold flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        {decoded.isValid ? '✓ Valid Master Code' : '⚠️ Partial / Custom Code'}
+                      </span>
+                      <span className="font-mono text-[10px] bg-slate-900 px-1.5 py-0.2 rounded text-cyan-300 border border-slate-700">
+                        #{code}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-slate-300 text-[10.5px]">
+                      {decoded.summary}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
             <div>
               <label htmlFor="brand" className="block text-sm font-medium text-slate-300 mb-1">Brand</label>
               <input
@@ -980,51 +1171,116 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                 </span>
               </div>
 
-              {/* Search Box */}
-              <div className="relative w-full sm:w-64">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search brand, material, color..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-                <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1.5 text-slate-400 hover:text-white text-xs"
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Sort Dropdown */}
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="filamentSort" className="text-xs text-slate-400 font-medium whitespace-nowrap">Sort:</label>
+                  <select
+                    id="filamentSort"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer"
                   >
-                    ✕
-                  </button>
-                )}
+                    <option value="default">Default / Custom Order</option>
+                    <option value="mastercode-asc">Master Code (0000 → 9999)</option>
+                    <option value="mastercode-desc">Master Code (9999 → 0000)</option>
+                    <option value="brand-asc">Brand (A → Z)</option>
+                    <option value="brand-desc">Brand (Z → A)</option>
+                    <option value="type-asc">Material / Type (A → Z)</option>
+                    <option value="color-asc">Color Name (A → Z)</option>
+                    <option value="price-asc">Price ($/kg: Low to High)</option>
+                    <option value="price-desc">Price ($/kg: High to Low)</option>
+                    <option value="weight-desc">Spool Net: High to Low</option>
+                    <option value="weight-asc">Spool Net: Low to High</option>
+                  </select>
+                </div>
+
+                {/* Search Box */}
+                <div className="relative w-full sm:w-52">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search brand, type, color..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                  <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1.5 text-slate-400 hover:text-white text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Quick Filter Chips */}
+            {/* Quick Material & Inventory Filter Chips */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              {[
-                { id: 'all', label: 'All Spools' },
-                { id: 'pla', label: 'PLA' },
-                { id: 'petg', label: 'PETG' },
-                { id: 'bambu', label: 'Bambu Lab' },
-                { id: 'sunlu', label: 'SUNLU' },
-                { id: 'multicolor', label: '🌈 Multi-Color' },
-                { id: 'lowstock', label: '⚠️ Low Stock (<250g)' },
-              ].map(tag => (
+              <button
+                type="button"
+                onClick={() => setActiveFilterTag('all')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                  activeFilterTag === 'all'
+                    ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                    : 'bg-slate-700/60 hover:bg-slate-700 text-slate-300'
+                }`}
+              >
+                All Spools ({filaments.length})
+              </button>
+
+              {availableMaterialTypes.map(mat => (
                 <button
-                  key={tag.id}
+                  key={mat}
                   type="button"
-                  onClick={() => setActiveFilterTag(tag.id)}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition ${
-                    activeFilterTag === tag.id
+                  onClick={() => setActiveFilterTag(activeFilterTag === mat.toLowerCase() ? 'all' : mat.toLowerCase())}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                    activeFilterTag === mat.toLowerCase()
                       ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
                       : 'bg-slate-700/60 hover:bg-slate-700 text-slate-300'
                   }`}
                 >
-                  {tag.label}
+                  {mat}
                 </button>
               ))}
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTag(activeFilterTag === 'multicolor' ? 'all' : 'multicolor')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                  activeFilterTag === 'multicolor'
+                    ? 'bg-purple-500 text-white font-bold shadow-sm'
+                    : 'bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-800/40'
+                }`}
+              >
+                🌈 Multi-Color
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTag(activeFilterTag === 'instock' ? 'all' : 'instock')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                  activeFilterTag === 'instock'
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                    : 'bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-800/40'
+                }`}
+              >
+                ✓ In Stock (≥250g)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTag(activeFilterTag === 'lowstock' ? 'all' : 'lowstock')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                  activeFilterTag === 'lowstock'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-800/40'
+                }`}
+              >
+                ⚠️ Low Stock (&lt;250g)
+              </button>
             </div>
           </div>
 
@@ -1118,6 +1374,15 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {filament.masterCode && (
+                            <span
+                              className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-slate-950/90 border border-cyan-400/80 text-cyan-300 shadow-sm flex items-center gap-0.5 flex-shrink-0"
+                              title={`Master Code v0.1: #${filament.masterCode} (${decodeMasterCode(filament.masterCode).summary})`}
+                            >
+                              <span className="text-[10px] text-cyan-400/70">#</span>
+                              {filament.masterCode}
+                            </span>
+                          )}
                           <span className="font-bold text-base tracking-tight truncate">
                             {filament.brand} - {filType}
                           </span>
@@ -1460,6 +1725,16 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Master Code Visual Builder Modal */}
+      {showMasterCodeBuilder && (
+        <FilamentMasterCodeModal
+          isOpen={showMasterCodeBuilder}
+          onClose={() => setShowMasterCodeBuilder(false)}
+          initialCode={editingFilament.masterCode}
+          onApplyCode={handleApplyMasterCode}
+        />
       )}
     </div>
   );

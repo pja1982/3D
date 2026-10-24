@@ -162,7 +162,12 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                                   style={getFilamentBackgroundStyle(filament.colorHex, filament.rgb)}
                                 />
                               )}
-                              <span className="truncate max-w-[120px]">{filament.brand} {filament.type}</span>
+                              <span className="truncate max-w-[140px]">
+                                {filament.masterCode && (
+                                  <span className="font-mono text-[10px] text-cyan-300 font-bold mr-1">#{filament.masterCode}</span>
+                                )}
+                                {filament.brand} {filament.type}
+                              </span>
                             </span>
                           ) : null}
 
@@ -198,7 +203,10 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                                     className="w-2 h-2 rounded-full"
                                     style={getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
                                   />
-                                  <span>{fil?.brand ? `${fil.brand} ${fil.type}` : 'Filament'}: {c.grams}g</span>
+                                  <span>
+                                    {fil?.masterCode && <strong className="font-mono text-cyan-300 mr-0.5">#{fil.masterCode}</strong>}
+                                    {fil?.brand ? `${fil.brand} ${fil.type}` : 'Filament'}: {c.grams}g
+                                  </span>
                                 </span>
                               );
                             })}

@@ -34,6 +34,9 @@ export interface Filament {
   failureRate?: number | null; // Technical failure rate risk override (%) for difficult materials (e.g. 15% for TPU, 18% for ABS)
   sortOrder?: number;
   isDefault?: boolean;
+
+  // Filament Master Code v0.1: 4-digit ID (Digit 1: Brand, Digit 2: Polymer, Digits 3-4: Color/Modifier)
+  masterCode?: string;
 }
 
 export interface Printer {
@@ -70,6 +73,8 @@ export interface Part {
   colors?: PartFilamentColor[];
   imageUrl?: string; // Photo of the part / prototype
   customUnitPrice?: number | null; // Optional default selling unit price ($)
+  filamentId?: string | null; // Default / base material assigned to part
+  printerId?: string | null;  // Default preferred printer
 }
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
@@ -215,6 +220,7 @@ export interface Order {
   completionNotes?: string;   // Optional notes on the finished print / inspection
   isArchived?: boolean;
   archivedAt?: string;
+  milestones?: Record<string, Partial<Record<string, boolean>>>; // unitId -> { [milestoneKey]: boolean }
 }
 
 export interface AppData {

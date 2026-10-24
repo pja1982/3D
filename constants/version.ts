@@ -13,16 +13,118 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.7.1';
+export const APP_VERSION = '2.7.4';
 export const APP_RELEASE_DATE = 'October 24, 2026';
-export const APP_CODENAME = 'Custom Invoice Business Profile & Branding';
+export const APP_CODENAME = 'Filament Master Code v0.1 Spec & Interactive Visual Builder';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.7.4',
+    releaseDate: 'October 24, 2026',
+    title: 'Filament Master Code v0.1 Specification & Interactive Visual Builder',
+    isLatest: true,
+    tag: 'patch',
+    highlights: [
+      'Full Filament Master Code v0.1 spec: 4-digit standardized identification (Digit 1 Brand 0-5, Digit 2 Polymer 0-6, Digits 3-4 Color/Modifiers)',
+      'Interactive Visual Builder Modal: select brand, base polymer, and specialty modifiers (Galaxy G1-G9, Rainbow R1-R9, Tri-Colour T1-T9, Dual-Colour D1-D9, Glow L1-L9, Wood W1-W9, CF C1-C9, or solid colors 01-99)',
+      'One-click "⚡ Auto-Detect" algorithm that parses brand names, polymers, and finish keywords into master codes',
+      'Instant Master Code search matching and dedicated Master Code sorting (0000 → 9999 and 9999 → 0000)',
+      'High-contrast monospace badges on spools, parts tables, workshop travelers, and print manifests'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '🆔 Filament Master Code v0.1 encoder, decoder, and validator engine (`utils/filamentMasterCode.ts`)',
+          '🛠️ Interactive visual Filament Master Code Builder modal with live 4-digit code and spec breakdown',
+          '⚡ 1-click Auto-Detect button to auto-infer master codes from spool brand, finish, and color name',
+          'Sort option: Master Code (0000 → 9999) and (9999 → 0000) in Saved Spools',
+          'Monospace `#CODE` badges on spool list cards, job part breakdowns, and workshop travelers'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Spool search now checks against 4-digit master codes for near-instant retrieval on the shop floor',
+          'Workshop fabrication checklist travelers display Master Codes next to material labels for foolproof physical spool identification'
+        ]
+      }
+    ]
+  },
+  {
+    version: '2.7.3',
+    releaseDate: 'October 24, 2026',
+    title: 'Bulk Parts Library Picker, Filament Sorting & One-Click Batch Milestone Headers',
+    isLatest: false,
+    tag: 'patch',
+    highlights: [
+      'Bulk add parts modal in Quote Builder: multi-select catalog parts with individual quantity steppers and base filament preservation',
+      'Advanced filament sorting dropdown: sort by Brand (A-Z/Z-A), Material Type, Color, Price/kg, or Remaining Spool Weight',
+      'Dynamic quick material filter chips (PLA, PETG, ABS, TPU, etc.) extracted automatically from your spool library',
+      'Clickable milestone column headers in the Fabrication Tracker: 1-click batch check or uncheck for QA, Documentation, Slicing, etc. across all print units',
+      'Base filament configuration in single-color parts catalog for consistent automatic quote assignment'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '📦 Bulk Add Parts to Quote modal with search filter, multi-select checkboxes, quantity steppers, and live summary (units, grams, hours)',
+          '🧵 Filament sort dropdown in Saved Spools supporting Brand A-Z/Z-A, Type, Color, Price/kg, and Net Spool Weight',
+          '🏷️ Dynamic material type filter chips automatically generated from your active filament inventory',
+          '☑️ Clickable milestone column headers (Slicing, Spool, Bed clean, First layer, Print done, Post-proc, QA, Documentation) with one-click batch toggle across all units in an order',
+          'Part catalog base filament selector for single-color parts in the Parts page'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Large fabrication jobs can now be QA-inspected and documented in batches with single-click column toggles',
+          'Spool library inventory management is significantly faster with combined sort, filter, and search controls'
+        ]
+      }
+    ]
+  },
+  {
+    version: '2.7.2',
+    releaseDate: 'October 24, 2026',
+    title: 'Live Computer Fabrication Milestone Tracker on Orders Page & Two-Way PDF Sync',
+    isLatest: false,
+    tag: 'patch',
+    highlights: [
+      'Interactive digital checkboxes on the Orders page for all 8 fabrication milestones per unit/print',
+      'Track Slicing, Spool checked, Build plate clean, First layer, Print completed, Post-processing, QA, and Documentation directly on the computer',
+      'One line for each quantity required (e.g. Unit #1 of 3, #2 of 3) or grouped view by model',
+      'Real-time progress bars and checkpoint counters in the Orders table rows and expanded drawers',
+      'Full persistence to local storage and remote Firebase Firestore cloud database',
+      'Print traveler synchronization: checkmarks recorded on the computer automatically appear pre-checked with ✓ in printed PDF checklists',
+      'One-click "Mark Order as Completed" banner when all unit milestones are completed'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '💻 Interactive Fabrication & Quality Milestones Tracker component embedded inside each expanded order view',
+          '☑️ 8 clickable digital milestones per unit: Slicing, Spool checked, Build plate clean, First layer, Print completed, Post-processing completed, QA, and Documentation',
+          'Multi-unit support with individual unit rows matching quote quantities (e.g. Unit #1 of 2, Unit #2 of 2)',
+          'Row-level (8/8) quick toggle and order-level "Check All" / "Reset All" actions',
+          '📊 Order table row status progress indicator showing completed milestone ratio (e.g. 8/16) and progress bar',
+          'Automatic synchronization into PrintDocumentModal: digitally checked checkpoints print with a clean ✓ on the PDF traveler'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Cloud sync via Firebase Firestore persists milestone checkpoints seamlessly across devices',
+          'Celebration banner with instant order completion shortcut when all fabrication milestones reach 100%'
+        ]
+      }
+    ]
+  },
   {
     version: '2.7.1',
     releaseDate: 'October 24, 2026',
     title: 'Customizable Business & Invoice Branding Profile with Live Preview',
-    isLatest: true,
+    isLatest: false,
     tag: 'patch',
     highlights: [
       'Dedicated Business & Invoice Branding Profile configuration card in General Settings',

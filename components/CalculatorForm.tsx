@@ -5,6 +5,7 @@ import TrashIcon from './icons/TrashIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import CameraIcon from './icons/CameraIcon';
 import ImageModal from './ImageModal';
+import BulkAddPartsModal from './BulkAddPartsModal';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 import { getFilamentEffectiveFailureRate } from '../utils/filamentFailureRates';
@@ -79,7 +80,47 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
 }) => {
   const [selectedPartId, setSelectedPartId] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+  const [showBulkAddModal, setShowBulkAddModal] = useState<boolean>(false);
   const activePartPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBulkAddParts = (selectedList: Array<{ part: Part; quantity: number }>) => {
+    if (selectedList.length === 0) return;
+    const defaultFil = filaments.find(f => f.isDefault) || filaments[0];
+    const defaultPrn = printers.find(p => p.isDefault) || printers[0];
+
+    const newConfigs: QuotePartConfig[] = selectedList.map(({ part, quantity }, idx) => {
+      const filId = part.filamentId || part.colors?.[0]?.filamentId || defaultFil?.id || null;
+      const prnId = part.printerId || defaultPrn?.id || null;
+
+      const mappedColors = part.colors && part.colors.length > 1
+        ? part.colors.map((c, cIdx) => ({
+            id: `color-${Date.now()}-${idx}-${cIdx}`,
+            filamentId: c.filamentId,
+            grams: c.grams,
+          }))
+        : undefined;
+
+      return {
+        id: `part-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 5)}`,
+        name: part.name || `Part ${quoteParts.length + idx + 1}`,
+        quantity: Math.max(1, quantity || 1),
+        filamentGrams: part.filamentGrams || 100,
+        filamentId: filId,
+        printHours: part.printHours || 2.5,
+        printerId: prnId,
+        postProcessingHours: part.postProcessingHours || 0.25,
+        hardwareCost: part.hardwareCost || 0,
+        customUnitPrice: part.customUnitPrice,
+        imageUrl: part.imageUrl,
+        colors: mappedColors,
+      };
+    });
+
+    setQuoteParts(prev => [...prev, ...newConfigs]);
+    if (newConfigs.length > 0) {
+      setActivePartId(newConfigs[0].id);
+    }
+  };
 
   const handleActivePartPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -464,30 +505,42 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
             <h3 className="font-semibold text-cyan-400 text-base">Quote Parts ({quoteParts.length})</h3>
             <span className="text-xs text-slate-400">Configure each part and material</span>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const newPartIndex = quoteParts.length + 1;
-              const defaultFil = filaments.find(f => f.isDefault) || (filaments.length > 0 ? filaments[0] : null);
-              const defaultPrn = printers.find(p => p.isDefault) || (printers.length > 0 ? printers[0] : null);
-              const newPart: QuotePartConfig = {
-                id: `part-${Date.now()}`,
-                name: `Part ${newPartIndex}`,
-                quantity: 1,
-                filamentGrams: 100,
-                filamentId: defaultFil ? defaultFil.id : null,
-                printHours: 5,
-                printerId: defaultPrn ? defaultPrn.id : null,
-                postProcessingHours: 0.5,
-                hardwareCost: 0,
-              };
-              setQuoteParts(prev => [...prev, newPart]);
-              setActivePartId(newPart.id);
-            }}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm"
-          >
-            + Add Another Part
-          </button>
+          <div className="flex items-center gap-2">
+            {parts && parts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowBulkAddModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+                title="Select multiple parts from your parts catalog to add at once with their base filaments"
+              >
+                <span>📦 Bulk Add from Library</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                const newPartIndex = quoteParts.length + 1;
+                const defaultFil = filaments.find(f => f.isDefault) || (filaments.length > 0 ? filaments[0] : null);
+                const defaultPrn = printers.find(p => p.isDefault) || (printers.length > 0 ? printers[0] : null);
+                const newPart: QuotePartConfig = {
+                  id: `part-${Date.now()}`,
+                  name: `Part ${newPartIndex}`,
+                  quantity: 1,
+                  filamentGrams: 100,
+                  filamentId: defaultFil ? defaultFil.id : null,
+                  printHours: 5,
+                  printerId: defaultPrn ? defaultPrn.id : null,
+                  postProcessingHours: 0.5,
+                  hardwareCost: 0,
+                };
+                setQuoteParts(prev => [...prev, newPart]);
+                setActivePartId(newPart.id);
+              }}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm cursor-pointer"
+            >
+              + Add Another Part
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
@@ -1499,6 +1552,17 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
           imageUrl={previewImage.url}
           title={`Part: ${previewImage.title}`}
           subtitle="Quote part photo"
+        />
+      )}
+
+      {showBulkAddModal && (
+        <BulkAddPartsModal
+          isOpen={showBulkAddModal}
+          onClose={() => setShowBulkAddModal(false)}
+          parts={parts}
+          filaments={filaments}
+          printers={printers}
+          onAddParts={handleBulkAddParts}
         />
       )}
     </form>
