@@ -26,19 +26,22 @@ export const CHANGELOG_DATA: ChangeLogEntry[] = [
     tag: 'patch',
     highlights: [
       'Dedicated Business & Invoice Branding Profile configuration card in General Settings',
-      'Customizable Business Name, Tagline, Shop Address, Phone, Email, Website, and Default Invoice Terms',
+      'Workshop checklist per-print fabrication and quality milestones with quick single-line checkboxes',
+      'One line for each quantity required / unit copy with Slicing, Spool checked, Build plate clean, First layer, Print completed, Post-processing, QA, and Documentation',
       'Real-time interactive white paper header preview showing exactly how invoices render before printing',
-      'Bidirectional sync between General Configuration, Print Preview drawer, and cloud Firestore synchronization'
+      'Full print container reset eliminating black boundary boxes and scrollbars from PDF exports'
     ],
     sections: [
       {
         category: 'Added',
         items: [
+          '📋 Workshop Fabrication Checklist now features a per-print milestone workflow with a line for each quantity required',
+          '☑️ 8 quick and basic single-line checkbox checkpoints per print: Slicing, Spool checked, Build plate clean, First layer, Print completed, Post-processing completed, QA, and Documentation',
+          'Option to toggle between "Line per Unit Copy" and "Grouped by Model" in Print drawer',
           '🏢 Dedicated Business & Invoice Branding Profile panel in General Configuration with real-time editing',
           'Custom inputs for Business Name, Tagline/Subtitle, Physical Workshop Address, Phone, Email, and Website/Portfolio',
           'Multi-line editor for Default Invoice & Quote Terms & Conditions appearing above payment instructions',
-          '📄 Interactive live print header preview card that renders changes instantaneously as you type',
-          'Bidirectional synchronization between settings and print drawer customization controls'
+          '📄 Interactive live print header preview card that renders changes instantaneously as you type'
         ]
       },
       {

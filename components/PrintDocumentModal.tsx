@@ -82,6 +82,8 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   const [includeTerms, setIncludeTerms] = useState(true);
   const [includeSignature, setIncludeSignature] = useState(true);
   const [includeTechnicalNotes, setIncludeTechnicalNotes] = useState(true);
+  const [milestoneGrouping, setMilestoneGrouping] = useState<'per_unit' | 'per_line_item'>('per_unit');
+  const [includeManifestSummary, setIncludeManifestSummary] = useState(true);
 
   if (!isOpen || !quote) return null;
 
@@ -89,6 +91,67 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   const computedParts = useMemo(() => {
     return calculateJobPartRows(quote, filaments, printers);
   }, [quote, filaments, printers]);
+
+  // Compute individual print lines (one line per quantity required / print unit)
+  const milestonePrintRows = useMemo(() => {
+    interface MilestoneRowItem {
+      id: string;
+      unitIndex: number;
+      unitLabel: string;
+      partName: string;
+      materialLabel: string;
+      colorName?: string;
+    }
+    const items: MilestoneRowItem[] = [];
+    let globalIndex = 1;
+
+    if (computedParts.rows && computedParts.rows.length > 0) {
+      computedParts.rows.forEach((row, rowIdx) => {
+        const fil = filaments.find(f => f.id === row.part.filamentId);
+        const materialLabel = fil 
+          ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
+          : 'Standard Material';
+        const quantity = Math.max(1, row.qty || 1);
+
+        if (milestoneGrouping === 'per_unit') {
+          for (let i = 1; i <= quantity; i++) {
+            items.push({
+              id: `${row.part.id || rowIdx}-unit-${i}`,
+              unitIndex: globalIndex++,
+              unitLabel: quantity > 1 ? `#${i} of ${quantity}` : '1 of 1',
+              partName: row.part.name || `Part ${rowIdx + 1}`,
+              materialLabel,
+              colorName: fil?.colorName,
+            });
+          }
+        } else {
+          items.push({
+            id: `${row.part.id || rowIdx}-line-item`,
+            unitIndex: globalIndex++,
+            unitLabel: `Qty: ${quantity}`,
+            partName: row.part.name || `Part ${rowIdx + 1}`,
+            materialLabel,
+            colorName: fil?.colorName,
+          });
+        }
+      });
+    } else {
+      const fil = filaments.find(f => f.id === quote.parameters?.filamentId);
+      const materialLabel = fil 
+        ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
+        : 'Standard Material';
+      items.push({
+        id: 'single-unit-1',
+        unitIndex: 1,
+        unitLabel: '1 of 1',
+        partName: quote.jobName || '3D Printed Model',
+        materialLabel,
+        colorName: fil?.colorName,
+      });
+    }
+
+    return items;
+  }, [computedParts, quote, filaments, milestoneGrouping]);
 
   const primaryPrinter = useMemo(() => {
     const firstPartPrinterId = quote.parts?.[0]?.printerId || quote.parameters?.printerId;
@@ -262,20 +325,32 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                   className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
                 />
               </div>
-              <div>
-                <label className="block text-slate-400 text-[10px] mb-0.5">Toggles</label>
-                <div className="flex items-center gap-3 pt-1.5">
-                  <label className="flex items-center gap-1 text-[11px] text-slate-300">
+              <div className="sm:col-span-2 md:col-span-3">
+                <label className="block text-slate-400 text-[10px] mb-0.5">Print Options & Toggles</label>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
                     <input type="checkbox" checked={includeTerms} onChange={e => setIncludeTerms(e.target.checked)} />
-                    <span>Terms</span>
+                    <span>Quote Terms</span>
                   </label>
-                  <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
                     <input type="checkbox" checked={includeSignature} onChange={e => setIncludeSignature(e.target.checked)} />
-                    <span>Sign-off</span>
+                    <span>Sign-off Box</span>
                   </label>
-                  <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
                     <input type="checkbox" checked={includeTechnicalNotes} onChange={e => setIncludeTechnicalNotes(e.target.checked)} />
-                    <span>Specs</span>
+                    <span>Machine Specs</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                    <input type="checkbox" checked={includeManifestSummary} onChange={e => setIncludeManifestSummary(e.target.checked)} />
+                    <span>Manifest Summary Table</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={milestoneGrouping === 'per_unit'}
+                      onChange={e => setMilestoneGrouping(e.target.checked ? 'per_unit' : 'per_line_item')}
+                    />
+                    <span>Line per Unit ({milestonePrintRows.length})</span>
                   </label>
                 </div>
               </div>
@@ -531,125 +606,156 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                   </div>
                 </div>
 
-                {/* Parts Checklist Table */}
+                {/* Parts Checklist Table (Optional Overview Manifest) */}
+                {includeManifestSummary && (
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Parts Fabrication Manifest</span>
+                      <span className="text-[10px] font-normal text-slate-500">Summary overview by model</span>
+                    </h3>
+                    <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+                      <thead>
+                        <tr className="bg-slate-800 text-white text-[10px] uppercase tracking-wider">
+                          <th className="py-2 px-2 text-center w-8">Done</th>
+                          <th className="py-2 px-3 font-semibold">Part / Model Name</th>
+                          <th className="py-2 px-3 font-semibold text-center w-20">Req. Qty</th>
+                          <th className="py-2 px-3 font-semibold text-center w-28">Progress</th>
+                          <th className="py-2 px-3 font-semibold">Material / Color</th>
+                          <th className="py-2 px-2 text-center w-14">QA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {computedParts.rows.map((row, idx) => {
+                          const fil = filaments.find(f => f.id === row.part.filamentId);
+                          const materialLabel = fil ? `${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard';
+                          return (
+                            <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
+                              <td className="py-2.5 px-2 text-center">
+                                <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                {row.part.name}
+                                <div className="text-[10px] text-slate-500 font-normal">
+                                  {row.part.filamentGrams}g • {row.part.printHours}h print
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-bold text-slate-800 text-sm">
+                                {row.qty}
+                              </td>
+                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / {row.qty} ]
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 text-[11px]">
+                                {materialLabel}
+                              </td>
+                              <td className="py-2.5 px-2 text-center">
+                                <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Fabrication & Quality Milestones (One line per quantity required / each print) */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center justify-between">
-                    <span>Parts Fabrication Manifest</span>
-                    <span className="text-[10px] font-normal text-slate-500">Mark off each part as it is printed and cleaned</span>
-                  </h3>
-                  <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <span>Fabrication & Quality Milestones</span>
+                      <span className="text-[10px] font-normal text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+                        {milestonePrintRows.length} {milestonePrintRows.length === 1 ? 'print item' : 'print items'}
+                      </span>
+                    </h3>
+                    <span className="text-[10px] text-slate-500">
+                      Check off milestones per individual print
+                    </span>
+                  </div>
+
+                  <table className="w-full text-left text-xs border border-slate-300 border-collapse print:text-[9.5px]">
                     <thead>
-                      <tr className="bg-slate-800 text-white text-[10px] uppercase tracking-wider">
-                        <th className="py-2 px-2 text-center w-8">Done</th>
-                        <th className="py-2 px-3 font-semibold">Part / Model Name</th>
-                        <th className="py-2 px-3 font-semibold text-center w-20">Req. Qty</th>
-                        <th className="py-2 px-3 font-semibold text-center w-28">Progress</th>
-                        <th className="py-2 px-3 font-semibold">Material / Color</th>
-                        <th className="py-2 px-2 text-center w-14">QA</th>
+                      <tr className="bg-slate-800 text-white text-[9px] uppercase tracking-wider">
+                        <th className="py-2 px-1 text-center w-7">#</th>
+                        <th className="py-2 px-2 font-semibold min-w-[120px]">Print / Model Item</th>
+                        <th className="py-2 px-2 font-semibold min-w-[95px]">Material / Color</th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-12 leading-tight">
+                          Slicing
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-14 leading-tight">
+                          Spool<br/>checked
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-16 leading-tight">
+                          Build plate<br/>clean
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-12 leading-tight">
+                          First<br/>layer
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-16 leading-tight">
+                          Print<br/>completed
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-20 leading-tight">
+                          Post-processing<br/>completed
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-10 leading-tight">
+                          QA
+                        </th>
+                        <th className="py-1.5 px-1 text-center font-semibold w-16 leading-tight">
+                          Documentation
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {computedParts.rows.map((row, idx) => {
-                        const fil = filaments.find(f => f.id === row.part.filamentId);
-                        const materialLabel = fil ? `${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard';
-                        return (
-                          <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
-                            <td className="py-2.5 px-2 text-center">
-                              <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
-                            </td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-900">
-                              {row.part.name}
-                              <div className="text-[10px] text-slate-500 font-normal">
-                                {row.part.filamentGrams}g • {row.part.printHours}h print
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 text-center font-bold text-slate-800 text-sm">
-                              {row.qty}
-                            </td>
-                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
-                              [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / {row.qty} ]
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-700 text-[11px]">
-                              {materialLabel}
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {milestonePrintRows.map((row) => (
+                        <tr key={row.id} className="hover:bg-slate-50/50 print-avoid-break">
+                          <td className="py-1.5 px-1 text-center text-slate-500 font-mono text-[10px]">
+                            {row.unitIndex}
+                          </td>
+                          <td className="py-1.5 px-2 font-semibold text-slate-900 leading-tight">
+                            <div>{row.partName}</div>
+                            <div className="text-[9.5px] font-bold text-purple-700 mt-0.5">
+                              {row.unitLabel}
+                            </div>
+                          </td>
+                          <td className="py-1.5 px-2 text-slate-600 text-[10px] leading-tight">
+                            {row.materialLabel}
+                          </td>
+                          {/* Slicing */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* Spool checked */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* Build plate clean */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* First layer */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* Print completed */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* Post-processing completed */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* QA */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                          {/* Documentation */}
+                          <td className="py-1.5 px-1 text-center">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-sm"></span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
-                </div>
-
-                {/* Step-by-Step Production Workflow Checklist */}
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    Fabrication & Quality Milestones
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs border border-slate-200 p-3 rounded-lg bg-slate-50">
-                    <div className="space-y-2">
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">1. Slicing & Bed Placement</strong>
-                          <p className="text-[10px] text-slate-500">STL checked, layer height, infill, and supports generated.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">2. Spool Weighed & Loaded</strong>
-                          <p className="text-[10px] text-slate-500">Verified sufficient remaining filament on scale, dry and purged.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">3. Build Plate Cleaned</strong>
-                          <p className="text-[10px] text-slate-500">IPA wiped, adhesion confirmed, correct nozzle temperature set.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">4. First Layer Verified</strong>
-                          <p className="text-[10px] text-slate-500">Live visual inspection of extrusion, brim adhesion, zero lifting.</p>
-                        </div>
-                      </label>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">5. Print Execution Completed</strong>
-                          <p className="text-[10px] text-slate-500">Bed cooled down, clean release from plate, zero layer shifts.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">6. Support Removal & Post-Process</strong>
-                          <p className="text-[10px] text-slate-500">Supports removed, contact points trimmed, cleaned & cured.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">7. Quality Assurance (QA)</strong>
-                          <p className="text-[10px] text-slate-500">Dimensions checked with calipers, test fit & surface finish inspected.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
-                        <div>
-                          <strong className="text-slate-900">8. Documentation & Packed</strong>
-                          <p className="text-[10px] text-slate-500">Inspection photo recorded, packed safely for customer handover.</p>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Operator Sign-off & Production Run Log */}
