@@ -13,16 +13,49 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.7.0';
+export const APP_VERSION = '2.7.1';
 export const APP_RELEASE_DATE = 'October 24, 2026';
-export const APP_CODENAME = 'Print-to-PDF & Workshop Job Checklists';
+export const APP_CODENAME = 'Custom Invoice Business Profile & Branding';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.7.1',
+    releaseDate: 'October 24, 2026',
+    title: 'Customizable Business & Invoice Branding Profile with Live Preview',
+    isLatest: true,
+    tag: 'patch',
+    highlights: [
+      'Dedicated Business & Invoice Branding Profile configuration card in General Settings',
+      'Customizable Business Name, Tagline, Shop Address, Phone, Email, Website, and Default Invoice Terms',
+      'Real-time interactive white paper header preview showing exactly how invoices render before printing',
+      'Bidirectional sync between General Configuration, Print Preview drawer, and cloud Firestore synchronization'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '🏢 Dedicated Business & Invoice Branding Profile panel in General Configuration with real-time editing',
+          'Custom inputs for Business Name, Tagline/Subtitle, Physical Workshop Address, Phone, Email, and Website/Portfolio',
+          'Multi-line editor for Default Invoice & Quote Terms & Conditions appearing above payment instructions',
+          '📄 Interactive live print header preview card that renders changes instantaneously as you type',
+          'Bidirectional synchronization between settings and print drawer customization controls'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Website/portfolio links and physical shop address now displayed seamlessly on all PDF and paper printouts',
+          'Workshop Job Checklists now incorporate custom studio branding in the production traveler header',
+          'Firebase Firestore and local storage automatically persist and restore studio branding across devices'
+        ]
+      }
+    ]
+  },
   {
     version: '2.7.0',
     releaseDate: 'October 24, 2026',
     title: 'Print-to-PDF & Paper: Customer Quotes, Invoices & Workshop Fabrication Checklists',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Print to PDF or physical paper directly from Calculator, Saved Jobs, and Production Orders',

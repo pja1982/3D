@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament, MultiColorBatchMode } from '../types';
+import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament, MultiColorBatchMode, GeneralSettings } from '../types';
 import { QuoteStatus } from '../types';
 import SaveIcon from './icons/SaveIcon';
 import PrinterIcon from './icons/PrinterIcon';
@@ -33,6 +33,8 @@ interface CostBreakdownDisplayProps {
   onUpdateMultiColorBatchMode?: (mode: MultiColorBatchMode) => void;
   multiColorBedCount?: number;
   onUpdateMultiColorBedCount?: (count: number) => void;
+  generalSettings?: GeneralSettings;
+  onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -64,6 +66,8 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
   onUpdateMultiColorBatchMode,
   multiColorBedCount,
   onUpdateMultiColorBedCount,
+  generalSettings,
+  onUpdateGeneralSettings,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -773,6 +777,8 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
         filaments={filaments}
         printers={printers}
         initialDocType={printDocType}
+        generalSettings={generalSettings}
+        onUpdateGeneralSettings={onUpdateGeneralSettings}
       />
     </div>
   );

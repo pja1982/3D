@@ -51,6 +51,13 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
       carbon: 12,
       standard: 5,
     },
+    studioName: '3D Printing Studio',
+    studioTagline: 'Custom Additive Manufacturing & Rapid Prototyping',
+    studioEmail: 'quotes@3dprintstudio.com',
+    studioPhone: '(555) 019-3820',
+    studioAddress: '123 Maker Way, Suite 4B',
+    studioWebsite: 'www.3dprintstudio.com',
+    studioTerms: 'Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin.',
     ...settings,
   }));
   const [showSuccess, setShowSuccess] = useState(false);
@@ -79,11 +86,18 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
         carbon: 12,
         standard: 5,
       },
+      studioName: prev.studioName || '3D Printing Studio',
+      studioTagline: prev.studioTagline || 'Custom Additive Manufacturing & Rapid Prototyping',
+      studioEmail: prev.studioEmail || 'quotes@3dprintstudio.com',
+      studioPhone: prev.studioPhone || '(555) 019-3820',
+      studioAddress: prev.studioAddress || '123 Maker Way, Suite 4B',
+      studioWebsite: prev.studioWebsite || 'www.3dprintstudio.com',
+      studioTerms: prev.studioTerms || 'Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin.',
       ...settings,
     }));
   }, [settings]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
       const { checked } = e.target as HTMLInputElement;
@@ -127,16 +141,204 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
 
   return (
     <div className="mt-8 max-w-3xl mx-auto space-y-8 pb-12">
-      {/* General Print Cost Settings */}
-      <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
-        <h2 className="text-2xl font-semibold text-cyan-400 border-b border-slate-600 pb-2 mb-6">
-          General Cost & Markup Settings
-        </h2>
-        <p className="text-slate-400 mb-6 text-sm">
-          Set your baseline cost parameters here. These values will pre-fill the calculator and determine default rates across all quotes.
-        </p>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Business & Invoice Branding Profile */}
+        <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700 space-y-6">
+          <div className="border-b border-slate-600 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-2xl font-semibold text-cyan-400 flex items-center gap-2">
+                <span>🏢 Business & Invoice Branding Profile</span>
+              </h2>
+              <p className="text-slate-400 text-sm mt-1">
+                Customize your studio name, contact info, address, and invoice notes. These will appear on all printed Customer Quotes, Invoices, and Job Checklists.
+              </p>
+            </div>
+            <span className="self-start sm:self-auto text-xs bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 px-3 py-1 rounded-full font-medium whitespace-nowrap">
+              Appears on All PDF & Printouts
+            </span>
+          </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label htmlFor="studioName" className="block text-sm font-medium text-slate-300 mb-1">
+                Business / Studio Name
+              </label>
+              <input
+                type="text"
+                id="studioName"
+                name="studioName"
+                value={currentSettings.studioName || ''}
+                onChange={handleChange}
+                placeholder="e.g. Apex 3D Fabrication Studio"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="studioTagline" className="block text-sm font-medium text-slate-300 mb-1">
+                Tagline / Business Subtitle
+              </label>
+              <input
+                type="text"
+                id="studioTagline"
+                name="studioTagline"
+                value={currentSettings.studioTagline || ''}
+                onChange={handleChange}
+                placeholder="e.g. Custom Additive Manufacturing & Rapid Prototyping"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="studioAddress" className="block text-sm font-medium text-slate-300 mb-1">
+                Shop Address / Location
+              </label>
+              <input
+                type="text"
+                id="studioAddress"
+                name="studioAddress"
+                value={currentSettings.studioAddress || ''}
+                onChange={handleChange}
+                placeholder="e.g. 123 Maker Way, Suite 4B, Austin, TX 78701"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+              <span className="text-xs text-slate-400 mt-1 block">Street address, suite/bay number, city, state and zip code for customer invoices</span>
+            </div>
+
+            <div>
+              <label htmlFor="studioPhone" className="block text-sm font-medium text-slate-300 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                id="studioPhone"
+                name="studioPhone"
+                value={currentSettings.studioPhone || ''}
+                onChange={handleChange}
+                placeholder="e.g. (555) 019-3820"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="studioEmail" className="block text-sm font-medium text-slate-300 mb-1">
+                Business Contact Email
+              </label>
+              <input
+                type="email"
+                id="studioEmail"
+                name="studioEmail"
+                value={currentSettings.studioEmail || ''}
+                onChange={handleChange}
+                placeholder="e.g. quotes@3dprintstudio.com"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="studioWebsite" className="block text-sm font-medium text-slate-300 mb-1">
+                Website / Portfolio Link
+              </label>
+              <input
+                type="text"
+                id="studioWebsite"
+                name="studioWebsite"
+                value={currentSettings.studioWebsite || ''}
+                onChange={handleChange}
+                placeholder="e.g. www.3dprintstudio.com"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="studioTerms" className="block text-sm font-medium text-slate-300 mb-1">
+                Default Quote & Invoice Terms / Conditions
+              </label>
+              <textarea
+                id="studioTerms"
+                name="studioTerms"
+                rows={3}
+                value={currentSettings.studioTerms || ''}
+                onChange={handleChange}
+                placeholder="e.g. Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin."
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 leading-relaxed text-sm"
+              />
+              <span className="text-xs text-slate-400 mt-1 block">Displayed on customer-facing quotes and invoices above payment instructions</span>
+            </div>
+          </div>
+
+          {/* Interactive Live Document Header Preview */}
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-700/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <span>📄 Live Print & Invoice Header Preview</span>
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
+                  Standard White Paper
+                </span>
+              </span>
+              <span className="text-[11px] text-cyan-400 font-medium">Updates live as you type</span>
+            </div>
+            
+            <div className="bg-white text-slate-900 p-5 rounded-lg border border-slate-300 shadow-sm font-sans select-none">
+              <div className="flex justify-between items-start border-b-2 border-slate-800 pb-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 leading-tight">
+                    {currentSettings.studioName || '3D Printing Studio'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {currentSettings.studioTagline || 'Custom Additive Manufacturing & Rapid Prototyping'}
+                  </p>
+                  <div className="text-[11px] text-slate-600 pt-1 space-y-0.5">
+                    {currentSettings.studioAddress ? (
+                      <div>{currentSettings.studioAddress}</div>
+                    ) : (
+                      <div className="text-slate-400 italic">No shop address specified</div>
+                    )}
+                    <div className="flex flex-wrap gap-x-3 text-[10px] sm:text-[11px] text-slate-700">
+                      {currentSettings.studioPhone && <span>Tel: {currentSettings.studioPhone}</span>}
+                      {currentSettings.studioEmail && <span>Email: {currentSettings.studioEmail}</span>}
+                      {currentSettings.studioWebsite && <span>Web: {currentSettings.studioWebsite}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="inline-block bg-slate-900 text-white font-black text-[11px] uppercase px-2.5 py-1 rounded tracking-wider">
+                    3D PRINT QUOTE
+                  </span>
+                  <div className="text-[11px] text-slate-500 font-medium mt-1">
+                    <div>Ref #: <strong className="text-slate-900">#1024</strong></div>
+                    <div>Valid: 30 Days</div>
+                  </div>
+                </div>
+              </div>
+              {currentSettings.studioTerms && (
+                <div className="mt-2.5 pt-2 text-[10px] text-slate-500 border-t border-dashed border-slate-200">
+                  <strong className="text-slate-700">Terms:</strong> {currentSettings.studioTerms}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end items-center gap-4 pt-2">
+            {showSuccess && <span className="text-green-400 text-sm font-medium transition-opacity duration-300">Settings saved successfully!</span>}
+            <button
+              type="submit"
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-md text-sm"
+            >
+              Save Business Profile
+            </button>
+          </div>
+        </div>
+
+        {/* General Print Cost Settings */}
+        <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">
+          <h2 className="text-2xl font-semibold text-cyan-400 border-b border-slate-600 pb-2 mb-6">
+            General Cost & Markup Settings
+          </h2>
+          <p className="text-slate-400 mb-6 text-sm">
+            Set your baseline cost parameters here. These values will pre-fill the calculator and determine default rates across all quotes.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label htmlFor="electricityCostKwh" className="block text-sm font-medium text-slate-300 mb-1">
@@ -855,8 +1057,8 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
               Save Settings
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
       
       {/* Backup and Restore */}
       <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700">

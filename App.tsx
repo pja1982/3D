@@ -107,6 +107,13 @@ const DEFAULT_SETTINGS: GeneralSettings = {
   complexPurgeWastePercent: 15,
   complexCostPerColorChange: 0.05,
   complexHandlingFee: 4.00,
+  studioName: '3D Printing Studio',
+  studioTagline: 'Custom Additive Manufacturing & Rapid Prototyping',
+  studioEmail: 'quotes@3dprintstudio.com',
+  studioPhone: '(555) 019-3820',
+  studioAddress: '123 Maker Way, Suite 4B',
+  studioWebsite: 'www.3dprintstudio.com',
+  studioTerms: 'Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin.',
 };
 
 const DEFAULT_APP_DATA: AppData = {
@@ -1403,6 +1410,8 @@ function App() {
                   onUpdateMultiColorBatchMode={setMultiColorBatchMode}
                   multiColorBedCount={multiColorBedCount}
                   onUpdateMultiColorBedCount={setMultiColorBedCount}
+                  generalSettings={generalSettings}
+                  onUpdateGeneralSettings={handleUpdatePartialSettings}
                 />
               </div>
             </div>

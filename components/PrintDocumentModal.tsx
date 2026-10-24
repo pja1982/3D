@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Quote, Filament, Printer, Order, GeneralSettings } from '../types';
 import { QuoteStatus } from '../types';
 import PrinterIcon from './icons/PrinterIcon';
@@ -47,9 +48,35 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   const [studioEmail, setStudioEmail] = useState(generalSettings?.studioEmail || 'quotes@3dprintstudio.com');
   const [studioPhone, setStudioPhone] = useState(generalSettings?.studioPhone || '(555) 019-3820');
   const [studioAddress, setStudioAddress] = useState(generalSettings?.studioAddress || '');
+  const [studioWebsite, setStudioWebsite] = useState(generalSettings?.studioWebsite || '');
   const [customTerms, setCustomTerms] = useState(
     generalSettings?.studioTerms || 'Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin.'
   );
+
+  // Sync state if generalSettings prop updates
+  React.useEffect(() => {
+    if (generalSettings) {
+      if (generalSettings.studioName) setStudioName(generalSettings.studioName);
+      if (generalSettings.studioTagline) setStudioTagline(generalSettings.studioTagline);
+      if (generalSettings.studioEmail) setStudioEmail(generalSettings.studioEmail);
+      if (generalSettings.studioPhone) setStudioPhone(generalSettings.studioPhone);
+      if (generalSettings.studioAddress !== undefined) setStudioAddress(generalSettings.studioAddress);
+      if (generalSettings.studioWebsite !== undefined) setStudioWebsite(generalSettings.studioWebsite);
+      if (generalSettings.studioTerms) setCustomTerms(generalSettings.studioTerms);
+    }
+  }, [generalSettings]);
+
+  // Manage print-active body class so the rest of the application is completely hidden during print
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('print-document-active');
+    } else {
+      document.body.classList.remove('print-document-active');
+    }
+    return () => {
+      document.body.classList.remove('print-document-active');
+    };
+  }, [isOpen]);
 
   // Print customization toggles
   const [includeTerms, setIncludeTerms] = useState(true);
@@ -90,6 +117,7 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
         studioEmail,
         studioPhone,
         studioAddress,
+        studioWebsite,
         studioTerms: customTerms,
       });
     }
@@ -100,9 +128,9 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
     window.print();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[94vh] overflow-hidden my-auto">
+  const modalContent = (
+    <div className="print-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm overflow-y-auto print:static print:p-0 print:m-0 print:bg-white print:overflow-visible">
+      <div className="print-modal-dialog relative w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[94vh] overflow-hidden my-auto print:static print:border-none print:shadow-none print:rounded-none print:max-h-none print:max-w-none print:w-full print:bg-white print:overflow-visible print:m-0 print:p-0">
         
         {/* Top Control Bar (Screen Only - Hidden in Print via .no-print) */}
         <div className="no-print p-4 bg-slate-800 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
@@ -225,6 +253,16 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                 />
               </div>
               <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Website / Portfolio</label>
+                <input
+                  type="text"
+                  value={studioWebsite}
+                  onChange={(e) => setStudioWebsite(e.target.value)}
+                  placeholder="e.g. www.3dprintstudio.com"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
                 <label className="block text-slate-400 text-[10px] mb-0.5">Toggles</label>
                 <div className="flex items-center gap-3 pt-1.5">
                   <label className="flex items-center gap-1 text-[11px] text-slate-300">
@@ -255,12 +293,12 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
         )}
 
         {/* Document Preview & Printable Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-950/60 flex justify-center">
+        <div className="print-modal-scroll-area flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-950/60 flex justify-center print:static print:bg-white print:p-0 print:m-0 print:overflow-visible print:block print:w-full">
           
           <div
             id="printable-document-content"
-            className="w-full max-w-[800px] bg-white text-slate-900 rounded-sm shadow-xl p-8 sm:p-10 font-sans print:shadow-none print:p-0 print:m-0"
-            style={{ minHeight: '1050px' }}
+            className="w-full max-w-[800px] bg-white text-slate-900 rounded-sm shadow-xl p-8 sm:p-10 font-sans print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full print:rounded-none print:border-none"
+            style={{ minHeight: 'auto' }}
           >
             {docType === 'quote' ? (
               /* ========================================================================= */
@@ -279,6 +317,7 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                       <div className="flex flex-wrap gap-x-3">
                         {studioPhone && <span>Tel: {studioPhone}</span>}
                         {studioEmail && <span>Email: {studioEmail}</span>}
+                        {studioWebsite && <span>Web: {studioWebsite}</span>}
                       </div>
                     </div>
                   </div>
@@ -444,8 +483,13 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                 {/* Header */}
                 <div className="flex justify-between items-start border-b-2 border-slate-800 pb-4">
                   <div>
-                    <div className="inline-block bg-purple-900 text-white font-black text-xs uppercase px-2.5 py-1 rounded tracking-wider mb-1">
-                      PRODUCTION TRAVELER
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="inline-block bg-purple-900 text-white font-black text-xs uppercase px-2.5 py-1 rounded tracking-wider">
+                        PRODUCTION TRAVELER
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        {studioName}
+                      </span>
                     </div>
                     <h1 className="text-2xl font-black tracking-tight text-slate-900">
                       Workshop Fabrication Checklist
@@ -663,6 +707,8 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default PrintDocumentModal;
