@@ -25,7 +25,47 @@
   }
 }
 </script>
-</head>
+    <style>
+      @media print {
+        body {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        /* Hide screen-only app chrome and interactive buttons when printing */
+        .no-print, nav, header, .modal-backdrop-print-hide {
+          display: none !important;
+        }
+
+        /* Clean printable container */
+        #printable-document-content {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+
+        .print-avoid-break, tr {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+
+        @page {
+          size: auto;
+          margin: 12mm 15mm 15mm 15mm;
+        }
+      }
+    </style>
+  </head>
   <body class="bg-slate-900 text-slate-200">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

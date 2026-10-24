@@ -9,8 +9,12 @@ import CameraIcon from './icons/CameraIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import ArchiveIcon from './icons/ArchiveIcon';
 import RestoreIcon from './icons/RestoreIcon';
+import PrinterIcon from './icons/PrinterIcon';
+import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
 import ImageModal from './ImageModal';
 import JobPartsTable from './JobPartsTable';
+import PrintDocumentModal from './PrintDocumentModal';
+import type { GeneralSettings } from '../types';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
 import { 
   generateOrderMarkdown, 
@@ -30,6 +34,8 @@ interface OrdersPageProps {
   onUpdateStatus: (id: string, status: OrderStatus) => void;
   onUpdateOrderPhoto?: (id: string, imageUrl?: string) => void;
   onArchive?: (id: string, archive: boolean) => void;
+  generalSettings?: GeneralSettings;
+  onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
 }
 
 const statusColors: Record<OrderStatus, string> = {
@@ -57,7 +63,8 @@ const OrderDetailView: React.FC<{
   onUpdateOrderPhoto?: (id: string, imageUrl?: string) => void;
   onOpenPhotoModal: (url: string, title: string) => void;
   onArchive?: (id: string, archive: boolean) => void;
-}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal, onArchive }) => {
+  onPrint?: (order: Order, quote: Quote, docType: 'quote' | 'checklist') => void;
+}> = ({ order, quote, filaments = [], printers = [], onUpdateOrderPhoto, onOpenPhotoModal, onArchive, onPrint }) => {
   const [copied, setCopied] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -344,6 +351,28 @@ const OrderDetailView: React.FC<{
         </div>
 
         <div className="flex items-center gap-2">
+          {onPrint && (
+            <>
+              <button
+                type="button"
+                onClick={() => onPrint(order, quote, 'quote')}
+                className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors cursor-pointer"
+                title="Print Customer Invoice to PDF or physical paper"
+              >
+                <PrinterIcon className="w-3.5 h-3.5" />
+                <span>Print Invoice (PDF)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onPrint(order, quote, 'checklist')}
+                className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors cursor-pointer"
+                title="Print Order Production Fabrication Checklist to PDF or paper"
+              >
+                <ClipboardCheckIcon className="w-3.5 h-3.5" />
+                <span>Print Checklist (PDF)</span>
+              </button>
+            </>
+          )}
           {onArchive && (
             <button
               type="button"
@@ -374,11 +403,24 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
   onUpdateStatus,
   onUpdateOrderPhoto,
   onArchive,
+  generalSettings,
+  onUpdateGeneralSettings,
 }) => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [printModalState, setPrintModalState] = useState<{
+    isOpen: boolean;
+    order: Order | null;
+    quote: Quote | null;
+    docType: 'quote' | 'checklist';
+  }>({
+    isOpen: false,
+    order: null,
+    quote: null,
+    docType: 'quote',
+  });
 
   const activeCount = orders.filter(o => !o.isArchived).length;
   const archivedCount = orders.filter(o => o.isArchived).length;
@@ -671,6 +713,26 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              setPrintModalState({ isOpen: true, order, quote, docType: 'quote' });
+                            }}
+                            className="p-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 transition-colors cursor-pointer"
+                            title="Print Customer Invoice (PDF or Paper)"
+                          >
+                            <PrinterIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPrintModalState({ isOpen: true, order, quote, docType: 'checklist' });
+                            }}
+                            className="p-1.5 rounded-full bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 transition-colors cursor-pointer"
+                            title="Print Order Production Fabrication Checklist (PDF or Paper)"
+                          >
+                            <ClipboardCheckIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
                               const cleanJob = (quote.jobName || 'Order').replace(/[^a-zA-Z0-9_-]/g, '_');
                               downloadMarkdownFile(`Order_${order.orderNumber}_${cleanJob}.md`, generateOrderMarkdown(order, quote, filaments, printers));
                             }}
@@ -724,6 +786,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
                             onUpdateOrderPhoto={onUpdateOrderPhoto}
                             onOpenPhotoModal={(url, title) => setModalImage({ url, title })}
                             onArchive={onArchive}
+                            onPrint={(o, q, docType) => setPrintModalState({ isOpen: true, order: o, quote: q, docType })}
                           />
                         </td>
                       </tr>
@@ -744,6 +807,21 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
           imageUrl={modalImage.url}
           title={modalImage.title}
           subtitle="Completed 3D print & inspection record"
+        />
+      )}
+
+      {/* Print Document Modal */}
+      {printModalState.isOpen && printModalState.quote && (
+        <PrintDocumentModal
+          isOpen={printModalState.isOpen}
+          onClose={() => setPrintModalState(prev => ({ ...prev, isOpen: false }))}
+          quote={printModalState.quote}
+          order={printModalState.order}
+          filaments={filaments}
+          printers={printers}
+          initialDocType={printModalState.docType}
+          generalSettings={generalSettings}
+          onUpdateGeneralSettings={onUpdateGeneralSettings}
         />
       )}
     </div>

@@ -110,6 +110,15 @@ export interface GeneralSettings {
     standard?: number; // e.g. 5% (PLA, PETG base fallback)
     [key: string]: number | undefined;
   };
+
+  // Print & Invoicing Studio Profile
+  studioName?: string;
+  studioTagline?: string;
+  studioEmail?: string;
+  studioPhone?: string;
+  studioWebsite?: string;
+  studioAddress?: string;
+  studioTerms?: string;
 }
 
 export interface PrintParameters {

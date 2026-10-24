@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament, MultiColorBatchMode } from '../types';
 import { QuoteStatus } from '../types';
 import SaveIcon from './icons/SaveIcon';
+import PrinterIcon from './icons/PrinterIcon';
 import SaveQuoteModal from './SaveQuoteModal';
+import PrintDocumentModal from './PrintDocumentModal';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
@@ -64,6 +66,8 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
   onUpdateMultiColorBedCount,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printDocType, setPrintDocType] = useState<'quote' | 'checklist'>('quote');
   const [editableQuotePrice, setEditableQuotePrice] = useState(quotePrice);
   const [expandedPartDetailsId, setExpandedPartDetailsId] = useState<string | null>(null);
   const [partsViewMode, setPartsViewMode] = useState<'cards' | 'table'>('cards');
@@ -667,14 +671,29 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
             </span>
           </div>
 
-          <button 
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2.5 px-4 rounded-xl transition-colors shadow-md text-sm border border-white/20"
-          >
-            <SaveIcon className="w-5 h-5" />
-            <span>{revisingQuote ? 'Save Revised Quote' : 'Save Quote'}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              type="button"
+              onClick={() => {
+                setPrintDocType('quote');
+                setIsPrintModalOpen(true);
+              }}
+              className="flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold py-2.5 px-3.5 rounded-xl transition-colors shadow-md text-xs sm:text-sm border border-white/25 cursor-pointer"
+              title="Print Customer Quote or Workshop Checklist to PDF or Paper"
+            >
+              <PrinterIcon className="w-4 h-4" />
+              <span>Print / PDF</span>
+            </button>
+
+            <button 
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center justify-center gap-2 bg-white/25 hover:bg-white/35 text-white font-bold py-2.5 px-4 rounded-xl transition-colors shadow-md text-sm border border-white/30 cursor-pointer"
+            >
+              <SaveIcon className="w-5 h-5" />
+              <span>{revisingQuote ? 'Save Revised Quote' : 'Save Quote'}</span>
+            </button>
+          </div>
         </div>
 
         <hr className="border-white/20" />
@@ -745,6 +764,15 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
         initialCustomerName={revisingQuote ? revisingQuote.customerName : ''}
         initialJobNumber={revisingQuote ? revisingQuote.jobNumber : undefined}
         isRevision={!!revisingQuote}
+      />
+
+      <PrintDocumentModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        quote={liveQuote}
+        filaments={filaments}
+        printers={printers}
+        initialDocType={printDocType}
       />
     </div>
   );

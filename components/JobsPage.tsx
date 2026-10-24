@@ -13,8 +13,12 @@ import MarkdownIcon from './icons/MarkdownIcon';
 import PhotoIcon from './icons/PhotoIcon';
 import ArchiveIcon from './icons/ArchiveIcon';
 import RestoreIcon from './icons/RestoreIcon';
+import PrinterIcon from './icons/PrinterIcon';
+import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
 import ImageModal from './ImageModal';
 import JobPartsTable from './JobPartsTable';
+import PrintDocumentModal from './PrintDocumentModal';
+import type { GeneralSettings } from '../types';
 import { 
   generateJobMarkdown, 
   generateAllJobsMarkdown, 
@@ -37,6 +41,8 @@ interface JobsPageProps {
   onUseAsTemplate?: (quote: Quote) => void;
   onOpenGoogleSheets?: () => void;
   onArchive?: (id: string, archive: boolean) => void;
+  generalSettings?: GeneralSettings;
+  onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
 }
 
 const statusColors: Record<QuoteStatus, string> = {
@@ -62,7 +68,8 @@ const QuoteDetailView: React.FC<{
   onReviseQuote?: (quote: Quote) => void;
   onUseAsTemplate?: (quote: Quote) => void;
   onArchive?: (id: string, archive: boolean) => void;
-}> = ({ quote, filaments, printers, onReviseQuote, onUseAsTemplate, onArchive }) => {
+  onPrint?: (quote: Quote, docType: 'quote' | 'checklist') => void;
+}> = ({ quote, filaments, printers, onReviseQuote, onUseAsTemplate, onArchive, onPrint }) => {
     const [copied, setCopied] = useState(false);
     const [copiedInvoice, setCopiedInvoice] = useState(false);
     const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
@@ -199,6 +206,28 @@ const QuoteDetailView: React.FC<{
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {onPrint && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onPrint(quote, 'quote')}
+                  className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors cursor-pointer"
+                  title="Print Customer Quote or Invoice to PDF or physical paper"
+                >
+                  <PrinterIcon className="w-3.5 h-3.5" />
+                  <span>Print Quote (PDF)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPrint(quote, 'checklist')}
+                  className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg text-xs shadow transition-colors cursor-pointer"
+                  title="Print Workshop Fabrication Checklist & Tracking Traveler to PDF or paper"
+                >
+                  <ClipboardCheckIcon className="w-3.5 h-3.5" />
+                  <span>Print Checklist (PDF)</span>
+                </button>
+              </>
+            )}
             {onUseAsTemplate && (
               <button
                 onClick={() => onUseAsTemplate(quote)}
@@ -262,12 +291,23 @@ const JobsPage: React.FC<JobsPageProps> = ({
   onUseAsTemplate, 
   onOpenGoogleSheets,
   onArchive,
+  generalSettings,
+  onUpdateGeneralSettings,
 }) => {
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [editingPriceQuoteId, setEditingPriceQuoteId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>('');
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [printModalState, setPrintModalState] = useState<{
+    isOpen: boolean;
+    quote: Quote | null;
+    docType: 'quote' | 'checklist';
+  }>({
+    isOpen: false,
+    quote: null,
+    docType: 'quote',
+  });
 
   const activeCount = quotes.filter(q => !q.isArchived).length;
   const archivedCount = quotes.filter(q => q.isArchived).length;
@@ -636,6 +676,26 @@ const JobsPage: React.FC<JobsPageProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              setPrintModalState({ isOpen: true, quote, docType: 'quote' });
+                            }}
+                            className="p-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 transition-colors cursor-pointer"
+                            title="Print Customer Quote (PDF or Paper)"
+                          >
+                            <PrinterIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPrintModalState({ isOpen: true, quote, docType: 'checklist' });
+                            }}
+                            className="p-1.5 rounded-full bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 transition-colors cursor-pointer"
+                            title="Print Workshop Fabrication Checklist (PDF or Paper)"
+                          >
+                            <ClipboardCheckIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
                               const cleanName = quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_');
                               downloadMarkdownFile(`Job_${quote.jobNumber}_${cleanName}.md`, generateJobMarkdown(quote, filaments, printers));
                             }}
@@ -687,7 +747,15 @@ const JobsPage: React.FC<JobsPageProps> = ({
                     {expandedQuoteId === quote.id && (
                       <tr className="bg-slate-800 border-b border-slate-700">
                         <td colSpan={8} className="p-0">
-                          <QuoteDetailView quote={quote} filaments={filaments} printers={printers} onReviseQuote={onReviseQuote} onUseAsTemplate={onUseAsTemplate} onArchive={onArchive} />
+                          <QuoteDetailView
+                            quote={quote}
+                            filaments={filaments}
+                            printers={printers}
+                            onReviseQuote={onReviseQuote}
+                            onUseAsTemplate={onUseAsTemplate}
+                            onArchive={onArchive}
+                            onPrint={(q, docType) => setPrintModalState({ isOpen: true, quote: q, docType })}
+                          />
                         </td>
                       </tr>
                     )}
@@ -698,6 +766,19 @@ const JobsPage: React.FC<JobsPageProps> = ({
           </div>
         )}
       </div>
+
+      {printModalState.isOpen && printModalState.quote && (
+        <PrintDocumentModal
+          isOpen={printModalState.isOpen}
+          onClose={() => setPrintModalState(prev => ({ ...prev, isOpen: false }))}
+          quote={printModalState.quote}
+          filaments={filaments}
+          printers={printers}
+          initialDocType={printModalState.docType}
+          generalSettings={generalSettings}
+          onUpdateGeneralSettings={onUpdateGeneralSettings}
+        />
+      )}
     </div>
   );
 };

@@ -1,0 +1,668 @@
+import React, { useState, useMemo } from 'react';
+import type { Quote, Filament, Printer, Order, GeneralSettings } from '../types';
+import { QuoteStatus } from '../types';
+import PrinterIcon from './icons/PrinterIcon';
+import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
+import XIcon from './icons/XIcon';
+import { calculateJobPartRows } from '../utils/partCostCalculator';
+
+interface PrintDocumentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  quote: Quote | null;
+  filaments: Filament[];
+  printers: Printer[];
+  initialDocType?: 'quote' | 'checklist';
+  order?: Order | null;
+  generalSettings?: GeneralSettings;
+  onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
+}
+
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+};
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
+  isOpen,
+  onClose,
+  quote,
+  filaments = [],
+  printers = [],
+  initialDocType = 'quote',
+  order,
+  generalSettings,
+  onUpdateGeneralSettings,
+}) => {
+  const [docType, setDocType] = useState<'quote' | 'checklist'>(initialDocType);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+
+  // Editable Studio / Business Profile
+  const [studioName, setStudioName] = useState(generalSettings?.studioName || '3D Printing Studio');
+  const [studioTagline, setStudioTagline] = useState(generalSettings?.studioTagline || 'Custom Additive Manufacturing & Rapid Prototyping');
+  const [studioEmail, setStudioEmail] = useState(generalSettings?.studioEmail || 'quotes@3dprintstudio.com');
+  const [studioPhone, setStudioPhone] = useState(generalSettings?.studioPhone || '(555) 019-3820');
+  const [studioAddress, setStudioAddress] = useState(generalSettings?.studioAddress || '');
+  const [customTerms, setCustomTerms] = useState(
+    generalSettings?.studioTerms || 'Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin.'
+  );
+
+  // Print customization toggles
+  const [includeTerms, setIncludeTerms] = useState(true);
+  const [includeSignature, setIncludeSignature] = useState(true);
+  const [includeTechnicalNotes, setIncludeTechnicalNotes] = useState(true);
+
+  if (!isOpen || !quote) return null;
+
+  // Compute itemized part prices and breakdown
+  const computedParts = useMemo(() => {
+    return calculateJobPartRows(quote, filaments, printers);
+  }, [quote, filaments, printers]);
+
+  const primaryPrinter = useMemo(() => {
+    const firstPartPrinterId = quote.parts?.[0]?.printerId || quote.parameters?.printerId;
+    return printers.find(p => p.id === firstPartPrinterId) || printers[0];
+  }, [quote, printers]);
+
+  const totalFilamentGrams = useMemo(() => {
+    if (quote.parts && quote.parts.length > 0) {
+      return quote.parts.reduce((sum, p) => sum + ((p.filamentGrams || 0) * (p.quantity || 1)), 0);
+    }
+    return quote.parameters?.filamentGrams || 0;
+  }, [quote]);
+
+  const totalPrintHours = useMemo(() => {
+    if (quote.parts && quote.parts.length > 0) {
+      return quote.parts.reduce((sum, p) => sum + ((p.printHours || 0) * (p.quantity || 1)), 0);
+    }
+    return quote.parameters?.printHours || 0;
+  }, [quote]);
+
+  const handleSaveSettings = () => {
+    if (onUpdateGeneralSettings) {
+      onUpdateGeneralSettings({
+        studioName,
+        studioTagline,
+        studioEmail,
+        studioPhone,
+        studioAddress,
+        studioTerms: customTerms,
+      });
+    }
+    setShowSettingsDrawer(false);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm overflow-y-auto">
+      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[94vh] overflow-hidden my-auto">
+        
+        {/* Top Control Bar (Screen Only - Hidden in Print via .no-print) */}
+        <div className="no-print p-4 bg-slate-800 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setDocType('quote')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  docType === 'quote'
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <PrinterIcon className="w-3.5 h-3.5" />
+                <span>Customer Quote / Invoice</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocType('checklist')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  docType === 'checklist'
+                    ? 'bg-purple-500 text-white shadow-sm'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <ClipboardCheckIcon className="w-3.5 h-3.5" />
+                <span>Job Workshop Checklist</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
+              className="text-xs text-slate-400 hover:text-cyan-300 underline px-2 py-1"
+            >
+              {showSettingsDrawer ? 'Hide Studio Settings' : '⚙️ Studio & Terms'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 cursor-pointer"
+              title="Print to physical printer or save as PDF via your browser's print dialog"
+            >
+              <PrinterIcon className="w-4 h-4" />
+              <span>Print / Save as PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition"
+              title="Close modal"
+            >
+              <XIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Studio / Invoice Details Editor (Screen Only) */}
+        {showSettingsDrawer && (
+          <div className="no-print p-4 bg-slate-850 border-b border-slate-700 text-xs space-y-3 bg-slate-900/90 flex-shrink-0 max-h-56 overflow-y-auto">
+            <div className="font-semibold text-slate-200 flex items-center justify-between">
+              <span>Edit Document Branding & Information</span>
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded text-[11px] font-bold"
+              >
+                Save as Default
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Studio / Business Name</label>
+                <input
+                  type="text"
+                  value={studioName}
+                  onChange={(e) => setStudioName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Tagline / Services</label>
+                <input
+                  type="text"
+                  value={studioTagline}
+                  onChange={(e) => setStudioTagline(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Email</label>
+                <input
+                  type="email"
+                  value={studioEmail}
+                  onChange={(e) => setStudioEmail(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Phone Number</label>
+                <input
+                  type="text"
+                  value={studioPhone}
+                  onChange={(e) => setStudioPhone(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Shop Address / Location</label>
+                <input
+                  type="text"
+                  value={studioAddress}
+                  onChange={(e) => setStudioAddress(e.target.value)}
+                  placeholder="e.g. 123 Maker Way, Suite 4"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-[10px] mb-0.5">Toggles</label>
+                <div className="flex items-center gap-3 pt-1.5">
+                  <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                    <input type="checkbox" checked={includeTerms} onChange={e => setIncludeTerms(e.target.checked)} />
+                    <span>Terms</span>
+                  </label>
+                  <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                    <input type="checkbox" checked={includeSignature} onChange={e => setIncludeSignature(e.target.checked)} />
+                    <span>Sign-off</span>
+                  </label>
+                  <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                    <input type="checkbox" checked={includeTechnicalNotes} onChange={e => setIncludeTechnicalNotes(e.target.checked)} />
+                    <span>Specs</span>
+                  </label>
+                </div>
+              </div>
+              <div className="sm:col-span-2 md:col-span-3">
+                <label className="block text-slate-400 text-[10px] mb-0.5">Customer Terms & Notes</label>
+                <input
+                  type="text"
+                  value={customTerms}
+                  onChange={(e) => setCustomTerms(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Document Preview & Printable Area */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-950/60 flex justify-center">
+          
+          <div
+            id="printable-document-content"
+            className="w-full max-w-[800px] bg-white text-slate-900 rounded-sm shadow-xl p-8 sm:p-10 font-sans print:shadow-none print:p-0 print:m-0"
+            style={{ minHeight: '1050px' }}
+          >
+            {docType === 'quote' ? (
+              /* ========================================================================= */
+              /* 1. CUSTOMER QUOTE & INVOICE DOCUMENT                                      */
+              /* ========================================================================= */
+              <div className="space-y-6 text-slate-800">
+                {/* Header */}
+                <div className="flex justify-between items-start border-b-2 border-slate-800 pb-5">
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+                      {studioName}
+                    </h1>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">{studioTagline}</p>
+                    <div className="text-[11px] text-slate-600 mt-2 space-y-0.5">
+                      {studioAddress && <div>{studioAddress}</div>}
+                      <div className="flex flex-wrap gap-x-3">
+                        {studioPhone && <span>Tel: {studioPhone}</span>}
+                        {studioEmail && <span>Email: {studioEmail}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="inline-block bg-slate-900 text-white font-black text-sm uppercase px-3 py-1 rounded tracking-wider mb-2">
+                      {order ? 'CUSTOMER INVOICE' : '3D PRINT QUOTE'}
+                    </div>
+                    <div className="text-xs text-slate-600 font-medium">
+                      <div>
+                        <span className="text-slate-400">Ref #:</span> <strong className="text-slate-900">#{order ? order.orderNumber : quote.jobNumber}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Date:</span> {formatDate(quote.createdAt)}
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Valid For:</span> 30 Days
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Status:</span>{' '}
+                        <span className="font-semibold text-slate-900 uppercase text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300">
+                          {order ? order.status : quote.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bill To & Project Info */}
+                <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Customer / Client
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900 mt-0.5">
+                      {quote.customerName || 'Valued Customer'}
+                    </h2>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Job Name / Description
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900 mt-0.5">
+                      {quote.jobName || '3D Printed Fabrication Project'}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Itemized Parts Table */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                    Itemized Fabrication Details
+                  </h3>
+                  <table className="w-full text-left text-xs border border-slate-200 border-collapse">
+                    <thead>
+                      <tr className="bg-slate-800 text-white text-[11px] uppercase tracking-wider">
+                        <th className="py-2.5 px-3 font-semibold w-10 text-center">#</th>
+                        <th className="py-2.5 px-3 font-semibold">Part / Model Description</th>
+                        <th className="py-2.5 px-3 font-semibold">Material / Spec</th>
+                        <th className="py-2.5 px-3 font-semibold text-center w-16">Qty</th>
+                        <th className="py-2.5 px-3 font-semibold text-right w-24">Unit Price</th>
+                        <th className="py-2.5 px-3 font-semibold text-right w-28">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {computedParts.rows.map((row, idx) => {
+                        const fil = filaments.find(f => f.id === row.part.filamentId);
+                        const materialLabel = fil ? `${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard Resin / Filament';
+                        return (
+                          <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-medium text-slate-900">
+                              <div>{row.part.name || `Part ${idx + 1}`}</div>
+                              {row.part.colors && row.part.colors.length > 1 && (
+                                <div className="text-[10px] text-purple-700 font-normal">
+                                  🎨 Multi-color print ({row.part.colors.length} spools)
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 text-[11px]">
+                              {materialLabel}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-semibold text-slate-800">
+                              {row.qty}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                              {formatCurrency(row.perUnitPrice)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                              {formatCurrency(row.lineTotalPrice)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Financial Summary & Totals Block */}
+                <div className="flex justify-end pt-2">
+                  <div className="w-full max-w-xs space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600 py-1 border-b border-slate-100">
+                      <span>Parts Subtotal ({computedParts.totalQuantity} items):</span>
+                      <span className="font-mono">{formatCurrency(quote.quotePrice)}</span>
+                    </div>
+
+                    {Boolean(quote.costBreakdown?.multiColorFee && quote.costBreakdown.multiColorFee > 0) && (
+                      <div className="flex justify-between text-slate-600 py-1 border-b border-slate-100">
+                        <span>Multi-Color Material Prep:</span>
+                        <span className="font-mono text-purple-700 font-semibold">Included</span>
+                      </div>
+                    )}
+
+                    {/* Total Amount Box */}
+                    <div className="p-3 bg-slate-900 text-white rounded-lg flex justify-between items-center mt-3 shadow-sm">
+                      <span className="text-xs font-bold uppercase tracking-wider">Total Quoted Price:</span>
+                      <span className="text-xl font-mono font-black">{formatCurrency(quote.quotePrice)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms and Acceptance */}
+                <div className="pt-6 border-t border-slate-200 space-y-6">
+                  {includeTerms && (
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                        Terms & Conditions
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {customTerms}
+                      </p>
+                    </div>
+                  )}
+
+                  {includeSignature && (
+                    <div className="grid grid-cols-2 gap-8 pt-4">
+                      <div>
+                        <div className="border-b border-slate-400 h-8"></div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block mt-1">
+                          Customer Approval Signature
+                        </span>
+                      </div>
+                      <div>
+                        <div className="border-b border-slate-400 h-8"></div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block mt-1">
+                          Date
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-center text-[10px] text-slate-400 pt-3 border-t border-slate-100">
+                    Thank you for choosing {studioName} for your 3D printing needs!
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* ========================================================================= */
+              /* 2. JOB WORKSHOP & FABRICATION CHECKLIST                                   */
+              /* ========================================================================= */
+              <div className="space-y-6 text-slate-800">
+                {/* Header */}
+                <div className="flex justify-between items-start border-b-2 border-slate-800 pb-4">
+                  <div>
+                    <div className="inline-block bg-purple-900 text-white font-black text-xs uppercase px-2.5 py-1 rounded tracking-wider mb-1">
+                      PRODUCTION TRAVELER
+                    </div>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                      Workshop Fabrication Checklist
+                    </h1>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Job #{quote.jobNumber}: <strong className="text-slate-900">{quote.jobName}</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-right text-xs text-slate-600">
+                    <div><span className="text-slate-400">Date:</span> {formatDate(quote.createdAt)}</div>
+                    <div><span className="text-slate-400">Customer:</span> <strong className="text-slate-900">{quote.customerName || 'N/A'}</strong></div>
+                    <div>
+                      <span className="text-slate-400">Status:</span>{' '}
+                      <span className="font-semibold text-slate-900 uppercase text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300">
+                        {order ? order.status : quote.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Machine & Production Setup Specs */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100 p-3 rounded-lg border border-slate-300 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Assigned Machine</span>
+                    <strong className="text-slate-900">{primaryPrinter ? `${primaryPrinter.brand} ${primaryPrinter.name}` : 'Default 3D Printer'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Est. Runtime</span>
+                    <strong className="text-slate-900">{totalPrintHours.toFixed(1)} hrs</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Estimated Filament</span>
+                    <strong className="text-slate-900">{totalFilamentGrams} grams</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Units to Build</span>
+                    <strong className="text-slate-900">{computedParts.totalQuantity} items</strong>
+                  </div>
+                </div>
+
+                {/* Parts Checklist Table */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>Parts Fabrication Manifest</span>
+                    <span className="text-[10px] font-normal text-slate-500">Mark off each part as it is printed and cleaned</span>
+                  </h3>
+                  <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+                    <thead>
+                      <tr className="bg-slate-800 text-white text-[10px] uppercase tracking-wider">
+                        <th className="py-2 px-2 text-center w-8">Done</th>
+                        <th className="py-2 px-3 font-semibold">Part / Model Name</th>
+                        <th className="py-2 px-3 font-semibold text-center w-20">Req. Qty</th>
+                        <th className="py-2 px-3 font-semibold text-center w-28">Progress</th>
+                        <th className="py-2 px-3 font-semibold">Material / Color</th>
+                        <th className="py-2 px-2 text-center w-14">QA</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {computedParts.rows.map((row, idx) => {
+                        const fil = filaments.find(f => f.id === row.part.filamentId);
+                        const materialLabel = fil ? `${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard';
+                        return (
+                          <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
+                            <td className="py-2.5 px-2 text-center">
+                              <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
+                            </td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-900">
+                              {row.part.name}
+                              <div className="text-[10px] text-slate-500 font-normal">
+                                {row.part.filamentGrams}g • {row.part.printHours}h print
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-slate-800 text-sm">
+                              {row.qty}
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                              [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / {row.qty} ]
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-700 text-[11px]">
+                              {materialLabel}
+                            </td>
+                            <td className="py-2.5 px-2 text-center">
+                              <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Step-by-Step Production Workflow Checklist */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                    Fabrication & Quality Milestones
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs border border-slate-200 p-3 rounded-lg bg-slate-50">
+                    <div className="space-y-2">
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">1. Slicing & Bed Placement</strong>
+                          <p className="text-[10px] text-slate-500">STL checked, layer height, infill, and supports generated.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">2. Spool Weighed & Loaded</strong>
+                          <p className="text-[10px] text-slate-500">Verified sufficient remaining filament on scale, dry and purged.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">3. Build Plate Cleaned</strong>
+                          <p className="text-[10px] text-slate-500">IPA wiped, adhesion confirmed, correct nozzle temperature set.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">4. First Layer Verified</strong>
+                          <p className="text-[10px] text-slate-500">Live visual inspection of extrusion, brim adhesion, zero lifting.</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">5. Print Execution Completed</strong>
+                          <p className="text-[10px] text-slate-500">Bed cooled down, clean release from plate, zero layer shifts.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">6. Support Removal & Post-Process</strong>
+                          <p className="text-[10px] text-slate-500">Supports removed, contact points trimmed, cleaned & cured.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">7. Quality Assurance (QA)</strong>
+                          <p className="text-[10px] text-slate-500">Dimensions checked with calipers, test fit & surface finish inspected.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm mt-0.5 flex-shrink-0"></span>
+                        <div>
+                          <strong className="text-slate-900">8. Documentation & Packed</strong>
+                          <p className="text-[10px] text-slate-500">Inspection photo recorded, packed safely for customer handover.</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Operator Sign-off & Production Run Log */}
+                <div className="border-t border-slate-300 pt-4 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Operator Name</span>
+                      <div className="border-b border-slate-400 h-6"></div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Actual Run Time</span>
+                      <div className="border-b border-slate-400 h-6"></div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Actual Filament (g)</span>
+                      <div className="border-b border-slate-400 h-6"></div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Date Completed</span>
+                      <div className="border-b border-slate-400 h-6"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Workshop Notes / Slicer Settings / Anomalies
+                    </span>
+                    <div className="border-b border-slate-400 h-6"></div>
+                    <div className="border-b border-slate-400 h-6 mt-2"></div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+
+        </div>
+
+        {/* Modal Footer (Screen Only) */}
+        <div className="no-print p-3 bg-slate-800 border-t border-slate-700 flex flex-wrap items-center justify-between text-xs text-slate-400 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span>💡 Tip:</span>
+            <span>In the system print preview, select <strong>"Save as PDF"</strong> to save a PDF file or choose your printer to print on paper.</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-300 hover:text-white px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 transition"
+          >
+            Close
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default PrintDocumentModal;

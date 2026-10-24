@@ -13,16 +13,52 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.6.0';
-export const APP_RELEASE_DATE = 'October 22, 2026';
-export const APP_CODENAME = 'Jobs & Orders Archiving';
+export const APP_VERSION = '2.7.0';
+export const APP_RELEASE_DATE = 'October 24, 2026';
+export const APP_CODENAME = 'Print-to-PDF & Workshop Job Checklists';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.7.0',
+    releaseDate: 'October 24, 2026',
+    title: 'Print-to-PDF & Paper: Customer Quotes, Invoices & Workshop Fabrication Checklists',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Print to PDF or physical paper directly from Calculator, Saved Jobs, and Production Orders',
+      'Professional Customer Quote & Invoice documents with studio branding, itemized parts, costs, and customer totals',
+      'Comprehensive Workshop Fabrication Checklist & Job Traveler with step-by-step production milestones and QA sign-off',
+      'Interactive Print Preview modal with document switcher, live paper rendering, and customizable studio profile',
+      'Dedicated @media print stylesheets ensuring crisp, ink-friendly output without dark website backgrounds or UI chrome'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '🖨️ "Print / PDF" button on Calculator price card for immediate quotation export before or after saving',
+          '🖨️ Print Customer Quote action button on every saved job and order row in the jobs and orders tables',
+          '📋 Print Workshop Fabrication Checklist action button on every saved job and order row for shop tracking',
+          'Dedicated Customer Quote & Invoice print layout displaying itemized model lines, material, unit prices, multi-color fees, and bold grand total',
+          'Workshop Job Checklist sheet featuring printer assignment, required filament grams, unit counts, progress counters, and 8-stage production milestone checklist',
+          'Interactive Print Preview modal with real-time switching between Customer Quote and Workshop Checklist',
+          'Configurable Studio Profile (Studio Name, Tagline, Phone, Email, Address, and Custom Terms & Conditions) with persistent local memory',
+          'Ink-friendly @media print CSS optimization removing all navigation chrome and dark background colors'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Full-fidelity paper formatting optimized for standard Letter and A4 page sizes with anti-break table row rules',
+          'Expanded Job & Order detail drawers now feature quick one-click "Print Quote (PDF)" and "Print Checklist (PDF)" buttons'
+        ]
+      }
+    ]
+  },
   {
     version: '2.6.0',
     releaseDate: 'October 22, 2026',
     title: 'Job & Order Archiving with Dedicated Filter Views and Fast Search',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Archive & Restore options for both Saved Jobs (Quotes) and Active Orders',

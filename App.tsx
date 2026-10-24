@@ -1222,6 +1222,14 @@ function App() {
     }));
     if (user) saveSettingsToRemote(user.uid, newSettings).catch(console.error);
   };
+
+  const handleUpdatePartialSettings = useCallback((partial: Partial<GeneralSettings>) => {
+    setAppData(prev => {
+      const merged = { ...prev.generalSettings, ...partial };
+      if (user) saveSettingsToRemote(user.uid, merged).catch(console.error);
+      return { ...prev, generalSettings: merged };
+    });
+  }, [setAppData, user]);
   
   // Data Management Handlers
   const handleExportData = useCallback(() => {
@@ -1415,6 +1423,8 @@ function App() {
             onUseAsTemplate={handleUseQuoteAsTemplate}
             onOpenGoogleSheets={() => setIsGoogleSheetsModalOpen(true)}
             onArchive={handleArchiveQuote}
+            generalSettings={generalSettings}
+            onUpdateGeneralSettings={handleUpdatePartialSettings}
           />
         );
       case 'orders':
@@ -1428,6 +1438,8 @@ function App() {
             onUpdateStatus={handleUpdateOrderStatus}
             onUpdateOrderPhoto={handleUpdateOrderPhoto}
             onArchive={handleArchiveOrder}
+            generalSettings={generalSettings}
+            onUpdateGeneralSettings={handleUpdatePartialSettings}
           />
         );
        case 'parts':
