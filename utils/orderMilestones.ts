@@ -29,6 +29,18 @@ export const MILESTONES: MilestoneDef[] = [
   { key: 'documentation', label: 'Documentation', shortLabel: 'Doc', description: 'Photo taken, packed for delivery' },
 ];
 
+export interface MilestonePartColorItem {
+  id: string;
+  filamentId: string | null;
+  brand: string;
+  type: string;
+  colorName?: string;
+  colorHex?: string;
+  rgb?: string;
+  masterCode?: string;
+  grams: number;
+}
+
 export interface MilestonePrintRow {
   id: string;
   unitIndex: number;
@@ -38,9 +50,96 @@ export interface MilestonePrintRow {
   partName: string;
   materialLabel: string;
   colorName?: string;
+  colorHex?: string;
+  rgb?: string;
+  masterCode?: string;
+  isMultiColor?: boolean;
+  colors?: MilestonePartColorItem[];
   printHours?: number;
   filamentGrams?: number;
   rowIdx: number;
+}
+
+/**
+ * Resolves full material details, color swatches, master codes, and multi-color breakdowns for a part.
+ */
+export function resolvePartMaterials(
+  part: { filamentId?: string | null; colors?: Array<{ id: string; filamentId: string | null; grams: number }>; filamentGrams?: number },
+  filaments: Filament[]
+): {
+  materialLabel: string;
+  colorName?: string;
+  colorHex?: string;
+  rgb?: string;
+  masterCode?: string;
+  isMultiColor: boolean;
+  colors?: MilestonePartColorItem[];
+} {
+  const hasMultipleColors = Boolean(part.colors && part.colors.length > 1);
+
+  if (hasMultipleColors && part.colors) {
+    const resolvedColors: MilestonePartColorItem[] = part.colors.map((c, idx) => {
+      const f = filaments.find(item => item.id === c.filamentId);
+      return {
+        id: c.id || `color-${idx}`,
+        filamentId: c.filamentId,
+        brand: f?.brand || 'Generic',
+        type: f?.type || 'Filament',
+        colorName: f?.colorName,
+        colorHex: f?.colorHex,
+        rgb: f?.rgb,
+        masterCode: f?.masterCode,
+        grams: c.grams,
+      };
+    });
+
+    const primaryColor = resolvedColors[0];
+    const summaries = resolvedColors.map(c => {
+      const codeStr = c.masterCode ? `[#${c.masterCode}] ` : '';
+      const name = c.colorName || `${c.brand} ${c.type}`;
+      return `${codeStr}${name} (${c.grams}g)`;
+    });
+
+    return {
+      materialLabel: `Multi-Color (${resolvedColors.length}): ${summaries.join(', ')}`,
+      colorName: primaryColor?.colorName,
+      colorHex: primaryColor?.colorHex,
+      rgb: primaryColor?.rgb,
+      masterCode: primaryColor?.masterCode,
+      isMultiColor: true,
+      colors: resolvedColors,
+    };
+  }
+
+  // Single color or default
+  const primaryId = part.colors?.[0]?.filamentId || part.filamentId;
+  const fil = filaments.find(f => f.id === primaryId);
+  const codePrefix = fil?.masterCode ? `[#${fil.masterCode}] ` : '';
+  const materialLabel = fil 
+    ? `${codePrefix}${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
+    : 'Standard Material';
+
+  const singleColorList: MilestonePartColorItem[] | undefined = fil ? [{
+    id: 'color-0',
+    filamentId: fil.id,
+    brand: fil.brand,
+    type: fil.type,
+    colorName: fil.colorName,
+    colorHex: fil.colorHex,
+    rgb: fil.rgb,
+    masterCode: fil.masterCode,
+    grams: part.filamentGrams || 0,
+  }] : undefined;
+
+  return {
+    materialLabel,
+    colorName: fil?.colorName,
+    colorHex: fil?.colorHex,
+    rgb: fil?.rgb,
+    masterCode: fil?.masterCode,
+    isMultiColor: false,
+    colors: singleColorList,
+  };
 }
 
 export function getOrderMilestoneRows(
@@ -56,11 +155,7 @@ export function getOrderMilestoneRows(
 
   if (computedParts.rows && computedParts.rows.length > 0) {
     computedParts.rows.forEach((row, rowIdx) => {
-      const fil = filaments.find(f => f.id === row.part.filamentId);
-      const codePrefix = fil?.masterCode ? `[#${fil.masterCode}] ` : '';
-      const materialLabel = fil 
-        ? `${codePrefix}${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
-        : 'Standard Material';
+      const mat = resolvePartMaterials(row.part, filaments);
       const quantity = Math.max(1, row.qty || 1);
 
       if (grouping === 'per_unit') {
@@ -72,8 +167,13 @@ export function getOrderMilestoneRows(
             totalForPart: quantity,
             unitLabel: quantity > 1 ? `#${i} of ${quantity}` : '1 of 1',
             partName: row.part.name || `Part ${rowIdx + 1}`,
-            materialLabel,
-            colorName: fil?.colorName,
+            materialLabel: mat.materialLabel,
+            colorName: mat.colorName,
+            colorHex: mat.colorHex,
+            rgb: mat.rgb,
+            masterCode: mat.masterCode,
+            isMultiColor: mat.isMultiColor,
+            colors: mat.colors,
             printHours: row.part.printHours,
             filamentGrams: row.part.filamentGrams,
             rowIdx,
@@ -87,8 +187,13 @@ export function getOrderMilestoneRows(
           totalForPart: quantity,
           unitLabel: `Qty: ${quantity}`,
           partName: row.part.name || `Part ${rowIdx + 1}`,
-          materialLabel,
-          colorName: fil?.colorName,
+          materialLabel: mat.materialLabel,
+          colorName: mat.colorName,
+          colorHex: mat.colorHex,
+          rgb: mat.rgb,
+          masterCode: mat.masterCode,
+          isMultiColor: mat.isMultiColor,
+          colors: mat.colors,
           printHours: row.part.printHours,
           filamentGrams: row.part.filamentGrams,
           rowIdx,
@@ -97,11 +202,7 @@ export function getOrderMilestoneRows(
     });
   } else if (quote.parts && quote.parts.length > 0) {
     quote.parts.forEach((part, partIdx) => {
-      const fil = filaments.find(f => f.id === part.filamentId);
-      const codePrefix = fil?.masterCode ? `[#${fil.masterCode}] ` : '';
-      const materialLabel = fil 
-        ? `${codePrefix}${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
-        : 'Standard Material';
+      const mat = resolvePartMaterials(part, filaments);
       const quantity = Math.max(1, part.quantity || 1);
 
       if (grouping === 'per_unit') {
@@ -113,8 +214,13 @@ export function getOrderMilestoneRows(
             totalForPart: quantity,
             unitLabel: quantity > 1 ? `#${i} of ${quantity}` : '1 of 1',
             partName: part.name || `Part ${partIdx + 1}`,
-            materialLabel,
-            colorName: fil?.colorName,
+            materialLabel: mat.materialLabel,
+            colorName: mat.colorName,
+            colorHex: mat.colorHex,
+            rgb: mat.rgb,
+            masterCode: mat.masterCode,
+            isMultiColor: mat.isMultiColor,
+            colors: mat.colors,
             printHours: part.printHours,
             filamentGrams: part.filamentGrams,
             rowIdx: partIdx,
@@ -128,8 +234,13 @@ export function getOrderMilestoneRows(
           totalForPart: quantity,
           unitLabel: `Qty: ${quantity}`,
           partName: part.name || `Part ${partIdx + 1}`,
-          materialLabel,
-          colorName: fil?.colorName,
+          materialLabel: mat.materialLabel,
+          colorName: mat.colorName,
+          colorHex: mat.colorHex,
+          rgb: mat.rgb,
+          masterCode: mat.masterCode,
+          isMultiColor: mat.isMultiColor,
+          colors: mat.colors,
           printHours: part.printHours,
           filamentGrams: part.filamentGrams,
           rowIdx: partIdx,
@@ -137,10 +248,12 @@ export function getOrderMilestoneRows(
       }
     });
   } else {
-    const fil = filaments.find(f => f.id === quote.parameters?.filamentId);
-    const materialLabel = fil 
-      ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` 
-      : 'Standard Material';
+    const fallbackPart = {
+      filamentId: quote.parameters?.filamentId,
+      colors: quote.parameters?.colors,
+      filamentGrams: quote.parameters?.filamentGrams,
+    };
+    const mat = resolvePartMaterials(fallbackPart, filaments);
     items.push({
       id: 'single-unit-1',
       unitIndex: 1,
@@ -148,8 +261,13 @@ export function getOrderMilestoneRows(
       totalForPart: 1,
       unitLabel: '1 of 1',
       partName: quote.jobName || '3D Printed Model',
-      materialLabel,
-      colorName: fil?.colorName,
+      materialLabel: mat.materialLabel,
+      colorName: mat.colorName,
+      colorHex: mat.colorHex,
+      rgb: mat.rgb,
+      masterCode: mat.masterCode,
+      isMultiColor: mat.isMultiColor,
+      colors: mat.colors,
       printHours: quote.parameters?.printHours,
       filamentGrams: quote.parameters?.filamentGrams,
       rowIdx: 0,

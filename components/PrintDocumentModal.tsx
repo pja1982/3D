@@ -6,7 +6,8 @@ import PrinterIcon from './icons/PrinterIcon';
 import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
 import XIcon from './icons/XIcon';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
-import { MILESTONES, getOrderMilestoneRows } from '../utils/orderMilestones';
+import { MILESTONES, getOrderMilestoneRows, MilestonePartColorItem } from '../utils/orderMilestones';
+import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
 interface PrintDocumentModalProps {
   isOpen: boolean;
@@ -18,6 +19,19 @@ interface PrintDocumentModalProps {
   order?: Order | null;
   generalSettings?: GeneralSettings;
   onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
+}
+
+export interface JobSpoolAllocation {
+  filament: Filament | null;
+  filamentId: string | null;
+  brand: string;
+  type: string;
+  colorName?: string;
+  colorHex?: string;
+  rgb?: string;
+  masterCode?: string;
+  totalGrams: number;
+  partsUsed: string[];
 }
 
 const formatCurrency = (value: number) => {
@@ -85,6 +99,7 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   const [includeTechnicalNotes, setIncludeTechnicalNotes] = useState(true);
   const [milestoneGrouping, setMilestoneGrouping] = useState<'per_unit' | 'per_line_item'>('per_unit');
   const [includeManifestSummary, setIncludeManifestSummary] = useState(true);
+  const [includeSpoolManifest, setIncludeSpoolManifest] = useState(true);
 
   if (!isOpen || !quote) return null;
 
@@ -98,6 +113,102 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
     if (!quote) return [];
     return getOrderMilestoneRows(quote, filaments, printers, milestoneGrouping);
   }, [quote, filaments, printers, milestoneGrouping]);
+
+  // Comprehensive deduplicated list of all filament spools and colors used across the entire job
+  const jobSpoolsSummary = useMemo<JobSpoolAllocation[]>(() => {
+    if (!quote) return [];
+    const map = new Map<string, JobSpoolAllocation>();
+
+    const parts = (quote.parts && quote.parts.length > 0)
+      ? quote.parts
+      : [
+          {
+            id: 'primary',
+            name: quote.jobName || 'Primary Part',
+            quantity: 1,
+            filamentGrams: quote.parameters?.filamentGrams ?? 0,
+            filamentId: quote.parameters?.filamentId ?? null,
+            colors: quote.parameters?.colors,
+          },
+        ];
+
+    parts.forEach((p) => {
+      const qty = Math.max(1, p.quantity || 1);
+      const hasMultiple = Boolean(p.colors && p.colors.length > 1);
+
+      if (hasMultiple && p.colors) {
+        p.colors.forEach((c) => {
+          const key = c.filamentId || 'unassigned';
+          const gramsForPart = Math.round(((c.grams || 0) * qty) * 10) / 10;
+          if (!map.has(key)) {
+            const fil = filaments.find(f => f.id === c.filamentId);
+            map.set(key, {
+              filament: fil || null,
+              filamentId: c.filamentId,
+              brand: fil?.brand || 'Generic',
+              type: fil?.type || 'Filament',
+              colorName: fil?.colorName,
+              colorHex: fil?.colorHex,
+              rgb: fil?.rgb,
+              masterCode: fil?.masterCode,
+              totalGrams: gramsForPart,
+              partsUsed: [p.name || 'Part'],
+            });
+          } else {
+            const entry = map.get(key)!;
+            entry.totalGrams = Math.round((entry.totalGrams + gramsForPart) * 10) / 10;
+            const partName = p.name || 'Part';
+            if (!entry.partsUsed.includes(partName)) {
+              entry.partsUsed.push(partName);
+            }
+          }
+        });
+      } else {
+        const primaryId = p.colors?.[0]?.filamentId || p.filamentId;
+        const key = primaryId || 'unassigned';
+        const gramsForPart = Math.round(((p.filamentGrams || 0) * qty) * 10) / 10;
+        if (!map.has(key)) {
+          const fil = filaments.find(f => f.id === primaryId);
+          map.set(key, {
+            filament: fil || null,
+            filamentId: primaryId || null,
+            brand: fil?.brand || 'Generic',
+            type: fil?.type || 'Filament',
+            colorName: fil?.colorName,
+            colorHex: fil?.colorHex,
+            rgb: fil?.rgb,
+            masterCode: fil?.masterCode,
+            totalGrams: gramsForPart,
+            partsUsed: [p.name || 'Part'],
+          });
+        } else {
+          const entry = map.get(key)!;
+          entry.totalGrams = Math.round((entry.totalGrams + gramsForPart) * 10) / 10;
+          const partName = p.name || 'Part';
+          if (!entry.partsUsed.includes(partName)) {
+            entry.partsUsed.push(partName);
+          }
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [quote, filaments]);
+
+  const hasMultiColorInJob = useMemo(() => {
+    if (!quote) return false;
+    if (quote.parts && quote.parts.some(p => p.colors && p.colors.length > 1)) return true;
+    if (quote.parameters?.colors && quote.parameters.colors.length > 1) return true;
+    return false;
+  }, [quote]);
+
+  const isDifferentPlates = useMemo(() => {
+    return (quote.costBreakdown?.multiColorBatchMode || quote.parameters?.multiColorBatchMode) === 'different_plates';
+  }, [quote]);
+
+  const bedCount = useMemo(() => {
+    return quote.costBreakdown?.multiColorBedCount || quote.parameters?.multiColorBedCount || (isDifferentPlates ? Math.max(1, jobSpoolsSummary.length) : 1);
+  }, [quote, isDifferentPlates, jobSpoolsSummary]);
 
   const primaryPrinter = useMemo(() => {
     const firstPartPrinterId = quote.parts?.[0]?.printerId || quote.parameters?.printerId;
@@ -291,6 +402,10 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                     <span>Manifest Summary Table</span>
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                    <input type="checkbox" checked={includeSpoolManifest} onChange={e => setIncludeSpoolManifest(e.target.checked)} />
+                    <span>Spools & Materials Manifest</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
                     <input
                       type="checkbox"
                       checked={milestoneGrouping === 'per_unit'}
@@ -398,7 +513,7 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                       <tr className="bg-slate-800 text-white text-[11px] uppercase tracking-wider">
                         <th className="py-2.5 px-3 font-semibold w-10 text-center">#</th>
                         <th className="py-2.5 px-3 font-semibold">Part / Model Description</th>
-                        <th className="py-2.5 px-3 font-semibold">Material / Spec</th>
+                        <th className="py-2.5 px-3 font-semibold">Material / Color Spec</th>
                         <th className="py-2.5 px-3 font-semibold text-center w-16">Qty</th>
                         <th className="py-2.5 px-3 font-semibold text-right w-24">Unit Price</th>
                         <th className="py-2.5 px-3 font-semibold text-right w-28">Amount</th>
@@ -406,29 +521,93 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {computedParts.rows.map((row, idx) => {
-                        const fil = filaments.find(f => f.id === row.part.filamentId);
-                        const materialLabel = fil ? `${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard Resin / Filament';
+                        const isMulti = Boolean(row.part.colors && row.part.colors.length > 1);
+                        const primaryFil = filaments.find(f => f.id === (row.part.colors?.[0]?.filamentId || row.part.filamentId));
+
                         return (
                           <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
-                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                            <td className="py-2.5 px-3 font-medium text-slate-900">
-                              <div>{row.part.name || `Part ${idx + 1}`}</div>
-                              {row.part.colors && row.part.colors.length > 1 && (
-                                <div className="text-[10px] text-purple-700 font-normal">
-                                  🎨 Multi-color print ({row.part.colors.length} spools)
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px] align-top">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-medium text-slate-900 align-top">
+                              <div className="font-semibold text-slate-900">{row.part.name || `Part ${idx + 1}`}</div>
+                              <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                ⚖️ {row.part.filamentGrams}g total • ⏱️ {row.part.printHours}h print
+                                {isMulti && row.part.colors && (
+                                  <span className="ml-1.5 font-semibold text-purple-700">
+                                    • {isDifferentPlates 
+                                        ? `🥞 Multi-Plate (${row.part.colors.length} Separate Build Plates)` 
+                                        : `🎨 ${row.part.colors.length}-Color Co-extrusion`}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-700 text-[11px] align-top">
+                              {isMulti && row.part.colors ? (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 font-bold text-purple-900 text-[10.5px]">
+                                    <span>🎨 Multi-Color</span>
+                                    <span className="font-normal text-[10px] text-slate-500 bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.2 rounded-full">
+                                      {row.part.colors.length} spools
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1 pl-0.5">
+                                    {row.part.colors.map((c, cIdx) => {
+                                      const cFil = filaments.find(f => f.id === c.filamentId);
+                                      return (
+                                        <div key={c.id || cIdx} className="flex items-center gap-1.5 text-[10.5px] leading-tight">
+                                          <span
+                                            className="w-2.5 h-2.5 rounded-full border border-slate-300 flex-shrink-0 shadow-xs"
+                                            style={getFilamentBackgroundStyle(cFil?.colorHex, cFil?.rgb)}
+                                          />
+                                          <span className="font-medium text-slate-900">
+                                            {cFil?.masterCode && (
+                                              <span className="font-mono font-bold text-slate-900 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded text-[9.5px] mr-1">
+                                                #{cFil.masterCode}
+                                              </span>
+                                            )}
+                                            {cFil ? `${cFil.brand} ${cFil.type}` : 'Filament'}
+                                            {cFil?.colorName ? ` (${cFil.colorName})` : ''}
+                                          </span>
+                                          <span className="text-slate-500 font-mono text-[10px]">
+                                            {c.grams}g
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-start gap-1.5">
+                                  {primaryFil?.colorHex && (
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full border border-slate-300 flex-shrink-0 mt-0.5"
+                                      style={getFilamentBackgroundStyle(primaryFil?.colorHex, primaryFil?.rgb)}
+                                    />
+                                  )}
+                                  <div>
+                                    <div className="font-medium text-slate-900">
+                                      {primaryFil?.masterCode && (
+                                        <span className="font-mono font-bold text-slate-900 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded text-[9.5px] mr-1">
+                                          #{primaryFil.masterCode}
+                                        </span>
+                                      )}
+                                      {primaryFil ? `${primaryFil.brand} ${primaryFil.type}` : 'Standard Resin / Filament'}
+                                    </div>
+                                    {primaryFil?.colorName && (
+                                      <div className="text-[10px] text-slate-500 font-normal">
+                                        Color: {primaryFil.colorName}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-600 text-[11px]">
-                              {materialLabel}
-                            </td>
-                            <td className="py-2.5 px-3 text-center font-semibold text-slate-800">
+                            <td className="py-2.5 px-3 text-center font-semibold text-slate-800 align-top">
                               {row.qty}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-700 align-top">
                               {formatCurrency(row.perUnitPrice)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 align-top">
                               {formatCurrency(row.lineTotalPrice)}
                             </td>
                           </tr>
@@ -436,6 +615,43 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                       })}
                     </tbody>
                   </table>
+
+                  {/* Multi-Filament / Color Specification Palette Summary */}
+                  {jobSpoolsSummary.length > 1 && (
+                    <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs print-avoid-break">
+                      <div className="font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <span>🎨 Job Color Palette Specification</span>
+                        </span>
+                        <span className="text-purple-700 font-semibold text-[10px] bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                          {jobSpoolsSummary.length} Colors / Spools in Project
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {jobSpoolsSummary.map((spool, sIdx) => (
+                          <div key={spool.filamentId || sIdx} className="flex items-center gap-2 bg-white border border-slate-200 rounded p-1.5 shadow-2xs">
+                            <span
+                              className="w-3.5 h-3.5 rounded-full border border-slate-300 flex-shrink-0 shadow-xs"
+                              style={getFilamentBackgroundStyle(spool.colorHex, spool.rgb)}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-semibold text-slate-900 text-[11px]">
+                                {spool.masterCode && (
+                                  <span className="font-mono font-bold text-slate-900 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded text-[9.5px] mr-1">
+                                    #{spool.masterCode}
+                                  </span>
+                                )}
+                                {spool.colorName || `${spool.brand} ${spool.type}`}
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate">
+                                {spool.brand} {spool.type} • {spool.totalGrams}g total
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Financial Summary & Totals Block */}
@@ -448,7 +664,11 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
 
                     {Boolean(quote.costBreakdown?.multiColorFee && quote.costBreakdown.multiColorFee > 0) && (
                       <div className="flex justify-between text-slate-600 py-1 border-b border-slate-100">
-                        <span>Multi-Color Material Prep:</span>
+                        <span>
+                          {isDifferentPlates
+                            ? `Multi-Plate Production (${bedCount} Build Plates):`
+                            : 'Multi-Color Material Prep:'}
+                        </span>
                         <span className="font-mono text-purple-700 font-semibold">Included</span>
                       </div>
                     )}
@@ -533,7 +753,7 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                 </div>
 
                 {/* Machine & Production Setup Specs */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100 p-3 rounded-lg border border-slate-300 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-100 p-3 rounded-lg border border-slate-300 text-xs">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-500 block">Assigned Machine</span>
                     <strong className="text-slate-900">{primaryPrinter ? `${primaryPrinter.brand} ${primaryPrinter.name}` : 'Default 3D Printer'}</strong>
@@ -550,7 +770,88 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                     <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Units to Build</span>
                     <strong className="text-slate-900">{computedParts.totalQuantity} items</strong>
                   </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Print Method</span>
+                    <strong className="text-slate-900">
+                      {isDifferentPlates 
+                        ? `🥞 Diff Plates (${bedCount} Beds)` 
+                        : hasMultiColorInJob 
+                        ? `🎨 1 Bed (${bedCount} AMS Bed)` 
+                        : 'Standard Print'}
+                    </strong>
+                  </div>
                 </div>
+
+                {/* Spools & Materials Preparation Manifest */}
+                {includeSpoolManifest && jobSpoolsSummary.length > 0 && (
+                  <div className="border border-slate-300 rounded-lg p-3 bg-purple-50/30 print:bg-white print-avoid-break">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-purple-950 flex items-center gap-1.5">
+                        <span>{isDifferentPlates ? '🥞 Different Build Plates & Spools Prep' : '🧵 Spools & Multi-Color Prep Manifest'}</span>
+                        <span className="text-[10px] font-normal text-purple-800 bg-purple-100 px-1.5 py-0.2 rounded border border-purple-200">
+                          {isDifferentPlates ? `${bedCount} Build Plates • 0% Purge Waste` : `${jobSpoolsSummary.length} ${jobSpoolsSummary.length === 1 ? 'spool required' : 'spools required'}`}
+                        </span>
+                      </h3>
+                      <span className="text-[10px] text-slate-500">
+                        {isDifferentPlates 
+                          ? 'Prep and label build plates by color/part for separate print runs' 
+                          : 'Inspect & load spools into AMS / MMU prior to fabrication'}
+                      </span>
+                    </div>
+                    <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+                      <thead>
+                        <tr className="bg-slate-800 text-white text-[10px] uppercase tracking-wider">
+                          <th className="py-1.5 px-2 text-center w-8">Loaded</th>
+                          <th className="py-1.5 px-2 text-center w-14">{isDifferentPlates ? 'Plate #' : 'Slot'}</th>
+                          <th className="py-1.5 px-3 font-semibold">Master Code & Color Name</th>
+                          <th className="py-1.5 px-3 font-semibold">Filament Spec / Type</th>
+                          <th className="py-1.5 px-3 text-right w-24">Req. Grams</th>
+                          <th className="py-1.5 px-3 font-semibold">Used in Parts</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {jobSpoolsSummary.map((spool, sIdx) => (
+                          <tr key={spool.filamentId || sIdx} className="hover:bg-slate-50/50 print-avoid-break">
+                            <td className="py-2 px-2 text-center">
+                              <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 rounded-xs"></span>
+                            </td>
+                            <td className="py-2 px-2 text-center font-mono font-bold text-slate-700 text-[10.5px]">
+                              {isDifferentPlates ? `Plate ${sIdx + 1}` : `[${sIdx + 1}]`}
+                            </td>
+                            <td className="py-2 px-3 font-semibold text-slate-900">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="w-3 h-3 rounded-full border border-slate-300 flex-shrink-0 shadow-2xs"
+                                  style={getFilamentBackgroundStyle(spool.colorHex, spool.rgb)}
+                                />
+                                {spool.masterCode && (
+                                  <span className="font-mono font-bold text-purple-900 bg-purple-100 border border-purple-300 px-1 py-0.2 rounded text-[10px]">
+                                    #{spool.masterCode}
+                                  </span>
+                                )}
+                                <span>{spool.colorName || 'Standard Color'}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-slate-700 text-[11px]">
+                              {spool.brand} {spool.type}
+                              {spool.filament?.location && (
+                                <span className="text-[10px] text-slate-500 ml-1.5">
+                                  • Loc: {spool.filament.location}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                              {spool.totalGrams}g
+                            </td>
+                            <td className="py-2 px-3 text-slate-600 text-[10px] truncate max-w-[150px]">
+                              {spool.partsUsed.join(', ')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {/* Parts Checklist Table (Optional Overview Manifest) */}
                 {includeManifestSummary && (
@@ -572,30 +873,81 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {computedParts.rows.map((row, idx) => {
-                          const fil = filaments.find(f => f.id === row.part.filamentId);
-                          const codePrefix = fil?.masterCode ? `[#${fil.masterCode}] ` : '';
-                          const materialLabel = fil ? `${codePrefix}${fil.brand} ${fil.type} ${fil.colorName ? `(${fil.colorName})` : ''}` : 'Standard';
+                          const isMulti = Boolean(row.part.colors && row.part.colors.length > 1);
+                          const primaryFil = filaments.find(f => f.id === (row.part.colors?.[0]?.filamentId || row.part.filamentId));
+
                           return (
                             <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
-                              <td className="py-2.5 px-2 text-center">
+                              <td className="py-2.5 px-2 text-center align-top">
                                 <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
                               </td>
-                              <td className="py-2.5 px-3 font-semibold text-slate-900">
+                              <td className="py-2.5 px-3 font-semibold text-slate-900 align-top">
                                 {row.part.name}
-                                <div className="text-[10px] text-slate-500 font-normal">
-                                  {row.part.filamentGrams}g • {row.part.printHours}h print
+                                <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                  ⚖️ {row.part.filamentGrams}g • ⏱️ {row.part.printHours}h print
+                                  {isMulti && row.part.colors && (
+                                    <span className="ml-1 text-purple-800 font-semibold">
+                                      • 🎨 {row.part.colors.length}-Color
+                                    </span>
+                                  )}
                                 </div>
                               </td>
-                              <td className="py-2.5 px-3 text-center font-bold text-slate-800 text-sm">
+                              <td className="py-2.5 px-3 text-center font-bold text-slate-800 text-sm align-top">
                                 {row.qty}
                               </td>
-                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px] align-top">
                                 [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / {row.qty} ]
                               </td>
-                              <td className="py-2.5 px-3 text-slate-700 text-[11px]">
-                                {materialLabel}
+                              <td className="py-2.5 px-3 text-slate-700 text-[11px] align-top">
+                                {isMulti && row.part.colors ? (
+                                  <div className="space-y-1">
+                                    <div className="text-[10.5px] font-bold text-purple-900 flex items-center gap-1">
+                                      <span>🎨 Multi-Color ({row.part.colors.length} Filaments)</span>
+                                    </div>
+                                    <div className="space-y-0.5 pl-0.5">
+                                      {row.part.colors.map((c, ci) => {
+                                        const f = filaments.find(item => item.id === c.filamentId);
+                                        return (
+                                          <div key={c.id || ci} className="flex items-center gap-1.5 text-[10px] leading-tight">
+                                            <span
+                                              className="w-2.5 h-2.5 rounded-full border border-slate-300 flex-shrink-0"
+                                              style={getFilamentBackgroundStyle(f?.colorHex, f?.rgb)}
+                                            />
+                                            <span className="font-semibold text-slate-900">
+                                              {f?.masterCode && (
+                                                <span className="font-mono text-purple-900 font-bold mr-1">
+                                                  #{f.masterCode}
+                                                </span>
+                                              )}
+                                              {f ? `${f.brand} ${f.type}` : 'Filament'}
+                                              {f?.colorName ? ` (${f.colorName})` : ''}:
+                                            </span>
+                                            <span className="text-slate-600 font-mono text-[9.5px]">
+                                              {c.grams}g
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    {primaryFil?.colorHex && (
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full border border-slate-300 flex-shrink-0"
+                                        style={getFilamentBackgroundStyle(primaryFil?.colorHex, primaryFil?.rgb)}
+                                      />
+                                    )}
+                                    <span>
+                                      {primaryFil?.masterCode && (
+                                        <strong className="font-mono text-purple-900 mr-1">#{primaryFil.masterCode}</strong>
+                                      )}
+                                      {primaryFil ? `${primaryFil.brand} ${primaryFil.type}${primaryFil.colorName ? ` (${primaryFil.colorName})` : ''}` : 'Standard Material'}
+                                    </span>
+                                  </div>
+                                )}
                               </td>
-                              <td className="py-2.5 px-2 text-center">
+                              <td className="py-2.5 px-2 text-center align-top">
                                 <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
                               </td>
                             </tr>
@@ -655,17 +1007,45 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                     <tbody className="divide-y divide-slate-200">
                       {milestonePrintRows.map((row) => (
                         <tr key={row.id} className="hover:bg-slate-50/50 print-avoid-break">
-                          <td className="py-1.5 px-1 text-center text-slate-500 font-mono text-[10px]">
+                          <td className="py-1.5 px-1 text-center text-slate-500 font-mono text-[10px] align-top">
                             {row.unitIndex}
                           </td>
-                          <td className="py-1.5 px-2 font-semibold text-slate-900 leading-tight">
+                          <td className="py-1.5 px-2 font-semibold text-slate-900 leading-tight align-top">
                             <div>{row.partName}</div>
                             <div className="text-[9.5px] font-bold text-purple-700 mt-0.5">
                               {row.unitLabel}
                             </div>
                           </td>
-                          <td className="py-1.5 px-2 text-slate-600 text-[10px] leading-tight">
-                            {row.materialLabel}
+                          <td className="py-1.5 px-2 text-slate-600 text-[10px] leading-tight align-top">
+                            {row.colors && row.colors.length > 1 ? (
+                              <div className="space-y-0.5">
+                                <div className="font-bold text-purple-900 text-[9px] flex items-center gap-1 mb-0.5">
+                                  <span>🎨 Multi-Color ({row.colors.length} spools)</span>
+                                </div>
+                                {row.colors.map((c, ci) => (
+                                  <div key={c.id || ci} className="flex items-center gap-1 text-[9px] leading-tight">
+                                    <span
+                                      className="w-2 h-2 rounded-full border border-slate-300 flex-shrink-0"
+                                      style={getFilamentBackgroundStyle(c.colorHex, c.rgb)}
+                                    />
+                                    <span className="truncate max-w-[130px]">
+                                      {c.masterCode && <strong className="font-mono text-purple-900 mr-0.5">#{c.masterCode}</strong>}
+                                      {c.colorName || `${c.brand} ${c.type}`}: {c.grams}g
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                {row.colorHex && (
+                                  <span
+                                    className="w-2 h-2 rounded-full border border-slate-300 flex-shrink-0"
+                                    style={getFilamentBackgroundStyle(row.colorHex, row.rgb)}
+                                  />
+                                )}
+                                <span>{row.materialLabel}</span>
+                              </div>
+                            )}
                           </td>
                           {MILESTONES.map((m) => {
                             const isChecked = Boolean(order?.milestones?.[row.id]?.[m.key]);

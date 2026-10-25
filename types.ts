@@ -79,7 +79,7 @@ export interface Part {
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
 export type SimpleMultiColorType = 'flat_per_part' | 'per_additional_color' | 'percentage';
-export type MultiColorBatchMode = 'single_batch_per_bed' | 'per_copy';
+export type MultiColorBatchMode = 'single_batch_per_bed' | 'different_plates' | 'per_copy';
 
 export interface GeneralSettings {
   electricityCostKwh: number;
@@ -102,6 +102,7 @@ export interface GeneralSettings {
   complexPurgeWastePercent?: number;
   complexCostPerColorChange?: number;
   complexHandlingFee?: number;
+  differentPlatesHandlingFee?: number; // Handling fee per different build plate ($/plate, e.g. 2.50)
   defaultMultiColorBatchMode?: MultiColorBatchMode; // Default bed batching mode
 
   // Material Difficulty & Technical Failure Rates (TPU, ABS, Nylon, PC, etc.)

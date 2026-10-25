@@ -1137,27 +1137,28 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
               </div>
             )}
 
-            {/* Multi-Color Bed Batching Option */}
+            {/* Multi-Color Bed Batching & Build Plate Options */}
             <div className="mt-4 pt-4 border-t border-slate-700/70 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-base">🖨️</span>
                     <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
-                      Multi-Color Bed Batching
+                      Multi-Color Production & Build Plates
                     </span>
                     <span className="text-[10px] bg-purple-900/60 text-purple-300 border border-purple-600/40 px-2 py-0.5 rounded-full font-medium">
-                      One-Bed Optimization
+                      Optimization
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 mt-0.5">
-                    If multiple parts or copies fit onto one build plate, charge the multicolor fee only once for the whole bed batch.
+                    Choose whether parts are printed co-extruded on 1 bed, or separated onto different build plates by color/part.
                   </p>
                 </div>
               </div>
 
-              {/* Mode Selector Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Mode Selector Buttons (3 Options) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                {/* Option 1: Fit on 1 Bed (Co-Extrusion / AMS) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1178,16 +1179,51 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                     className="mt-0.5 text-purple-600 focus:ring-purple-500 pointer-events-none"
                   />
                   <div>
-                    <div className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                      <span>Fit on 1 Bed (1 Batch Fee)</span>
+                    <div className="text-xs font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
+                      <span>1 Bed (AMS Batch)</span>
                       <span className="text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-600/50 px-1.5 py-0.2 rounded font-bold">Recommended</span>
                     </div>
                     <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
-                      Parts printed together on one plate. Multicolor fee added once for the batch.
+                      Printed together on 1 bed with AMS layer swaps. Fee batched once for the bed.
                     </span>
                   </div>
                 </button>
 
+                {/* Option 2: Different Build Plates (By Color / Plate) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (setMultiColorBatchMode) setMultiColorBatchMode('different_plates');
+                    const suggestedBeds = Math.max(2, (activePart.colors?.length || 2));
+                    const nextBedCount = multiColorBedCount > 1 ? multiColorBedCount : suggestedBeds;
+                    if (setMultiColorBedCount) setMultiColorBedCount(nextBedCount);
+                    setParameters(prev => ({ ...prev, multiColorBatchMode: 'different_plates', multiColorBedCount: nextBedCount }));
+                  }}
+                  className={`p-2.5 rounded-lg border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                    multiColorBatchMode === 'different_plates'
+                      ? 'bg-cyan-950/70 border-cyan-400 shadow-sm ring-1 ring-cyan-500/50'
+                      : 'bg-slate-900/50 border-slate-700/80 hover:border-slate-600 text-slate-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="multiColorBatchModeOption"
+                    checked={multiColorBatchMode === 'different_plates'}
+                    onChange={() => {}}
+                    className="mt-0.5 text-cyan-600 focus:ring-cyan-500 pointer-events-none"
+                  />
+                  <div>
+                    <div className="text-xs font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
+                      <span>🥞 Different Build Plates</span>
+                      <span className="text-[9px] bg-cyan-950 text-cyan-300 border border-cyan-600/50 px-1.5 py-0.2 rounded font-bold">Zero Purge</span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
+                      Parts printed on separate plates by color. Zero purge waste, no swaps, fee per plate.
+                    </span>
+                  </div>
+                </button>
+
+                {/* Option 3: Per Part / Separate Runs */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1219,13 +1255,17 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
               </div>
 
               {/* Number of plates / beds selector & Savings alert */}
-              {multiColorBatchMode === 'single_batch_per_bed' && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-purple-950/30 p-2.5 rounded-lg border border-purple-500/20 text-xs">
+              {(multiColorBatchMode === 'single_batch_per_bed' || multiColorBatchMode === 'different_plates') && (
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-lg border text-xs ${
+                  multiColorBatchMode === 'different_plates'
+                    ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-200'
+                    : 'bg-purple-950/30 border-purple-500/20 text-purple-200'
+                }`}>
                   <div className="flex items-center gap-2">
-                    <label htmlFor="multiColorBedCount" className="text-purple-200 font-medium whitespace-nowrap">
-                      Build Plates / Beds:
+                    <label htmlFor="multiColorBedCount" className="font-medium whitespace-nowrap">
+                      {multiColorBatchMode === 'different_plates' ? 'Different Build Plates:' : 'Build Plates / Beds:'}
                     </label>
-                    <div className="flex items-center border border-purple-500/40 rounded-lg overflow-hidden bg-slate-900">
+                    <div className="flex items-center border border-slate-600 rounded-lg overflow-hidden bg-slate-900">
                       <button
                         type="button"
                         onClick={() => {
@@ -1238,7 +1278,7 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                       >
                         -
                       </button>
-                      <span className="px-3 py-1 font-mono font-bold text-purple-200 min-w-[28px] text-center">
+                      <span className="px-3 py-1 font-mono font-bold text-slate-100 min-w-[28px] text-center">
                         {multiColorBedCount}
                       </span>
                       <button
@@ -1255,13 +1295,17 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                       </button>
                     </div>
                     <span className="text-[11px] text-slate-400">
-                      {multiColorBedCount === 1 ? '(all parts fit on 1 bed)' : `(${multiColorBedCount} beds required)`}
+                      {multiColorBatchMode === 'different_plates' 
+                        ? `(${multiColorBedCount} plates • 0 purge waste • plate-by-plate)`
+                        : (multiColorBedCount === 1 ? '(all parts fit on 1 bed)' : `(${multiColorBedCount} beds required)`)}
                     </span>
                   </div>
 
                   {multiColorSavedFee > 0 && (
                     <div className="flex items-center gap-1.5 text-emerald-300 font-semibold bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-md shrink-0">
-                      <span>💰 Saved ${multiColorSavedFee.toFixed(2)} by batching on 1 bed</span>
+                      <span>
+                        💰 Saved ${multiColorSavedFee.toFixed(2)} {multiColorBatchMode === 'different_plates' ? 'vs AMS purge waste' : 'by batching on 1 bed'}
+                      </span>
                     </div>
                   )}
                 </div>

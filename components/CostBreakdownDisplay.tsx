@@ -569,9 +569,13 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
         {Boolean(costBreakdown.multiColorFee !== undefined && costBreakdown.multiColorFee > 0) && (
           <div className="flex flex-col bg-purple-950/30 p-2.5 rounded-lg border border-purple-500/30 space-y-1.5 text-sm">
             <div className="flex justify-between items-center text-purple-300">
-              <span className="flex items-center gap-1.5 font-medium">
+              <span className="flex items-center gap-1.5 font-medium flex-wrap">
                 <span>🎨 Multi-Color Fee:</span>
-                {(costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed' ? (
+                {(costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'different_plates' ? (
+                  <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-500/50 px-2 py-0.5 rounded-full font-semibold">
+                    🥞 Diff Plates ({(costBreakdown.multiColorBedCount || multiColorBedCount || 1)} {((costBreakdown.multiColorBedCount || multiColorBedCount || 1) === 1) ? 'plate' : 'plates'})
+                  </span>
+                ) : (costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed' ? (
                   <span className="text-[10px] bg-purple-900/80 text-purple-200 border border-purple-400/40 px-2 py-0.5 rounded-full font-semibold">
                     1 Bed Batch ({(costBreakdown.multiColorBedCount || multiColorBedCount || 1)} {((costBreakdown.multiColorBedCount || multiColorBedCount || 1) === 1) ? 'plate' : 'plates'})
                   </span>
@@ -584,9 +588,13 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
               <span className="font-mono font-semibold">{formatCurrency(costBreakdown.multiColorFee || 0)}</span>
             </div>
 
-            {(costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed' && Boolean(costBreakdown.multiColorSavedFee && costBreakdown.multiColorSavedFee > 0) && (
+            {Boolean(costBreakdown.multiColorSavedFee && costBreakdown.multiColorSavedFee > 0) && (
               <div className="flex justify-between items-center text-[11px] text-emerald-300 bg-emerald-950/60 px-2 py-1 rounded border border-emerald-500/40 font-medium">
-                <span>🎉 Batching Discount (parts fit on 1 bed):</span>
+                <span>
+                  {(costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'different_plates'
+                    ? '🎉 Multi-Plate Savings (0% purge waste):'
+                    : '🎉 Batching Discount (parts on 1 bed):'}
+                </span>
                 <span className="font-mono font-bold">Saved {formatCurrency(costBreakdown.multiColorSavedFee)}</span>
               </div>
             )}
@@ -599,19 +607,31 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
                   <button
                     type="button"
                     onClick={() => onUpdateMultiColorBatchMode('single_batch_per_bed')}
-                    className={`px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                    className={`px-2 py-0.5 rounded text-[10.5px] transition cursor-pointer ${
                       (costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'single_batch_per_bed'
                         ? 'bg-purple-600 text-white font-semibold shadow-xs'
                         : 'bg-purple-950 text-purple-300 hover:bg-purple-900/60'
                     }`}
                     title="Fit parts on 1 bed: only add multi-color fee once for the whole bed batch"
                   >
-                    Fit on 1 Bed (1 Batch)
+                    1 Bed (AMS)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMultiColorBatchMode('different_plates')}
+                    className={`px-2 py-0.5 rounded text-[10.5px] transition cursor-pointer ${
+                      (costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'different_plates'
+                        ? 'bg-cyan-600 text-white font-semibold shadow-xs'
+                        : 'bg-purple-950 text-purple-300 hover:bg-purple-900/60'
+                    }`}
+                    title="Separate build plates by color: zero purge waste and plate-by-plate fee"
+                  >
+                    Diff Plates
                   </button>
                   <button
                     type="button"
                     onClick={() => onUpdateMultiColorBatchMode('per_copy')}
-                    className={`px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                    className={`px-2 py-0.5 rounded text-[10.5px] transition cursor-pointer ${
                       (costBreakdown.multiColorBatchMode || multiColorBatchMode) === 'per_copy'
                         ? 'bg-purple-600 text-white font-semibold shadow-xs'
                         : 'bg-purple-950 text-purple-300 hover:bg-purple-900/60'

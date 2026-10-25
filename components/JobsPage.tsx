@@ -135,12 +135,17 @@ const QuoteDetailView: React.FC<{
                   value={
                     <span className="flex items-center gap-1.5 flex-wrap">
                       <span>{formatCurrency(costBreakdown.multiColorFee || 0)}</span>
-                      {costBreakdown.multiColorBatchMode === 'single_batch_per_bed' && (
+                      {costBreakdown.multiColorBatchMode === 'different_plates' ? (
+                        <span className="text-xs text-cyan-300 font-normal bg-cyan-950/70 border border-cyan-500/50 px-2 py-0.5 rounded-full">
+                          🥞 Different Build Plates ({costBreakdown.multiColorBedCount || 1} {((costBreakdown.multiColorBedCount || 1) === 1) ? 'plate' : 'plates'})
+                          {costBreakdown.multiColorSavedFee ? ` • Saved ${formatCurrency(costBreakdown.multiColorSavedFee)}` : ''}
+                        </span>
+                      ) : costBreakdown.multiColorBatchMode === 'single_batch_per_bed' ? (
                         <span className="text-xs text-purple-300 font-normal bg-purple-950/70 border border-purple-600/40 px-2 py-0.5 rounded-full">
                           Single Bed Batch ({costBreakdown.multiColorBedCount || 1} {((costBreakdown.multiColorBedCount || 1) === 1) ? 'plate' : 'plates'})
                           {costBreakdown.multiColorSavedFee ? ` • Saved ${formatCurrency(costBreakdown.multiColorSavedFee)}` : ''}
                         </span>
-                      )}
+                      ) : null}
                     </span>
                   } 
                 />

@@ -575,6 +575,7 @@ function App() {
 
     let totalUnbatchedFee = initialParts.reduce((sum, p) => sum + p.unbatchedPartFee, 0);
     let totalBatchedFee = 0;
+    let totalDifferentPlatesFee = 0;
 
     if (hasMultiColor) {
       const totalMulticolorFilamentCost = multiColorParts.reduce((sum, p) => sum + p.filamentCost, 0);
@@ -597,10 +598,14 @@ function App() {
         const feeRate = generalSettings.simpleMultiColorFee ?? 3.00;
         if (simpleType === 'flat_per_part') {
           totalBatchedFee = feeRate * beds;
+          totalDifferentPlatesFee = feeRate * beds;
         } else if (simpleType === 'percentage') {
           totalBatchedFee = totalMulticolorFilamentCost * (feeRate / 100);
+          // Different plates has zero purge tower overhead, half the percentage fee
+          totalDifferentPlatesFee = totalMulticolorFilamentCost * ((feeRate / 100) * 0.5);
         } else {
           totalBatchedFee = extraBedColors * feeRate * beds;
+          totalDifferentPlatesFee = extraBedColors * feeRate;
         }
       } else if (pricingMode === 'complex') {
         const spoolFee = bedColorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50) * beds;
@@ -609,12 +614,30 @@ function App() {
         const swapFee = maxSwaps * (generalSettings.complexCostPerColorChange ?? 0.05) * beds;
         const handlingFee = (generalSettings.complexHandlingFee ?? 4.00) * beds;
         totalBatchedFee = spoolFee + purgeBuffer + swapFee + handlingFee;
+
+        // Different Build Plates: printed plate-by-plate in solid colors with ZERO purge waste and ZERO color swaps!
+        const plateHandlingRate = generalSettings.differentPlatesHandlingFee ?? generalSettings.complexHandlingFee ?? 3.00;
+        const diffSpoolFee = bedColorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50);
+        const diffHandlingFee = plateHandlingRate * beds;
+        totalDifferentPlatesFee = diffSpoolFee + diffHandlingFee;
       }
     }
 
-    const isSingleBatch = multiColorBatchMode === 'single_batch_per_bed';
-    const finalMultiColorFee = hasMultiColor ? (isSingleBatch ? totalBatchedFee : totalUnbatchedFee) : 0;
-    const multiColorSavedFee = hasMultiColor && isSingleBatch ? Math.max(0, totalUnbatchedFee - totalBatchedFee) : 0;
+    let finalMultiColorFee = 0;
+    let multiColorSavedFee = 0;
+
+    if (hasMultiColor) {
+      if (multiColorBatchMode === 'different_plates') {
+        finalMultiColorFee = totalDifferentPlatesFee;
+        multiColorSavedFee = Math.max(0, totalUnbatchedFee - totalDifferentPlatesFee);
+      } else if (multiColorBatchMode === 'single_batch_per_bed') {
+        finalMultiColorFee = totalBatchedFee;
+        multiColorSavedFee = Math.max(0, totalUnbatchedFee - totalBatchedFee);
+      } else {
+        finalMultiColorFee = totalUnbatchedFee;
+        multiColorSavedFee = 0;
+      }
+    }
 
     // Distribute finalMultiColorFee proportionally across multicolor parts and compute technical material failure rates
     const partsBreakdowns = initialParts.map(ip => {

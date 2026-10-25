@@ -8,6 +8,7 @@ import {
   getOrderMilestoneStats 
 } from '../utils/orderMilestones';
 import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
+import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
 interface OrderMilestonesTrackerProps {
   order: Order;
@@ -310,8 +311,41 @@ const OrderMilestonesTracker: React.FC<OrderMilestonesTrackerProps> = ({
                   </td>
 
                   {/* Material */}
-                  <td className="py-2.5 px-3 text-slate-300 text-[11px]">
-                    {row.materialLabel}
+                  <td className="py-2.5 px-3 text-slate-300 text-[11px] align-middle">
+                    {row.colors && row.colors.length > 1 ? (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-purple-300 flex items-center gap-1">
+                          <span>🎨 Multi-Color ({row.colors.length} spools)</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {row.colors.map((c, ci) => (
+                            <span 
+                              key={c.id || ci} 
+                              className="inline-flex items-center gap-1 bg-slate-900 border border-slate-700/80 rounded px-1.5 py-0.5 text-[10px] text-slate-200"
+                              title={`${c.brand} ${c.type}${c.colorName ? ` - ${c.colorName}` : ''} (${c.grams}g)`}
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full border border-slate-600 flex-shrink-0"
+                                style={getFilamentBackgroundStyle(c.colorHex, c.rgb)}
+                              />
+                              {c.masterCode && <strong className="font-mono text-cyan-300">#{c.masterCode}</strong>}
+                              <span className="truncate max-w-[110px]">{c.colorName || `${c.brand} ${c.type}`}</span>
+                              <span className="text-slate-400 font-mono text-[9px]">({c.grams}g)</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {row.colorHex && (
+                          <span
+                            className="w-2.5 h-2.5 rounded-full border border-slate-600 flex-shrink-0"
+                            style={getFilamentBackgroundStyle(row.colorHex, row.rgb)}
+                          />
+                        )}
+                        <span>{row.materialLabel}</span>
+                      </div>
+                    )}
                   </td>
 
                   {/* Checkboxes for each milestone */}
