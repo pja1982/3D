@@ -43,6 +43,7 @@ interface JobsPageProps {
   onArchive?: (id: string, archive: boolean) => void;
   generalSettings?: GeneralSettings;
   onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
+  onUpdateQuote?: (quote: Quote) => void;
 }
 
 const statusColors: Record<QuoteStatus, string> = {
@@ -298,6 +299,7 @@ const JobsPage: React.FC<JobsPageProps> = ({
   onArchive,
   generalSettings,
   onUpdateGeneralSettings,
+  onUpdateQuote,
 }) => {
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [editingPriceQuoteId, setEditingPriceQuoteId] = useState<string | null>(null);
@@ -782,6 +784,10 @@ const JobsPage: React.FC<JobsPageProps> = ({
           initialDocType={printModalState.docType}
           generalSettings={generalSettings}
           onUpdateGeneralSettings={onUpdateGeneralSettings}
+          onUpdateQuote={(updated) => {
+            setPrintModalState(prev => ({ ...prev, quote: updated }));
+            if (onUpdateQuote) onUpdateQuote(updated);
+          }}
         />
       )}
     </div>

@@ -13,16 +13,97 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.7.4';
-export const APP_RELEASE_DATE = 'October 24, 2026';
-export const APP_CODENAME = 'Filament Master Code v0.1 Spec & Interactive Visual Builder';
+export const APP_VERSION = '2.9.0';
+export const APP_RELEASE_DATE = 'October 25, 2026';
+export const APP_CODENAME = 'Invoice One-Off Fees & Dual 5-Char Universal Spectrum Code System';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.9.0',
+    releaseDate: 'October 25, 2026',
+    title: 'Invoice One-Off Fees (Licensing/CAD/Rush) & Dual 5-Char Universal Spectrum Code System',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Customer Invoice & Quote One-Off Fees Section: itemize commercial 3D model licensing, CAD design / file prep, rush order expediting, setup/tooling, and custom fees',
+      'Automated Invoice Totals reconciliation: Parts Subtotal + One-Off Fees Subtotal = Grand Total Invoiced / Quoted Amount',
+      'Full Obsidian Markdown Invoice synchronization with dedicated One-Off Fees itemized tables',
+      'Dual Filament Master Code System: 5-Char Universal Spectrum Format (v0.2) and 4-Char Sequential Format (v0.1)',
+      'Universal Spectrum Colour IDs (01–32) across 11 color families, unifying solid colors across all manufacturers (Bambu, Elegoo, Sunlu, eSun, 3D Fillies, Jaycar)',
+      'New Visual Effect Code: "X" for Clear / Translucent filaments, alongside "S" for Standard / Solid Colour',
+      'Interactive 5-Char Spectrum Builder with interactive family swatches, live code preview, and auto-detect integration'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '📜 Dedicated One-Off & Specialized Service Fees table on Customer Invoices and Quotes (Print & PDF)',
+          '⚡ Quick preset buttons on Invoice: Commercial 3D Model License ($25), CAD / File Prep ($35), Rush Order Fee ($20), Setup & Tooling ($15), Courier Delivery ($12.50), and Custom Fees',
+          '🧮 Live One-Off Fees manager in Quote Breakdown Calculator with automatic price recalculation and quote revision persistence',
+          '🌈 5-Character Universal Spectrum Master Code format: [Brand 0-5][Polymer 0-6][Effect S,X,G,R,T,D,L,W,C][Universal Spectrum ID 01-32]',
+          '💎 New "X" Effect code for Clear / Translucent / Natural filaments',
+          '🎨 32 Universal Spectrum Color IDs grouped into 11 families (Pink, Red, Orange, Brown/Copper, Yellow/Gold, Green, Teal/Cyan, Blue, Purple, Neutrals/Metals, Dark Neutrals)',
+          '🛠️ Interactive Dual Code Builder modal with instant switching between 5-Char Spectrum (v0.2) and 4-Char Sequential (v0.1)',
+          '📝 Markdown export invoice inclusion with One-Off Fees table and updated frontmatter total_amount'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Solid colors are now brand-independent using Universal Spectrum IDs (e.g. 00S32 Bambu Black, 10S32 Elegoo Black, 20S32 Sunlu Black)',
+          'Auto-Detect algorithm now suggests both 5-char Spectrum codes and 4-char legacy codes with high accuracy matching'
+        ]
+      }
+    ]
+  },
+  {
+    version: '2.8.0',
+    releaseDate: 'October 25, 2026',
+    title: 'Multi-Color PDF Manifests, Swatches & Different Build Plates Production Mode',
+    isLatest: false,
+    tag: 'minor',
+    highlights: [
+      'Multi-Color PDF Quotations & Invoices: Every color is itemized with hex swatch pills, Filament Master Code [#CODE] badges, brand, polymer, and exact gram breakdowns',
+      'Dedicated Job Color Palette Specification block on customer quotes and invoices for clear client preview and color approval',
+      'Workshop Traveler AMS / MMU Spool Preparation Manifest with loaded checkmarks, slot/plate assignment, and total required batch grams',
+      'New Multi-Color Production Option: "Different Build Plates" (plate-by-plate printing for individual colors or sub-assemblies)',
+      'Different Build Plates benefits: Zero purge tower waste, zero color-change swapping overhead, custom plate handling setup fee, and live savings tracking',
+      'General Settings defaults: configure your default multi-color mode (Single Plate vs Different Plates) and default plate setup fee'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '📄 Complete multi-color filament itemization in PDF Quotes, Estimates, Invoices, Packing Slips, and Workshop Travelers',
+          '🎨 Visual color swatch preview pills with border outlines and hex tags in printed documents',
+          '🧵 Workshop Traveler Spool Preparation Manifest table: Slot/Plate #, Filament Master Code, Material/Brand, Required Weight (g), and Physical Load verification checkmark',
+          '🔲 "Different Build Plates" multi-color production mode toggle in Quote Builder with interactive build plate count stepper',
+          '💰 Automated savings calculation comparing Different Build Plates against single-plate purge waste and color-change fees',
+          '⚙️ General Settings configuration for Default Multi-Color Production Method and Default Setup Fee per Build Plate',
+          '📋 Multi-color fabrication milestone travelers displaying plate and color indices for physical shop floor tracking'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Customer quote line items now show the full multi-filament composition instead of only the primary material',
+          'Markdown exports include complete multi-color tables with master codes, color swatches, and grams',
+          'Print travelers provide a foolproof checklist for pre-loading AMS / MMU slots or preparing plate runs before launching jobs'
+        ]
+      },
+      {
+        category: 'Fixed',
+        items: [
+          'Ensured single-plate multi-material and multi-plate setups are clearly distinguished in both digital calculations and physical paper travelers'
+        ]
+      }
+    ]
+  },
   {
     version: '2.7.4',
     releaseDate: 'October 24, 2026',
     title: 'Filament Master Code v0.1 Specification & Interactive Visual Builder',
-    isLatest: true,
+    isLatest: false,
     tag: 'patch',
     highlights: [
       'Full Filament Master Code v0.1 spec: 4-digit standardized identification (Digit 1 Brand 0-5, Digit 2 Polymer 0-6, Digits 3-4 Color/Modifiers)',

@@ -39,6 +39,7 @@ interface OrdersPageProps {
   generalSettings?: GeneralSettings;
   onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
   onUpdateOrderMilestones?: (orderId: string, milestones: Record<string, Partial<Record<string, boolean>>>) => void;
+  onUpdateQuote?: (quote: Quote) => void;
 }
 
 const statusColors: Record<OrderStatus, string> = {
@@ -423,6 +424,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
   generalSettings,
   onUpdateGeneralSettings,
   onUpdateOrderMilestones,
+  onUpdateQuote,
 }) => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
@@ -878,6 +880,10 @@ const OrdersPage: React.FC<OrdersPageProps> = ({
           initialDocType={printModalState.docType}
           generalSettings={generalSettings}
           onUpdateGeneralSettings={onUpdateGeneralSettings}
+          onUpdateQuote={(updated) => {
+            setPrintModalState(prev => ({ ...prev, quote: updated }));
+            if (onUpdateQuote) onUpdateQuote(updated);
+          }}
         />
       )}
     </div>

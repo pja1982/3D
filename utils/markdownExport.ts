@@ -530,6 +530,9 @@ export function generateInvoiceMarkdown(
   const invoiceNumber = `INV-${quote.jobNumber.toString().padStart(4, '0')}`;
   const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const { parts, parameters, costBreakdown } = quote;
+  const upfrontOneOffFees = quote.oneOffFees || quote.costBreakdown?.oneOffFees || [];
+  const upfrontFeesTotal = upfrontOneOffFees.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+  const invoiceGrandTotal = quote.quotePrice + upfrontFeesTotal;
 
   let md = `---
 type: 3d-print-invoice
@@ -540,7 +543,7 @@ customer: "${quote.customerName.replace(/"/g, '\\"')}"
 date: ${today}
 due_date: ${dueDate}
 status: "Pending Payment"
-total_amount: ${quote.quotePrice.toFixed(2)}
+total_amount: ${invoiceGrandTotal.toFixed(2)}
 currency: "USD"
 ${order ? `order_number: ${order.orderNumber}\n` : ''}tags:
   - 3d-printing
@@ -557,7 +560,7 @@ ${order ? `order_number: ${order.orderNumber}\n` : ''}tags:
 > - **Invoice Date:** ${today}
 > - **Payment Due Date:** ${dueDate} *(Net 30)*
 > - **Linked Job / Quote:** [[jobs/Job_${quote.jobNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Job #${quote.jobNumber}: ${quote.jobName}]]
-> - **Total Amount Due:** **${formatCurrency(quote.quotePrice)}**
+> - **Total Amount Due:** **${formatCurrency(invoiceGrandTotal)}**
 ${order ? `> - **Production Order:** [[orders/Order_${order.orderNumber}_${quote.jobName.replace(/[^a-zA-Z0-9_-]/g, '_')}|Order #${order.orderNumber}]]\n` : ''}
 
 ---
@@ -601,6 +604,19 @@ ${order ? `> - **Production Order:** [[orders/Order_${order.orderNumber}_${quote
     });
   }
 
+  const oneOffFees = quote.oneOffFees || quote.costBreakdown?.oneOffFees || [];
+  const oneOffFeesTotal = oneOffFees.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+  const grandTotalBilled = quote.quotePrice + oneOffFeesTotal;
+
+  if (oneOffFees.length > 0) {
+    md += `\n---\n\n## 📜 One-Off & Specialized Service Fees\n\n| # | Service / Fee Description | Category | Amount |\n| :-: | :--- | :---: | :---: |\n`;
+    oneOffFees.forEach((fee, fIdx) => {
+      const cat = fee.category ? fee.category.toUpperCase() : 'SERVICE';
+      md += `| ${fIdx + 1} | ${fee.description} | \`${cat}\` | **${formatCurrency(fee.amount)}** |\n`;
+    });
+    md += `| **Total** | **${oneOffFees.length} ${oneOffFees.length === 1 ? 'fee' : 'fees'}** | - | **${formatCurrency(oneOffFeesTotal)}** |\n`;
+  }
+
   md += `
 ---
 
@@ -611,7 +627,8 @@ ${order ? `> - **Production Order:** [[orders/Order_${order.orderNumber}_${quote
 > - **Machine Operation & Electricity:** ${formatCurrency(costBreakdown.electricityCost + (costBreakdown.printerCost || 0))}
 > - **Engineering, Slicing & Post-Processing:** ${formatCurrency(costBreakdown.laborCost + (costBreakdown.multiColorFee || 0))}
 > - **Failure Risk Buffer & Margin:** ${formatCurrency(quote.quotePrice - costBreakdown.subtotal)}
-> - **Total Billed Amount:** **${formatCurrency(quote.quotePrice)}**
+> - **Fabrication Subtotal:** ${formatCurrency(quote.quotePrice)}
+${oneOffFeesTotal > 0 ? `> - **One-Off & Service Fees:** ${formatCurrency(oneOffFeesTotal)}\n` : ''}> - **Total Billed Amount:** **${formatCurrency(grandTotalBilled)}**
 
 ---
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament, MultiColorBatchMode, GeneralSettings } from '../types';
+import type { CostBreakdown, PrintParameters, Quote, QuotePartConfig, Printer, Filament, MultiColorBatchMode, GeneralSettings, OneOffFee } from '../types';
 import { QuoteStatus } from '../types';
 import SaveIcon from './icons/SaveIcon';
 import PrinterIcon from './icons/PrinterIcon';
 import SaveQuoteModal from './SaveQuoteModal';
-import PrintDocumentModal from './PrintDocumentModal';
+import PrintDocumentModal, { DEFAULT_FEE_PRESETS } from './PrintDocumentModal';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 
@@ -80,6 +80,21 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
     ? quoteParts.reduce((sum, p) => sum + (p.printHours * p.quantity), 0)
     : parameters.printHours;
 
+  // One-Off Fees State (Licensing, CAD Prep, Rush, Setup, Shipping)
+  const [oneOffFees, setOneOffFees] = useState<OneOffFee[]>(() => {
+    return revisingQuote?.oneOffFees || revisingQuote?.costBreakdown?.oneOffFees || [];
+  });
+
+  useEffect(() => {
+    if (revisingQuote) {
+      setOneOffFees(revisingQuote.oneOffFees || revisingQuote.costBreakdown?.oneOffFees || []);
+    }
+  }, [revisingQuote]);
+
+  const oneOffFeesTotal = useMemo(() => {
+    return oneOffFees.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+  }, [oneOffFees]);
+
   // Construct a live quote object to compute each part's exact proportional price and cost
   const liveQuote: Quote = useMemo(() => ({
     id: revisingQuote?.id || 'live-quote',
@@ -90,9 +105,14 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
     quotePrice: editableQuotePrice,
     status: revisingQuote?.status || QuoteStatus.Pending,
     parameters,
-    costBreakdown,
+    costBreakdown: {
+      ...costBreakdown,
+      oneOffFees,
+      oneOffFeesTotal,
+    },
     parts: quoteParts,
-  }), [revisingQuote, nextJobNumber, editableQuotePrice, parameters, costBreakdown, quoteParts]);
+    oneOffFees,
+  }), [revisingQuote, nextJobNumber, editableQuotePrice, parameters, costBreakdown, quoteParts, oneOffFees, oneOffFeesTotal]);
 
   const partsSummary = useMemo(() => {
     return calculateJobPartRows(liveQuote, filaments, printers);
@@ -105,11 +125,11 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
 
   useEffect(() => {
     if (customPartsCount > 0) {
-      setEditableQuotePrice(parseFloat(partsSummary.grandTotalPrice.toFixed(2)));
+      setEditableQuotePrice(parseFloat((partsSummary.grandTotalPrice + oneOffFeesTotal).toFixed(2)));
     } else {
-      setEditableQuotePrice(quotePrice);
+      setEditableQuotePrice(parseFloat((quotePrice + oneOffFeesTotal).toFixed(2)));
     }
-  }, [quotePrice, partsSummary.grandTotalPrice, customPartsCount]);
+  }, [quotePrice, partsSummary.grandTotalPrice, customPartsCount, oneOffFeesTotal]);
 
   const costWithFailure = costBreakdown.costWithFailureRate;
   const currentProfit = editableQuotePrice - costWithFailure;
@@ -121,6 +141,8 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
     const updatedBreakdown: CostBreakdown = {
       ...costBreakdown,
       profit: parseFloat(currentProfit.toFixed(2)),
+      oneOffFees,
+      oneOffFeesTotal,
     };
     const updatedParameters: PrintParameters = {
       ...parameters,
@@ -128,6 +150,50 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
     };
     onSaveQuote(jobName, customerName, jobNumber, editableQuotePrice, updatedParameters, updatedBreakdown, isCreateNew);
     setIsModalOpen(false);
+  };
+
+  const handleAddPresetFee = (preset: typeof DEFAULT_FEE_PRESETS[0]) => {
+    const newFee: OneOffFee = {
+      id: `fee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      description: preset.description,
+      amount: preset.amount,
+      category: preset.category,
+    };
+    setOneOffFees(prev => [...prev, newFee]);
+    setEditableQuotePrice(prev => parseFloat((prev + preset.amount).toFixed(2)));
+  };
+
+  const handleAddCustomFee = () => {
+    const amount = 15.00;
+    const newFee: OneOffFee = {
+      id: `fee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      description: 'Custom Service / Fee',
+      amount,
+      category: 'other',
+    };
+    setOneOffFees(prev => [...prev, newFee]);
+    setEditableQuotePrice(prev => parseFloat((prev + amount).toFixed(2)));
+  };
+
+  const handleRemoveFee = (id: string) => {
+    const target = oneOffFees.find(f => f.id === id);
+    if (target) {
+      setEditableQuotePrice(prev => Math.max(0, parseFloat((prev - target.amount).toFixed(2))));
+    }
+    setOneOffFees(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleUpdateFee = (id: string, updates: Partial<OneOffFee>) => {
+    setOneOffFees(prev => prev.map(f => {
+      if (f.id === id) {
+        if (updates.amount !== undefined && updates.amount !== f.amount) {
+          const diff = updates.amount - f.amount;
+          setEditableQuotePrice(p => Math.max(0, parseFloat((p + diff).toFixed(2))));
+        }
+        return { ...f, ...updates };
+      }
+      return f;
+    }));
   };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -720,6 +786,80 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
           </div>
         </div>
 
+        {/* One-Off Fees Card (Licensing, CAD Prep, Expedite, etc.) */}
+        <div className="bg-white/10 rounded-xl p-3.5 border border-white/20 space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                <span>📜 One-Off Fees (Licensing, Design, Rush, Setup)</span>
+              </span>
+              {oneOffFees.length > 0 && (
+                <span className="text-xs bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-full shadow-xs">
+                  +{formatCurrency(oneOffFeesTotal)}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleAddCustomFee}
+              className="text-xs bg-white/20 hover:bg-white/30 text-white font-bold px-2.5 py-1 rounded-lg border border-white/30 transition cursor-pointer"
+            >
+              + Custom Fee
+            </button>
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="text-[11px] text-white/70 font-semibold mr-0.5">Quick Add:</span>
+            {DEFAULT_FEE_PRESETS.map((preset, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleAddPresetFee(preset)}
+                className="text-xs bg-black/25 hover:bg-black/40 text-white font-medium px-2 py-0.5 rounded-lg border border-white/20 transition cursor-pointer"
+                title={`Add ${preset.description} ($${preset.amount.toFixed(2)})`}
+              >
+                {preset.label} (+${preset.amount})
+              </button>
+            ))}
+          </div>
+
+          {/* Active Fees List */}
+          {oneOffFees.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              {oneOffFees.map((fee) => (
+                <div key={fee.id} className="flex items-center justify-between gap-2 bg-black/35 p-2 rounded-lg border border-white/15 text-xs text-white">
+                  <input
+                    type="text"
+                    value={fee.description}
+                    onChange={(e) => handleUpdateFee(fee.id, { description: e.target.value })}
+                    className="flex-1 bg-transparent border-0 focus:ring-1 focus:ring-white rounded px-1 py-0.5 font-medium text-white"
+                  />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-white/60">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={fee.amount}
+                      onChange={(e) => handleUpdateFee(fee.id, { amount: parseFloat(e.target.value) || 0 })}
+                      className="w-18 bg-white/15 border border-white/25 rounded px-1.5 py-0.5 text-right font-mono font-bold text-white text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFee(fee.id)}
+                      className="text-white/60 hover:text-red-300 p-1 transition cursor-pointer"
+                      title="Remove fee"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <hr className="border-white/20" />
 
         {/* Quoted Price Input with Part Price Re-calculation feedback */}
@@ -729,20 +869,20 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
               <span>Final Quoted Price:</span>
               {customPartsCount > 0 && (
                 <span className="text-[11px] bg-white/20 px-2 py-0.2 rounded font-normal">
-                  (Sum of adjusted parts)
+                  (Sum of adjusted parts + fees)
                 </span>
               )}
             </label>
-            {editableQuotePrice !== quotePrice && (
+            {editableQuotePrice !== (quotePrice + oneOffFeesTotal) && (
               <button
                 type="button"
                 onClick={() => {
-                  setEditableQuotePrice(quotePrice);
+                  setEditableQuotePrice(parseFloat((quotePrice + oneOffFeesTotal).toFixed(2)));
                   if (onResetAllPartUnitPrices) onResetAllPartUnitPrices();
                 }}
-                className="text-xs text-cyan-200 hover:text-white underline"
+                className="text-xs text-cyan-200 hover:text-white underline cursor-pointer"
               >
-                Reset to Suggested ({formatCurrency(quotePrice)})
+                Reset to Suggested ({formatCurrency(quotePrice + oneOffFeesTotal)})
               </button>
             )}
           </div>
@@ -799,6 +939,11 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
         initialDocType={printDocType}
         generalSettings={generalSettings}
         onUpdateGeneralSettings={onUpdateGeneralSettings}
+        onUpdateQuote={(updated) => {
+          if (updated.oneOffFees) {
+            setOneOffFees(updated.oneOffFees);
+          }
+        }}
       />
     </div>
   );

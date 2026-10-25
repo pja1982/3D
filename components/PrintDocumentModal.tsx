@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import type { Quote, Filament, Printer, Order, GeneralSettings } from '../types';
+import type { Quote, Filament, Printer, Order, GeneralSettings, OneOffFee } from '../types';
 import { QuoteStatus } from '../types';
 import PrinterIcon from './icons/PrinterIcon';
 import ClipboardCheckIcon from './icons/ClipboardCheckIcon';
@@ -19,7 +19,16 @@ interface PrintDocumentModalProps {
   order?: Order | null;
   generalSettings?: GeneralSettings;
   onUpdateGeneralSettings?: (settings: Partial<GeneralSettings>) => void;
+  onUpdateQuote?: (quote: Quote) => void;
 }
+
+export const DEFAULT_FEE_PRESETS = [
+  { label: '📜 Commercial License', description: 'Commercial 3D Model Reseller License', amount: 25.00, category: 'licensing' as const },
+  { label: '✏️ CAD / File Prep', description: 'CAD Engineering & Slicing File Preparation', amount: 35.00, category: 'design' as const },
+  { label: '⚡ Rush Order Fee', description: 'Rush Order Expedited Fabrication', amount: 20.00, category: 'rush' as const },
+  { label: '⚙️ Setup & Tooling', description: 'Specialized Machine Setup & Bed Tooling', amount: 15.00, category: 'setup' as const },
+  { label: '📦 Courier Shipping', description: 'Protective Packaging & Courier Delivery', amount: 12.50, category: 'shipping' as const },
+];
 
 export interface JobSpoolAllocation {
   filament: Filament | null;
@@ -53,9 +62,101 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   order,
   generalSettings,
   onUpdateGeneralSettings,
+  onUpdateQuote,
 }) => {
   const [docType, setDocType] = useState<'quote' | 'checklist'>(initialDocType);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+
+  // One-Off Fees State (Licensing, CAD Design, Rush, Setup, Shipping, etc.)
+  const [oneOffFees, setOneOffFees] = useState<OneOffFee[]>(() => {
+    return quote?.oneOffFees || quote?.costBreakdown?.oneOffFees || [];
+  });
+
+  useEffect(() => {
+    if (quote) {
+      setOneOffFees(quote.oneOffFees || quote.costBreakdown?.oneOffFees || []);
+    }
+  }, [quote]);
+
+  const triggerQuoteUpdate = (newFees: OneOffFee[]) => {
+    if (onUpdateQuote && quote) {
+      const feesSum = newFees.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+      onUpdateQuote({
+        ...quote,
+        oneOffFees: newFees,
+        costBreakdown: {
+          ...quote.costBreakdown,
+          oneOffFees: newFees,
+          oneOffFeesTotal: feesSum,
+        },
+      });
+    }
+  };
+
+  const handleAddPresetFee = (preset: typeof DEFAULT_FEE_PRESETS[0]) => {
+    const newFee: OneOffFee = {
+      id: `fee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      description: preset.description,
+      amount: preset.amount,
+      category: preset.category,
+    };
+    const updated = [...oneOffFees, newFee];
+    setOneOffFees(updated);
+    triggerQuoteUpdate(updated);
+  };
+
+  const handleAddCustomFee = () => {
+    const newFee: OneOffFee = {
+      id: `fee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      description: 'Custom Service / Fee',
+      amount: 15.00,
+      category: 'other',
+    };
+    const updated = [...oneOffFees, newFee];
+    setOneOffFees(updated);
+    triggerQuoteUpdate(updated);
+  };
+
+  const handleRemoveFee = (id: string) => {
+    const updated = oneOffFees.filter(f => f.id !== id);
+    setOneOffFees(updated);
+    triggerQuoteUpdate(updated);
+  };
+
+  const handleUpdateFee = (id: string, updates: Partial<OneOffFee>) => {
+    const updated = oneOffFees.map(f => f.id === id ? { ...f, ...updates } : f);
+    setOneOffFees(updated);
+    triggerQuoteUpdate(updated);
+  };
+
+  const getFeeCategoryBadge = (category?: string) => {
+    switch (category) {
+      case 'licensing':
+        return { icon: '📜', label: 'License', bg: 'bg-amber-100 text-amber-800 border-amber-300' };
+      case 'design':
+        return { icon: '✏️', label: 'CAD / Prep', bg: 'bg-blue-100 text-blue-800 border-blue-300' };
+      case 'rush':
+        return { icon: '⚡', label: 'Rush Order', bg: 'bg-red-100 text-red-800 border-red-300' };
+      case 'setup':
+        return { icon: '⚙️', label: 'Setup / Tooling', bg: 'bg-purple-100 text-purple-800 border-purple-300' };
+      case 'shipping':
+        return { icon: '📦', label: 'Shipping', bg: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+      default:
+        return { icon: '🏷️', label: 'Service Fee', bg: 'bg-slate-100 text-slate-800 border-slate-300' };
+    }
+  };
+
+  const partsSubtotal = useMemo(() => {
+    return quote?.quotePrice || 0;
+  }, [quote]);
+
+  const oneOffFeesTotal = useMemo(() => {
+    return oneOffFees.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+  }, [oneOffFees]);
+
+  const grandTotalInvoiced = useMemo(() => {
+    return partsSubtotal + oneOffFeesTotal;
+  }, [partsSubtotal, oneOffFeesTotal]);
 
   // Editable Studio / Business Profile
   const [studioName, setStudioName] = useState(generalSettings?.studioName || '3D Printing Studio');
@@ -654,13 +755,131 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                   )}
                 </div>
 
+                {/* ========================================================================= */}
+                {/* ONE-OFF & SERVICE FEES SECTION (Licensing, CAD Prep, Rush, Tooling, etc.)   */}
+                {/* ========================================================================= */}
+                <div className="pt-3 border-t border-slate-200 print-avoid-break">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                        <span>📜 One-Off & Specialized Service Fees</span>
+                      </h3>
+                      {oneOffFees.length > 0 && (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.2 rounded-full">
+                          {oneOffFees.length} {oneOffFees.length === 1 ? 'item' : 'items'} (+{formatCurrency(oneOffFeesTotal)})
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Quick Add Presets Bar (Screen Only) */}
+                    <div className="no-print flex items-center gap-1 flex-wrap">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase mr-0.5">Add:</span>
+                      {DEFAULT_FEE_PRESETS.map((preset, pIdx) => (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          onClick={() => handleAddPresetFee(preset)}
+                          className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded border border-slate-300 transition cursor-pointer"
+                          title={`Add ${preset.description} ($${preset.amount.toFixed(2)})`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleAddCustomFee}
+                        className="text-[10px] bg-cyan-50 hover:bg-cyan-100 text-cyan-800 font-bold px-2 py-0.5 rounded border border-cyan-300 transition cursor-pointer"
+                      >
+                        + Custom
+                      </button>
+                    </div>
+                  </div>
+
+                  {oneOffFees.length > 0 ? (
+                    <div className="overflow-hidden rounded border border-slate-200 mb-2">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 text-[10.5px] uppercase tracking-wider border-b border-slate-200">
+                            <th className="py-2 px-3 font-semibold w-10 text-center">#</th>
+                            <th className="py-2 px-3 font-semibold">Service / Fee Description</th>
+                            <th className="py-2 px-3 font-semibold w-36">Category</th>
+                            <th className="py-2 px-3 font-semibold text-right w-28">Amount</th>
+                            <th className="py-2 px-2 text-center w-12 no-print">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">
+                          {oneOffFees.map((fee, fIdx) => {
+                            const badge = getFeeCategoryBadge(fee.category);
+                            return (
+                              <tr key={fee.id || fIdx} className="hover:bg-slate-50/50 print-avoid-break">
+                                <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px] align-middle">{fIdx + 1}</td>
+                                <td className="py-2 px-3 font-medium text-slate-900 align-middle">
+                                  <input
+                                    type="text"
+                                    value={fee.description}
+                                    onChange={(e) => handleUpdateFee(fee.id, { description: e.target.value })}
+                                    className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-transparent focus:border-slate-300 rounded px-1.5 py-0.5 text-xs font-semibold text-slate-900 no-print"
+                                    placeholder="Fee description..."
+                                  />
+                                  <span className="print-only hidden print:inline font-semibold">{fee.description}</span>
+                                </td>
+                                <td className="py-2 px-3 align-middle">
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${badge.bg}`}>
+                                    <span>{badge.icon}</span>
+                                    <span>{badge.label}</span>
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 align-middle">
+                                  <span className="no-print inline-flex items-center justify-end gap-1">
+                                    <span className="text-slate-400 font-normal">$</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={fee.amount}
+                                      onChange={(e) => handleUpdateFee(fee.id, { amount: parseFloat(e.target.value) || 0 })}
+                                      className="w-20 text-right bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono font-bold"
+                                    />
+                                  </span>
+                                  <span className="print-only hidden print:inline">{formatCurrency(fee.amount)}</span>
+                                </td>
+                                <td className="py-2 px-2 text-center align-middle no-print">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveFee(fee.id)}
+                                    className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 text-xs font-bold transition cursor-pointer"
+                                    title="Remove Fee"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="no-print bg-slate-50 border border-dashed border-slate-300 rounded-lg p-2.5 text-center text-slate-500 text-xs mb-2">
+                      <span>No one-off fees added. Click presets above (e.g. <strong>📜 Commercial License</strong>, <strong>✏️ CAD / File Prep</strong>, <strong>⚡ Rush Order</strong>) to add line items to this invoice.</span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Financial Summary & Totals Block */}
                 <div className="flex justify-end pt-2">
                   <div className="w-full max-w-xs space-y-2 text-xs">
                     <div className="flex justify-between text-slate-600 py-1 border-b border-slate-100">
-                      <span>Parts Subtotal ({computedParts.totalQuantity} items):</span>
+                      <span>Parts & Fabrication Subtotal:</span>
                       <span className="font-mono">{formatCurrency(quote.quotePrice)}</span>
                     </div>
+
+                    {oneOffFees.length > 0 && (
+                      <div className="flex justify-between text-slate-700 py-1 border-b border-slate-100 font-medium">
+                        <span>One-Off Fees & Services ({oneOffFees.length}):</span>
+                        <span className="font-mono font-bold text-amber-700">+{formatCurrency(oneOffFeesTotal)}</span>
+                      </div>
+                    )}
 
                     {Boolean(quote.costBreakdown?.multiColorFee && quote.costBreakdown.multiColorFee > 0) && (
                       <div className="flex justify-between text-slate-600 py-1 border-b border-slate-100">
@@ -675,8 +894,10 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
 
                     {/* Total Amount Box */}
                     <div className="p-3 bg-slate-900 text-white rounded-lg flex justify-between items-center mt-3 shadow-sm">
-                      <span className="text-xs font-bold uppercase tracking-wider">Total Quoted Price:</span>
-                      <span className="text-xl font-mono font-black">{formatCurrency(quote.quotePrice)}</span>
+                      <span className="text-xs font-bold uppercase tracking-wider">
+                        {order ? 'Total Invoiced Amount:' : 'Total Quoted Price:'}
+                      </span>
+                      <span className="text-xl font-mono font-black">{formatCurrency(grandTotalInvoiced)}</span>
                     </div>
                   </div>
                 </div>

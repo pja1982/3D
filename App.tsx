@@ -809,6 +809,7 @@ function App() {
           profit: effectiveProfit,
         },
         parts: quoteParts,
+        oneOffFees: breakdown.oneOffFees || revisingQuote?.oneOffFees,
       };
       setAppData(prev => ({
         ...prev,
@@ -839,6 +840,7 @@ function App() {
           profit: effectiveProfit,
         },
         parts: quoteParts,
+        oneOffFees: breakdown.oneOffFees,
       };
       setAppData(prev => ({ ...prev, quotes: [...prev.quotes, savedQuote].sort((a, b) => b.jobNumber - a.jobNumber) }));
       setRevisingQuote(null);
@@ -973,6 +975,16 @@ function App() {
       })
     }));
     if (user && updatedQuote) {
+      saveQuoteToRemote(user.uid, updatedQuote).catch(console.error);
+    }
+  }, [setAppData, user]);
+
+  const handleUpdateQuote = useCallback((updatedQuote: Quote) => {
+    setAppData(prev => ({
+      ...prev,
+      quotes: prev.quotes.map(q => q.id === updatedQuote.id ? updatedQuote : q),
+    }));
+    if (user) {
       saveQuoteToRemote(user.uid, updatedQuote).catch(console.error);
     }
   }, [setAppData, user]);
@@ -1477,6 +1489,7 @@ function App() {
             onArchive={handleArchiveQuote}
             generalSettings={generalSettings}
             onUpdateGeneralSettings={handleUpdatePartialSettings}
+            onUpdateQuote={handleUpdateQuote}
           />
         );
       case 'orders':
@@ -1493,6 +1506,7 @@ function App() {
             onUpdateOrderMilestones={handleUpdateOrderMilestones}
             generalSettings={generalSettings}
             onUpdateGeneralSettings={handleUpdatePartialSettings}
+            onUpdateQuote={handleUpdateQuote}
           />
         );
        case 'parts':

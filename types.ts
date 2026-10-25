@@ -81,6 +81,14 @@ export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
 export type SimpleMultiColorType = 'flat_per_part' | 'per_additional_color' | 'percentage';
 export type MultiColorBatchMode = 'single_batch_per_bed' | 'different_plates' | 'per_copy';
 
+export interface OneOffFee {
+  id: string;
+  description: string; // e.g. "Commercial 3D Model License", "CAD Design & Slicing Prep", "Rush Expedite Fee"
+  amount: number;      // e.g. 25.00
+  category?: 'licensing' | 'design' | 'rush' | 'setup' | 'shipping' | 'other';
+  notes?: string;
+}
+
 export interface GeneralSettings {
   electricityCostKwh: number;
   laborCostPerHour: number;
@@ -104,6 +112,13 @@ export interface GeneralSettings {
   complexHandlingFee?: number;
   differentPlatesHandlingFee?: number; // Handling fee per different build plate ($/plate, e.g. 2.50)
   defaultMultiColorBatchMode?: MultiColorBatchMode; // Default bed batching mode
+
+  // One-Off Fees Presets
+  defaultOneOffFeeTemplates?: Array<{
+    description: string;
+    amount: number;
+    category: 'licensing' | 'design' | 'rush' | 'setup' | 'shipping' | 'other';
+  }>;
 
   // Material Difficulty & Technical Failure Rates (TPU, ABS, Nylon, PC, etc.)
   enableMaterialDifficultyRates?: boolean; // Whether material difficulty failure rate rules are active
@@ -162,6 +177,8 @@ export interface CostBreakdown {
   effectiveFailureRate?: number;
   materialRiskApplied?: boolean;
   materialRiskReason?: string;
+  oneOffFeesTotal?: number;
+  oneOffFees?: OneOffFee[];
 }
 
 export interface QuotePartConfig {
@@ -199,6 +216,7 @@ export interface Quote {
   parameters: PrintParameters;
   costBreakdown: CostBreakdown;
   parts?: QuotePartConfig[];
+  oneOffFees?: OneOffFee[];
   isArchived?: boolean;
   archivedAt?: string;
 }
