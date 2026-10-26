@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ThemeMode } from '../types';
 
+function getSystemIsDark(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    return Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  } catch (e) {
+    return true; // Workshop default is dark
+  }
+}
+
 export function useTheme(
   initialTheme?: ThemeMode,
   onPersistTheme?: (theme: ThemeMode) => void
@@ -21,40 +30,44 @@ export function useTheme(
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'dark';
     if (theme === 'system') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      return getSystemIsDark() ? 'dark' : 'light';
     }
     return theme;
   });
 
   const applyThemeToDOM = useCallback((targetTheme: ThemeMode) => {
     if (typeof document === 'undefined') return;
-    const root = document.documentElement;
-    const body = document.body;
-    const isDark = targetTheme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-      : targetTheme === 'dark';
+    try {
+      const root = document.documentElement;
+      const body = document.body;
+      const isDark = targetTheme === 'system'
+        ? getSystemIsDark()
+        : targetTheme === 'dark';
 
-    const resolved = isDark ? 'dark' : 'light';
-    setResolvedTheme(resolved);
+      const resolved = isDark ? 'dark' : 'light';
+      setResolvedTheme(resolved);
 
-    if (isDark) {
-      root.classList.add('dark');
-      root.classList.remove('light');
-      root.setAttribute('data-theme', 'dark');
-      if (body) {
-        body.classList.add('dark');
-        body.classList.remove('light');
+      if (isDark) {
+        root.classList.add('dark');
+        root.classList.remove('light');
+        root.setAttribute('data-theme', 'dark');
+        if (body) {
+          body.classList.add('dark');
+          body.classList.remove('light');
+        }
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0f172a');
+      } else {
+        root.classList.add('light');
+        root.classList.remove('dark');
+        root.setAttribute('data-theme', 'light');
+        if (body) {
+          body.classList.add('light');
+          body.classList.remove('dark');
+        }
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#f8fafc');
       }
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0f172a');
-    } else {
-      root.classList.add('light');
-      root.classList.remove('dark');
-      root.setAttribute('data-theme', 'light');
-      if (body) {
-        body.classList.add('light');
-        body.classList.remove('dark');
-      }
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#f8fafc');
+    } catch (e) {
+      // Ignore DOM theme errors
     }
   }, []);
 
@@ -67,7 +80,11 @@ export function useTheme(
     }
     applyThemeToDOM(newTheme);
     if (onPersistTheme) {
-      onPersistTheme(newTheme);
+      try {
+        onPersistTheme(newTheme);
+      } catch (e) {
+        // Ignore
+      }
     }
   }, [applyThemeToDOM, onPersistTheme]);
 
@@ -88,20 +105,27 @@ export function useTheme(
   useEffect(() => {
     applyThemeToDOM(theme);
 
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      if (theme === 'system') {
-        applyThemeToDOM('system');
-      }
-    };
+    if (typeof window === 'undefined' || !window.matchMedia) return;
 
     try {
-      mediaQuery.addEventListener('change', handleChange);
-      return () => mediaQuery.removeEventListener('change', handleChange);
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      if (!mediaQuery) return;
+
+      const handleChange = () => {
+        if (theme === 'system') {
+          applyThemeToDOM('system');
+        }
+      };
+
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+      } else if (typeof mediaQuery.addListener === 'function') {
+        mediaQuery.addListener(handleChange);
+        return () => mediaQuery.removeListener(handleChange);
+      }
     } catch (e) {
-      // Legacy fallback
-      mediaQuery.addListener?.(handleChange);
-      return () => mediaQuery.removeListener?.(handleChange);
+      // Ignore matchMedia listener errors
     }
   }, [theme, applyThemeToDOM]);
 
