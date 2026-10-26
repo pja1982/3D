@@ -13,16 +13,53 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.10.0';
-export const APP_RELEASE_DATE = 'October 25, 2026';
-export const APP_CODENAME = 'Randomized Filament Selector ("Surprise / Maker\'s Choice PLA")';
+export const APP_VERSION = '2.11.0';
+export const APP_RELEASE_DATE = 'October 26, 2026';
+export const APP_CODENAME = 'Light & Dark Theme Support (Workshop & Office Modes)';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.11.0',
+    releaseDate: 'October 26, 2026',
+    title: 'Light & Dark Theme Support (Workshop & Office Modes)',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Dual-theme system with ☀️ Light Mode, 🌙 Dark Mode (workshop default), and 💻 System auto-preference',
+      'Instant-access segmented theme toggle [☀️ Light | 🌙 Dark | 💻 Auto] directly in the global header bar',
+      'Dedicated "🎨 Appearance & Theme" configuration section in Settings with rich visual preview cards',
+      'Zero-flash loading via inline head script and cross-session persistence in localStorage & Cloud Firestore',
+      'High-contrast WCAG AA compliant light palette for bright office environments and printable workflows',
+      'Dynamic filament color chip contrast preservation and vivid accent button styling across both modes'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '☀️ Light Mode: Clean paper-white and slate card aesthetics, tailored for daytime office lighting and readability',
+          '🌙 Dark Mode: High-contrast deep slate workshop environment reducing eye strain near 3D printer displays',
+          '💻 System Mode: Automatic synchronization with operating system and browser dark/light mode preferences',
+          '🎨 Global header segmented quick-switcher for 1-click theme toggling from any page',
+          '⚙️ Appearance & Theme settings block in General Settings with visual card selector',
+          '⚡ Zero-flicker synchronous DOM class initialization script in <head>',
+          '☁️ Cloud synchronization of user theme preference to Firebase Firestore generalSettings'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Card, input, modal, and table styling automatically adapt with smooth color transitions',
+          'Filament swatch chips maintain accurate visual hue and automated contrast text in both light and dark backgrounds',
+          'Theme color meta tag dynamically updates browser chrome toolbar color'
+        ]
+      }
+    ]
+  },
   {
     version: '2.10.0',
     releaseDate: 'October 25, 2026',
     title: 'Randomized Filament Selector ("Surprise / Maker\'s Choice PLA") with Small White Verification Checks',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Randomized Filament Selector for decorative prints when clients do not specify a color',

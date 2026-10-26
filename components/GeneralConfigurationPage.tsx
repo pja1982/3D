@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { GeneralSettings, MultiColorPricingMode, SimpleMultiColorType } from '../types';
+import type { GeneralSettings, MultiColorPricingMode, SimpleMultiColorType, ThemeMode } from '../types';
 import MarkdownIcon from './icons/MarkdownIcon';
 import { APP_VERSION, APP_RELEASE_DATE, APP_CODENAME } from '../constants/version';
 
 interface GeneralConfigurationPageProps {
   settings: GeneralSettings;
+  currentTheme?: ThemeMode;
+  onThemeChange?: (theme: ThemeMode) => void;
   onSave: (newSettings: GeneralSettings) => void;
   onExport: () => void;
   onImport: (file: File) => void;
@@ -18,6 +20,8 @@ interface GeneralConfigurationPageProps {
 
 const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
   settings,
+  currentTheme,
+  onThemeChange,
   onSave,
   onExport,
   onImport,
@@ -29,6 +33,7 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
   onOpenChangeLogModal,
 }) => {
   const [currentSettings, setCurrentSettings] = useState<GeneralSettings>(() => ({
+    theme: currentTheme || settings.theme || 'dark',
     enablePrinterDepreciation: true,
     defaultPrinterHourlyRate: 0.50,
     defaultPrinterLifespanHours: 3000,
@@ -93,9 +98,22 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
       studioAddress: prev.studioAddress || '123 Maker Way, Suite 4B',
       studioWebsite: prev.studioWebsite || 'www.3dprintstudio.com',
       studioTerms: prev.studioTerms || 'Quotation valid for 30 days. Custom 3D fabricated parts are made to order. 50% deposit required for fabrication to begin.',
+      theme: currentTheme || settings.theme || prev.theme || 'dark',
       ...settings,
     }));
-  }, [settings]);
+  }, [settings, currentTheme]);
+
+  const activeTheme: ThemeMode = currentSettings.theme || currentTheme || 'dark';
+
+  const handleThemeSelect = (mode: ThemeMode) => {
+    setCurrentSettings(prev => ({
+      ...prev,
+      theme: mode,
+    }));
+    if (onThemeChange) {
+      onThemeChange(mode);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -142,6 +160,115 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
   return (
     <div className="mt-8 max-w-3xl mx-auto space-y-8 pb-12">
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Appearance & Theme Settings Card */}
+        <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700 space-y-5">
+          <div className="border-b border-slate-600 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-2xl font-semibold text-cyan-400 flex items-center gap-2">
+                <span>🎨 Appearance & Theme</span>
+              </h2>
+              <p className="text-slate-400 text-sm mt-1">
+                Customize your workshop interface. Switch between Dark, Light, or automatic System preferences with instant live preview.
+              </p>
+            </div>
+            <span className="self-start sm:self-auto text-xs bg-slate-900 text-slate-300 border border-slate-700 px-3 py-1 rounded-full font-medium whitespace-nowrap">
+              Active: {activeTheme === 'system' ? '💻 System Preference' : activeTheme === 'light' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Dark Theme Option */}
+            <button
+              type="button"
+              onClick={() => handleThemeSelect('dark')}
+              className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                activeTheme === 'dark'
+                  ? 'bg-cyan-950/40 border-cyan-500 shadow-md ring-2 ring-cyan-500/20'
+                  : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 hover:bg-slate-900/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl">🌙</span>
+                  {activeTheme === 'dark' && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950 border border-cyan-800 px-2 py-0.5 rounded-full">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <div className="font-semibold text-slate-100 text-sm">Dark Theme</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Workshop default. Deep slate surfaces designed for low eye strain.
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-800 flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-700"></span>
+                <span>Slate 900 background</span>
+              </div>
+            </button>
+
+            {/* Light Theme Option */}
+            <button
+              type="button"
+              onClick={() => handleThemeSelect('light')}
+              className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                activeTheme === 'light'
+                  ? 'bg-amber-500/10 border-amber-500 shadow-md ring-2 ring-amber-500/20'
+                  : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 hover:bg-slate-900/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl">☀️</span>
+                  {activeTheme === 'light' && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <div className="font-semibold text-slate-100 text-sm">Light Theme</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Clean paper-white cards and high-contrast text for bright offices.
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-800 flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-300"></span>
+                <span>Crisp slate-50 background</span>
+              </div>
+            </button>
+
+            {/* System / Auto Option */}
+            <button
+              type="button"
+              onClick={() => handleThemeSelect('system')}
+              className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                activeTheme === 'system'
+                  ? 'bg-purple-950/40 border-purple-500 shadow-md ring-2 ring-purple-500/20'
+                  : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 hover:bg-slate-900/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl">💻</span>
+                  {activeTheme === 'system' && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-950 border border-purple-800 px-2 py-0.5 rounded-full">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <div className="font-semibold text-slate-100 text-sm">System Preference</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Automatically syncs with your operating system or browser mode.
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-800 flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-amber-400 to-indigo-600"></span>
+                <span>Automatic detection</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Business & Invoice Branding Profile */}
         <div className="bg-slate-800/50 p-6 rounded-2xl shadow-lg border border-slate-700 space-y-6">
           <div className="border-b border-slate-600 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

@@ -1,12 +1,15 @@
 import React from 'react';
 import type { User } from '../firebase';
 import { APP_VERSION } from '../constants/version';
+import type { ThemeMode } from '../types';
 
 interface HeaderProps {
   user: User | null;
   authLoading: boolean;
   isSyncing: boolean;
   localServerAvailable: boolean;
+  theme?: ThemeMode;
+  onThemeChange?: (theme: ThemeMode) => void;
   onSignIn: () => void;
   onSignOut: () => void;
   onSyncAllLocal: () => void;
@@ -21,6 +24,8 @@ const Header: React.FC<HeaderProps> = ({
   authLoading,
   isSyncing,
   localServerAvailable,
+  theme = 'dark',
+  onThemeChange,
   onSignIn,
   onSignOut,
   onSyncAllLocal,
@@ -76,6 +81,50 @@ const Header: React.FC<HeaderProps> = ({
 
         {/* Right Side: Google Sheets, Docker Setup, Backup & Auth Controls */}
         <div className="flex items-center gap-2 flex-wrap ml-auto">
+          {/* Theme Mode Toggle (Light / Dark / System) */}
+          {onThemeChange && (
+            <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-[11px] shadow-xs" title="Select appearance theme">
+              <button
+                type="button"
+                onClick={() => onThemeChange('light')}
+                className={`px-2 py-0.5 rounded font-medium transition flex items-center gap-1 cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Light Theme"
+              >
+                <span>☀️</span>
+                <span className="hidden sm:inline">Light</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onThemeChange('dark')}
+                className={`px-2 py-0.5 rounded font-medium transition flex items-center gap-1 cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Dark Theme"
+              >
+                <span>🌙</span>
+                <span className="hidden sm:inline">Dark</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onThemeChange('system')}
+                className={`px-2 py-0.5 rounded font-medium transition flex items-center gap-1 cursor-pointer ${
+                  theme === 'system'
+                    ? 'bg-purple-500/20 text-purple-400 font-bold border border-purple-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Auto / System Preference"
+              >
+                <span>💻</span>
+                <span className="hidden md:inline">Auto</span>
+              </button>
+            </div>
+          )}
           {/* Google Sheets Live Sync Modal Trigger */}
           <button
             type="button"

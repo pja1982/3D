@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { PrintParameters, CostBreakdown, Filament, Printer, GeneralSettings, Quote, QuoteStatus, AppData, Part, Order, OrderStatus, QuotePartConfig, MultiColorBatchMode } from './types';
+import { PrintParameters, CostBreakdown, Filament, Printer, GeneralSettings, Quote, QuoteStatus, AppData, Part, Order, OrderStatus, QuotePartConfig, MultiColorBatchMode, ThemeMode } from './types';
 import { calculatePrinterRates } from './utils/printerRates';
 import {
   generateAllJobsMarkdown,
@@ -10,6 +10,7 @@ import {
   downloadMarkdownFile,
 } from './utils/markdownExport';
 import useLocalStorage from './hooks/useLocalStorage';
+import { useTheme } from './hooks/useTheme';
 import { auth, googleProvider, googleSignIn, logout, getAccessToken, setCachedAccessToken, onAuthStateChanged, User } from './firebase';
 import {
   subscribeToUserData,
@@ -148,6 +149,17 @@ function App() {
   });
   const [isDockerModalOpen, setIsDockerModalOpen] = useState<boolean>(false);
   const [isChangeLogModalOpen, setIsChangeLogModalOpen] = useState<boolean>(false);
+
+  // Theme state & preference hook (persisted to localStorage and Firestore settings)
+  const handlePersistTheme = useCallback((newTheme: ThemeMode) => {
+    setAppData(prev => {
+      const merged = { ...prev.generalSettings, theme: newTheme };
+      if (user) saveSettingsToRemote(user.uid, merged).catch(console.error);
+      return { ...prev, generalSettings: merged };
+    });
+  }, [setAppData, user]);
+
+  const { theme, setTheme } = useTheme(generalSettings.theme, handlePersistTheme);
 
   // Check and connect to Local Docker Backend Storage
   useEffect(() => {
@@ -1547,6 +1559,8 @@ function App() {
         return (
           <GeneralConfigurationPage 
             settings={generalSettings}
+            currentTheme={theme}
+            onThemeChange={setTheme}
             onSave={handleSaveSettings}
             onExport={handleExportData}
             onImport={handleImportData}
@@ -1571,6 +1585,8 @@ function App() {
           authLoading={authLoading}
           isSyncing={isSyncing}
           localServerAvailable={localServerStatus.available}
+          theme={theme}
+          onThemeChange={setTheme}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
           onSyncAllLocal={handleSyncAllLocal}

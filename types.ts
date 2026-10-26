@@ -98,7 +98,10 @@ export interface OneOffFee {
   notes?: string;
 }
 
+export type ThemeMode = 'dark' | 'light' | 'system';
+
 export interface GeneralSettings {
+  theme?: ThemeMode;
   electricityCostKwh: number;
   laborCostPerHour: number;
   failureRate: number;
