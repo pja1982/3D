@@ -19,6 +19,7 @@ import {
   MASTER_CODE_BRANDS,
   MASTER_CODE_POLYMERS,
 } from '../utils/filamentMasterCode';
+import { isFilamentPla } from '../utils/randomFilamentSelector';
 
 interface ConfigurationPageProps {
   filaments: Filament[];
@@ -57,6 +58,7 @@ const emptyFilament: Omit<Filament, 'id'> = {
   td_value: null,
   location: 'Shelf: Home',
   masterCode: '',
+  isRandomEligible: true,
 };
 
 const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
@@ -436,6 +438,36 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
     }
   };
 
+  const handleToggleRandomEligible = (filamentId: string) => {
+    const target = filaments.find(f => f.id === filamentId);
+    if (!target) return;
+    const newStatus = !target.isRandomEligible;
+    onUpdate({ ...target, isRandomEligible: newStatus });
+    setToastMessage(newStatus 
+      ? `✓ Added "${target.brand} ${target.type || target.name}" to Random PLA Pool` 
+      : `Removed "${target.brand} ${target.type || target.name}" from Random PLA Pool`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleCheckAllPlaRandom = () => {
+    const plaFilaments = filaments.filter(f => isFilamentPla(f));
+    if (plaFilaments.length === 0) {
+      alert("No PLA filaments found in library.");
+      return;
+    }
+    const allAlreadyChecked = plaFilaments.every(f => f.isRandomEligible);
+    const newStatus = !allAlreadyChecked;
+    
+    plaFilaments.forEach(f => {
+      onUpdate({ ...f, isRandomEligible: newStatus });
+    });
+
+    setToastMessage(newStatus 
+      ? `✓ Checked all ${plaFilaments.length} PLA spools for Random Mystery Pool!` 
+      : `Unchecked all PLA spools from Random Pool`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   // Dynamic material categories from collection
   const availableMaterialTypes = useMemo(() => {
     const types = new Set<string>();
@@ -473,6 +505,7 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
       if (!matchesSearch) return false;
 
       if (activeFilterTag === 'all') return true;
+      if (activeFilterTag === 'randompool') return Boolean(f.isRandomEligible);
       if (activeFilterTag === 'lowstock') return (f.remaining_grams !== undefined && f.remaining_grams < 250);
       if (activeFilterTag === 'instock') return (f.remaining_grams === undefined || f.remaining_grams >= 250);
       if (activeFilterTag === 'multicolor') return Boolean(f.rgb && f.rgb.includes(','));
@@ -1075,6 +1108,41 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
               </div>
             )}
 
+            {/* Surprise / Random PLA Selector Eligibility */}
+            {isFilamentPla(editingFilament as Filament) && (
+              <div className="p-3 bg-purple-950/40 border border-purple-500/40 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🎲</span>
+                  <div>
+                    <div className="text-xs font-bold text-purple-200 flex items-center gap-1.5">
+                      <span>Random Selector Eligible (Maker's Choice PLA)</span>
+                      <span className="text-[10px] bg-purple-800 text-purple-100 px-1.5 py-0.5 rounded font-mono">PLA Only</span>
+                    </div>
+                    <p className="text-[11px] text-purple-300/80">
+                      Include this spool in the random color pool for decorative prints when client specifies no color.
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    name="isRandomEligible"
+                    checked={editingFilament.isRandomEligible !== false}
+                    onChange={(e) => setEditingFilament(prev => ({ ...prev, isRandomEligible: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                    editingFilament.isRandomEligible !== false
+                      ? 'bg-purple-600 border-purple-400 text-white shadow-sm'
+                      : 'bg-slate-800 border-slate-600 text-transparent'
+                  }`}>
+                    <span className="text-xs font-bold text-white">✓</span>
+                  </div>
+                  <span className="text-xs font-medium text-slate-300">Eligible</span>
+                </label>
+              </div>
+            )}
+
             {/* Live Card Preview */}
             <div className="pt-2 border-t border-slate-700/60">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Live Background Preview</span>
@@ -1281,6 +1349,29 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
               >
                 ⚠️ Low Stock (&lt;250g)
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTag(activeFilterTag === 'randompool' ? 'all' : 'randompool')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  activeFilterTag === 'randompool'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                    : 'bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
+                }`}
+                title="Show only PLA spools eligible for Random / Mystery Picker"
+              >
+                <span className="w-2.5 h-2.5 rounded bg-white text-slate-950 text-[9px] flex items-center justify-center font-black">✓</span>
+                <span>🎲 Random Pool ({filaments.filter(f => f.isRandomEligible).length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCheckAllPlaRandom}
+                className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded-lg border border-slate-600 transition font-medium flex items-center gap-1 cursor-pointer ml-auto"
+                title="Toggle all PLA spools for Random Pool"
+              >
+                <span>✓ Tag All PLAs</span>
+              </button>
             </div>
           </div>
 
@@ -1480,11 +1571,43 @@ const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                               <span className="text-[10px]">↗</span>
                             </a>
                           )}
+
+                          {isFilamentPla(filament) && filament.isRandomEligible && (
+                            <span className={`px-1.5 py-0.2 rounded border text-[11px] font-medium flex items-center gap-1 ${
+                              isLightBg ? 'bg-purple-600/15 border-purple-600/30 text-purple-900' : 'bg-purple-900/60 border-purple-400/50 text-purple-200'
+                            }`} title="Included in Random Maker's Choice PLA pool">
+                              <span>🎲 Random Pool</span>
+                              <span className="font-bold">✓</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                      {isFilamentPla(filament) && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRandomEligible(filament.id)}
+                          className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                            filament.isRandomEligible
+                              ? 'bg-purple-600/90 hover:bg-purple-500 border-purple-300 text-white shadow-sm'
+                              : isLightBg
+                                ? 'bg-black/5 hover:bg-black/10 border-black/20 text-slate-700'
+                                : 'bg-slate-800/80 hover:bg-slate-700 border-slate-600 text-slate-300'
+                          }`}
+                          title={filament.isRandomEligible ? "Eligible for Surprise / Maker's Choice PLA (Click to exclude)" : "Excluded from Surprise / Maker's Choice PLA (Click to include)"}
+                        >
+                          <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[10px] font-bold ${
+                            filament.isRandomEligible 
+                              ? 'bg-white text-purple-700 border-white shadow-xs' 
+                              : 'border-slate-400/60 bg-transparent text-transparent'
+                          }`}>
+                            ✓
+                          </span>
+                          <span className="text-[11px] hidden sm:inline">Random</span>
+                        </button>
+                      )}
                       {!isDefaultSpool && (
                         <button
                           type="button"

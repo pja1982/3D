@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import type { PrintParameters, Filament, Printer, Part, QuotePartConfig, GeneralSettings, MultiColorBatchMode } from '../types';
 import { calculatePrinterRates } from '../utils/printerRates';
 import TrashIcon from './icons/TrashIcon';
@@ -9,6 +9,13 @@ import BulkAddPartsModal from './BulkAddPartsModal';
 import { compressAndFormatImage, isValidImageFile } from '../utils/imageUtils';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 import { getFilamentEffectiveFailureRate } from '../utils/filamentFailureRates';
+import {
+  MYSTERY_PLA_ID,
+  MYSTERY_PLA_LABEL,
+  rollRandomFilament,
+  getEligibleRandomFilaments,
+  getAveragePlaCostPerKg,
+} from '../utils/randomFilamentSelector';
 
 interface CalculatorFormProps {
   parameters: PrintParameters;
@@ -152,6 +159,44 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'filamentId') {
+      if (value === MYSTERY_PLA_ID) {
+        const mode = generalSettings?.defaultRandomColorMode || 'instant';
+        if (mode === 'instant') {
+          const rolled = rollRandomFilament(filaments);
+          if (rolled) {
+            setParameters(prev => ({ ...prev, filamentId: rolled.id }));
+            setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+              ...p,
+              filamentId: rolled.id,
+              isMysteryColor: true,
+              mysteryColorType: 'pla_surprise',
+              resolvedFilamentId: rolled.id,
+            } : p));
+            return;
+          }
+        }
+        setParameters(prev => ({ ...prev, filamentId: MYSTERY_PLA_ID }));
+        setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+          ...p,
+          filamentId: MYSTERY_PLA_ID,
+          isMysteryColor: true,
+          mysteryColorType: 'pla_surprise',
+          resolvedFilamentId: null,
+        } : p));
+        return;
+      } else {
+        setParameters(prev => ({ ...prev, filamentId: value }));
+        setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+          ...p,
+          filamentId: value,
+          isMysteryColor: false,
+          mysteryColorType: undefined,
+          resolvedFilamentId: null,
+        } : p));
+        return;
+      }
+    }
     setParameters(prev => ({ ...prev, [name]: value }));
   };
 
@@ -323,7 +368,40 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
   const handleColorFilamentChange = (colorId: string, newFilamentId: string) => {
     setQuoteParts(prev => prev.map(p => {
       if (p.id === activePart.id) {
-        const updated = (p.colors || []).map(c => c.id === colorId ? { ...c, filamentId: newFilamentId } : c);
+        const updated = (p.colors || []).map(c => {
+          if (c.id === colorId) {
+            if (newFilamentId === MYSTERY_PLA_ID) {
+              const mode = generalSettings?.defaultRandomColorMode || 'instant';
+              if (mode === 'instant') {
+                const rolled = rollRandomFilament(filaments);
+                if (rolled) {
+                  return {
+                    ...c,
+                    filamentId: rolled.id,
+                    isMysteryColor: true,
+                    mysteryColorType: 'pla_surprise' as const,
+                    resolvedFilamentId: rolled.id,
+                  };
+                }
+              }
+              return {
+                ...c,
+                filamentId: MYSTERY_PLA_ID,
+                isMysteryColor: true,
+                mysteryColorType: 'pla_surprise' as const,
+                resolvedFilamentId: null,
+              };
+            }
+            return {
+              ...c,
+              filamentId: newFilamentId,
+              isMysteryColor: false,
+              mysteryColorType: undefined,
+              resolvedFilamentId: null,
+            };
+          }
+          return c;
+        });
         const firstFilamentId = updated[0]?.filamentId || p.filamentId;
         return {
           ...p,
@@ -345,6 +423,103 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
           colors: updated,
           filamentGrams: totalGrams,
         };
+      }
+      return p;
+    }));
+  };
+
+  const eligiblePlaPool = useMemo(() => {
+    return getEligibleRandomFilaments(filaments);
+  }, [filaments]);
+
+  const handleRollRandomSingle = () => {
+    const rolled = rollRandomFilament(filaments, activePart.resolvedFilamentId || (activePart.filamentId !== MYSTERY_PLA_ID ? activePart.filamentId : undefined));
+    if (!rolled) {
+      alert("No eligible PLA spools found in library. Mark spools in Settings > Filaments or ensure PLA spools have remaining weight.");
+      return;
+    }
+    setParameters(prev => ({ ...prev, filamentId: rolled.id }));
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id) {
+        return {
+          ...p,
+          filamentId: rolled.id,
+          isMysteryColor: true,
+          mysteryColorType: 'pla_surprise',
+          resolvedFilamentId: rolled.id,
+        };
+      }
+      return p;
+    }));
+  };
+
+  const handleSetMysteryPlaceholderSingle = () => {
+    setParameters(prev => ({ ...prev, filamentId: MYSTERY_PLA_ID }));
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id) {
+        return {
+          ...p,
+          filamentId: MYSTERY_PLA_ID,
+          isMysteryColor: true,
+          mysteryColorType: 'pla_surprise',
+          resolvedFilamentId: null,
+        };
+      }
+      return p;
+    }));
+  };
+
+  const handleClearMysteryColorSingle = () => {
+    const defaultFil = filaments.find(f => f.isDefault) || filaments[0];
+    const filId = defaultFil ? defaultFil.id : null;
+    setParameters(prev => ({ ...prev, filamentId: filId }));
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id) {
+        return {
+          ...p,
+          filamentId: filId,
+          isMysteryColor: false,
+          mysteryColorType: undefined,
+          resolvedFilamentId: null,
+        };
+      }
+      return p;
+    }));
+  };
+
+  const handleRollRandomColorSlot = (colorId: string) => {
+    const colorSlot = activePartColors.find(c => c.id === colorId);
+    const rolled = rollRandomFilament(filaments, colorSlot?.resolvedFilamentId || (colorSlot?.filamentId !== MYSTERY_PLA_ID ? colorSlot?.filamentId : undefined));
+    if (!rolled) {
+      alert("No eligible PLA spools found in library.");
+      return;
+    }
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id) {
+        const updated = (p.colors || []).map(c => c.id === colorId ? {
+          ...c,
+          filamentId: rolled.id,
+          isMysteryColor: true,
+          mysteryColorType: 'pla_surprise' as const,
+          resolvedFilamentId: rolled.id,
+        } : c);
+        return { ...p, colors: updated };
+      }
+      return p;
+    }));
+  };
+
+  const handleSetMysteryPlaceholderColorSlot = (colorId: string) => {
+    setQuoteParts(prev => prev.map(p => {
+      if (p.id === activePart.id) {
+        const updated = (p.colors || []).map(c => c.id === colorId ? {
+          ...c,
+          filamentId: MYSTERY_PLA_ID,
+          isMysteryColor: true,
+          mysteryColorType: 'pla_surprise' as const,
+          resolvedFilamentId: null,
+        } : c);
+        return { ...p, colors: updated };
       }
       return p;
     }));
@@ -606,7 +781,12 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 truncate">
-                        {filament ? (
+                        {part.isMysteryColor || part.filamentId === MYSTERY_PLA_ID ? (
+                          <span className="inline-flex items-center gap-1 text-purple-300 font-semibold">
+                            <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-500 border border-purple-300 shadow-xs flex-shrink-0" />
+                            <span>🎲 Surprise PLA</span>
+                          </span>
+                        ) : filament ? (
                           <>
                             {filament.colorHex && (
                               <span
@@ -888,28 +1068,131 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
         {!isMultiColor ? (
           <>
             <div>
-              <label htmlFor="filamentId" className="block text-sm font-medium text-slate-300 mb-1">Select Filament</label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="filamentId" className="block text-sm font-medium text-slate-300">Select Filament</label>
+                <button
+                  type="button"
+                  onClick={handleRollRandomSingle}
+                  className="text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 px-2 py-0.5 rounded font-medium transition flex items-center gap-1 cursor-pointer"
+                  title="Randomly pick an eligible PLA spool from inventory for decorative prints"
+                >
+                  <span>🎲 Roll Random PLA</span>
+                </button>
+              </div>
               <select
                   id="filamentId"
                   name="filamentId"
-                  value={parameters.filamentId || ''}
+                  value={activePart.isMysteryColor && !activePart.resolvedFilamentId ? MYSTERY_PLA_ID : (parameters.filamentId || '')}
                   onChange={handleSelectChange}
                   className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"
               >
-                  {filaments.length === 0 ? (
-                    <option disabled value="">No filaments configured</option>
-                  ) : (
-                    filaments.map(filament => {
-                      const scaleText = filament.actual_spool_weight ? ` • Scale: ${filament.actual_spool_weight}g` : '';
-                      const remText = filament.remaining_grams !== undefined ? ` [${filament.remaining_grams}g left]` : '';
-                      return (
-                        <option key={filament.id} value={filament.id}>
-                          {filament.brand} - {filament.type || filament.name}{filament.colorName ? ` (${filament.colorName})` : ''} (${filament.costPerKg.toFixed(2)}/kg){remText}{scaleText}
-                        </option>
-                      );
-                    })
-                  )}
+                  <optgroup label="🎲 Surprise / Random Filament">
+                    <option value={MYSTERY_PLA_ID}>
+                      🎲 {MYSTERY_PLA_LABEL} (Avg: ${getAveragePlaCostPerKg(filaments).toFixed(2)}/kg)
+                    </option>
+                  </optgroup>
+                  <optgroup label="Inventory Spools">
+                    {filaments.length === 0 ? (
+                      <option disabled value="">No filaments configured</option>
+                    ) : (
+                      filaments.map(filament => {
+                        const scaleText = filament.actual_spool_weight ? ` • Scale: ${filament.actual_spool_weight}g` : '';
+                        const remText = filament.remaining_grams !== undefined ? ` [${filament.remaining_grams}g left]` : '';
+                        return (
+                          <option key={filament.id} value={filament.id}>
+                            {filament.brand} - {filament.type || filament.name}{filament.colorName ? ` (${filament.colorName})` : ''} (${filament.costPerKg.toFixed(2)}/kg){remText}{scaleText}
+                          </option>
+                        );
+                      })
+                    )}
+                  </optgroup>
               </select>
+
+              {/* Random / Mystery PLA Selector Interactive Control Panel */}
+              {(activePart.isMysteryColor || parameters.filamentId === MYSTERY_PLA_ID) && (
+                <div className="mt-2.5 p-3.5 bg-gradient-to-r from-purple-950/70 via-slate-900 to-indigo-950/70 border border-purple-500/50 rounded-xl space-y-3 shadow-md animate-fadeIn">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-purple-800/40 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🎲</span>
+                      <div>
+                        <div className="text-xs font-bold text-purple-200 flex items-center gap-1.5">
+                          <span>Surprise / Maker's Choice (PLA)</span>
+                          <span className="text-[10px] bg-purple-900 text-purple-300 border border-purple-600/50 px-1.5 py-0.2 rounded font-mono">
+                            Client Surprise
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-purple-300/80">
+                          Appears on Customer Quote/Invoice as: <strong className="text-white">"🎨 Surprise / Maker's Choice PLA"</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleRollRandomSingle}
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-1 px-2.5 rounded-lg border border-purple-400 transition flex items-center gap-1 shadow cursor-pointer"
+                        title="Pick a random eligible PLA spool from inventory"
+                      >
+                        <span>🎲 {activePart.resolvedFilamentId ? 'Re-roll Spool' : 'Roll Random Spool'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSetMysteryPlaceholderSingle}
+                        className={`text-xs py-1 px-2 rounded-lg border transition cursor-pointer ${
+                          !activePart.resolvedFilamentId
+                            ? 'bg-purple-900/80 border-purple-400 text-purple-200 font-bold'
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                        }`}
+                        title="Keep spool unassigned until print time (priced at PLA pool average)"
+                      >
+                        <span>🔮 Placeholder</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleClearMysteryColorSingle}
+                        className="text-xs text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 transition"
+                        title="Choose a specific color spool instead"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Assignment Status */}
+                  <div className="text-xs flex flex-wrap items-center justify-between gap-2 bg-slate-950/60 p-2 rounded-lg border border-purple-900/40">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400">Workshop Spool:</span>
+                      {activePart.resolvedFilamentId ? (() => {
+                        const rolledFil = filaments.find(f => f.id === activePart.resolvedFilamentId);
+                        return rolledFil ? (
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-3 h-3 rounded-full border border-slate-500 shadow-2xs"
+                              style={getFilamentBackgroundStyle(rolledFil.colorHex, rolledFil.rgb)}
+                            />
+                            <strong className="text-white font-semibold">{rolledFil.brand} {rolledFil.type || rolledFil.name}</strong>
+                            <span className="text-purple-300">({rolledFil.colorName || rolledFil.colorHex})</span>
+                            <span className="text-slate-400 font-mono text-[11px]">${rolledFil.costPerKg.toFixed(2)}/kg</span>
+                            {rolledFil.location && <span className="text-slate-500 text-[10px]">📍 {rolledFil.location}</span>}
+                          </div>
+                        ) : <span className="text-amber-400">Spool ID {activePart.resolvedFilamentId} not found</span>;
+                      })() : (
+                        <div className="flex items-center gap-1 text-purple-300">
+                          <span>🔮 Mystery Placeholder (Will pull any available PLA spool at print time)</span>
+                          <span className="text-slate-400 font-mono text-[11px]">Avg: ${getAveragePlaCostPerKg(filaments).toFixed(2)}/kg</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-purple-300/90 font-mono flex items-center gap-1">
+                      <span>🎲 {eligiblePlaPool.length} PLAs in pool</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               {selectedFilament && (
                 <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-slate-800/80 border border-slate-700/80 text-xs flex-wrap">
                   <span
@@ -1024,22 +1307,50 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="sm:col-span-2">
-                        <select
-                          value={colorItem.filamentId || ''}
-                          onChange={(e) => handleColorFilamentChange(colorItem.id, e.target.value)}
-                          className="w-full bg-slate-700 border border-slate-600 rounded-md py-1.5 px-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        >
-                          {filaments.map(f => {
-                            const scaleText = f.actual_spool_weight ? ` • Scale: ${f.actual_spool_weight}g` : '';
-                            const remText = f.remaining_grams !== undefined ? ` [${f.remaining_grams}g left]` : '';
-                            return (
-                              <option key={f.id} value={f.id}>
-                                {f.brand} - {f.type || f.name}{f.colorName ? ` (${f.colorName})` : ''} (${f.costPerKg.toFixed(2)}/kg){remText}{scaleText}
+                      <div className="sm:col-span-2 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={colorItem.isMysteryColor && !colorItem.resolvedFilamentId ? MYSTERY_PLA_ID : (colorItem.filamentId || '')}
+                            onChange={(e) => handleColorFilamentChange(colorItem.id, e.target.value)}
+                            className="w-full bg-slate-700 border border-slate-600 rounded-md py-1.5 px-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <optgroup label="🎲 Surprise / Random Selection">
+                              <option value={MYSTERY_PLA_ID}>
+                                🎲 {MYSTERY_PLA_LABEL}
                               </option>
-                            );
-                          })}
-                        </select>
+                            </optgroup>
+                            <optgroup label="Inventory Spools">
+                              {filaments.map(f => {
+                                const scaleText = f.actual_spool_weight ? ` • Scale: ${f.actual_spool_weight}g` : '';
+                                const remText = f.remaining_grams !== undefined ? ` [${f.remaining_grams}g left]` : '';
+                                return (
+                                  <option key={f.id} value={f.id}>
+                                    {f.brand} - {f.type || f.name}{f.colorName ? ` (${f.colorName})` : ''} (${f.costPerKg.toFixed(2)}/kg){remText}{scaleText}
+                                  </option>
+                                );
+                              })}
+                            </optgroup>
+                          </select>
+                          {colorItem.isMysteryColor && (
+                            <button
+                              type="button"
+                              onClick={() => handleRollRandomColorSlot(colorItem.id)}
+                              className="px-2 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-bold whitespace-nowrap transition cursor-pointer shadow-sm flex items-center gap-1"
+                              title="Re-roll a random eligible PLA spool for this slot"
+                            >
+                              <span>🎲 Re-roll</span>
+                            </button>
+                          )}
+                        </div>
+                        {colorItem.isMysteryColor && (
+                          <div className="text-[11px] text-purple-300 font-medium flex items-center gap-1 pl-1">
+                            {colorItem.resolvedFilamentId ? (
+                              <span>🎲 Rolled: {fil?.brand} {fil?.type} ({fil?.colorName || 'PLA'})</span>
+                            ) : (
+                              <span>🔮 Placeholder: Maker's choice PLA at print time</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1.5">

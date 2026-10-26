@@ -8,6 +8,7 @@ import XIcon from './icons/XIcon';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
 import { MILESTONES, getOrderMilestoneRows, MilestonePartColorItem } from '../utils/orderMilestones';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
+import { MYSTERY_PLA_ID } from '../utils/randomFilamentSelector';
 
 interface PrintDocumentModalProps {
   isOpen: boolean;
@@ -653,20 +654,27 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                                   <div className="space-y-1 pl-0.5">
                                     {row.part.colors.map((c, cIdx) => {
                                       const cFil = filaments.find(f => f.id === c.filamentId);
+                                      const isMystery = c.isMysteryColor || c.filamentId === MYSTERY_PLA_ID;
                                       return (
                                         <div key={c.id || cIdx} className="flex items-center gap-1.5 text-[10.5px] leading-tight">
                                           <span
                                             className="w-2.5 h-2.5 rounded-full border border-slate-300 flex-shrink-0 shadow-xs"
-                                            style={getFilamentBackgroundStyle(cFil?.colorHex, cFil?.rgb)}
+                                            style={isMystery ? { backgroundColor: '#a855f7' } : getFilamentBackgroundStyle(cFil?.colorHex, cFil?.rgb)}
                                           />
                                           <span className="font-medium text-slate-900">
-                                            {cFil?.masterCode && (
-                                              <span className="font-mono font-bold text-slate-900 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded text-[9.5px] mr-1">
-                                                #{cFil.masterCode}
-                                              </span>
+                                            {isMystery ? (
+                                              <span className="font-semibold text-purple-950">🎨 Surprise / Maker's Choice PLA</span>
+                                            ) : (
+                                              <>
+                                                {cFil?.masterCode && (
+                                                  <span className="font-mono font-bold text-slate-900 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded text-[9.5px] mr-1">
+                                                    #{cFil.masterCode}
+                                                  </span>
+                                                )}
+                                                {cFil ? `${cFil.brand} ${cFil.type}` : 'Filament'}
+                                                {cFil?.colorName ? ` (${cFil.colorName})` : ''}
+                                              </>
                                             )}
-                                            {cFil ? `${cFil.brand} ${cFil.type}` : 'Filament'}
-                                            {cFil?.colorName ? ` (${cFil.colorName})` : ''}
                                           </span>
                                           <span className="text-slate-500 font-mono text-[10px]">
                                             {c.grams}g
@@ -674,6 +682,21 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                                         </div>
                                       );
                                     })}
+                                  </div>
+                                </div>
+                              ) : (row.part.isMysteryColor || row.part.filamentId === MYSTERY_PLA_ID) ? (
+                                <div className="flex items-start gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 border border-purple-300 flex-shrink-0 mt-0.5 shadow-xs" />
+                                  <div>
+                                    <div className="font-bold text-purple-950 flex items-center gap-1.5">
+                                      <span>🎨 Surprise / Maker's Choice PLA</span>
+                                      <span className="text-[9.5px] bg-purple-100 text-purple-800 border border-purple-300 px-1 py-0.2 rounded font-medium">
+                                        Client Surprise
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-normal">
+                                      Decorative Print Finish: Maker's choice selected from premium PLA collection
+                                    </div>
                                   </div>
                                 </div>
                               ) : (
@@ -1150,6 +1173,14 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                                         );
                                       })}
                                     </div>
+                                  </div>
+                                ) : (row.part.isMysteryColor || row.part.filamentId === MYSTERY_PLA_ID) ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 border border-purple-300 flex-shrink-0" />
+                                    <span>
+                                      <strong className="text-purple-900 mr-1">🎲 Surprise PLA:</strong>
+                                      {primaryFil ? `${primaryFil.brand} ${primaryFil.type}${primaryFil.colorName ? ` (${primaryFil.colorName})` : ''}` : 'Pick from Random PLA Shelf'}
+                                    </span>
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-1.5">

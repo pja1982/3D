@@ -13,16 +13,56 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.9.0';
+export const APP_VERSION = '2.10.0';
 export const APP_RELEASE_DATE = 'October 25, 2026';
-export const APP_CODENAME = 'Invoice One-Off Fees & Dual 5-Char Universal Spectrum Code System';
+export const APP_CODENAME = 'Randomized Filament Selector ("Surprise / Maker\'s Choice PLA")';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.10.0',
+    releaseDate: 'October 25, 2026',
+    title: 'Randomized Filament Selector ("Surprise / Maker\'s Choice PLA") with Small White Verification Checks',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Randomized Filament Selector for decorative prints when clients do not specify a color',
+      'Manual per-spool eligibility toggle with 1-click small white check [✓] buttons directly on inventory cards',
+      'Restricted to PLA family only for now (Standard/Basic, Silk, Matte, PLA+)',
+      'Dual workflow support: Instant Roll with 🎲 Re-roll button and Mystery Placeholder for workshop pull at print time',
+      'Professional Customer Invoices & Quotes rendering as "🎨 Surprise / Maker\'s Choice PLA"',
+      'Workshop Travelers & Fabrication Manifests showing assigned spools or shelf-pull instructions with printable verification check boxes [ ]',
+      'Automatic PLA pool average $/kg calculation safeguarding profit margins on placeholder quotes',
+      'Bulk Tagging tool (✓ Tag All PLAs) and 🎲 Random Pool filter chip in Filament Library'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '🎲 Surprise / Maker\'s Choice PLA pinned selector in material dropdowns for single-part and multi-color slots',
+          '🎲 1-Click small white check [✓] / [ ] toggle button on library spool cards with instant toast confirmation',
+          '☑️ Form checkbox for Random Selector Eligibility on spool edit modal (exclusive to PLA family)',
+          '🎲 Random Pool filter chip and "✓ Tag All PLAs" bulk action button in Filament Library header',
+          '🎲 Interactive Mystery PLA Control Panel on Quote Calculator with instant roll, re-roll, and placeholder modes',
+          '🎨 Clean Customer Invoice/Quote display: renders "🎨 Surprise / Maker\'s Choice PLA" with decorative subtitle',
+          '📋 Workshop Traveler integration: lists specific spool to pull or "Pick from Random Shelf" with printable loaded verification checks',
+          '🧮 Automatic material costing using PLA pool average $/kg when placeholder mode is active',
+          '📝 Full Obsidian Markdown export support for Surprise PLA parts and orders'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Strict material validation ensures non-PLA filaments (PETG, ABS, ASA, TPU) cannot be mistakenly added to the decorative random pool',
+          'Weight threshold safeguard prioritizes spools with sufficient remaining grams (>250g)'
+        ]
+      }
+    ]
+  },
   {
     version: '2.9.0',
     releaseDate: 'October 25, 2026',
     title: 'Invoice One-Off Fees (Licensing/CAD/Rush) & Dual 5-Char Universal Spectrum Code System',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Customer Invoice & Quote One-Off Fees Section: itemize commercial 3D model licensing, CAD design / file prep, rush order expediting, setup/tooling, and custom fees',

@@ -1,5 +1,6 @@
 import type { Quote, QuotePartConfig, Filament, Printer } from '../types';
 import { calculatePrinterRates } from './printerRates';
+import { MYSTERY_PLA_ID, getAveragePlaCostPerKg } from './randomFilamentSelector';
 
 export interface ComputedPartRow {
   part: QuotePartConfig;
@@ -64,14 +65,17 @@ export function calculateJobPartRows(
 
     // 1. Material cost
     let unitMaterialCost = 0;
+    const avgPlaRate = getAveragePlaCostPerKg(filaments);
     if (part.colors && part.colors.length > 0) {
       unitMaterialCost = part.colors.reduce((sum, c) => {
         const fil = filaments.find((f) => f.id === c.filamentId);
-        return sum + ((c.grams || 0) / 1000) * (fil?.costPerKg || 0);
+        const costPerKg = fil ? fil.costPerKg : (c.isMysteryColor || c.filamentId === MYSTERY_PLA_ID ? avgPlaRate : 0);
+        return sum + ((c.grams || 0) / 1000) * costPerKg;
       }, 0);
     } else {
       const fil = filaments.find((f) => f.id === part.filamentId);
-      unitMaterialCost = ((part.filamentGrams || 0) / 1000) * (fil?.costPerKg || 0);
+      const costPerKg = fil ? fil.costPerKg : (part.isMysteryColor || part.filamentId === MYSTERY_PLA_ID ? avgPlaRate : 0);
+      unitMaterialCost = ((part.filamentGrams || 0) / 1000) * costPerKg;
     }
 
     // 2. Machine & electricity

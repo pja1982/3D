@@ -31,6 +31,7 @@ import {
   sanitizeDocId,
 } from './services/firestoreService';
 import { getFilamentEffectiveFailureRate, MaterialDifficultyRisk } from './utils/filamentFailureRates';
+import { MYSTERY_PLA_ID, getAveragePlaCostPerKg } from './utils/randomFilamentSelector';
 import Header from './components/Header';
 import { DockerSetupModal } from './components/DockerSetupModal';
 import { GoogleSheetsModal } from './components/GoogleSheetsModal';
@@ -508,16 +509,17 @@ function App() {
       const isMultiColor = Boolean(part.colors && part.colors.length > 1);
       const colorsCount = part.colors && part.colors.length > 0 ? part.colors.length : 1;
 
+      const avgPlaRate = getAveragePlaCostPerKg(filaments);
       if (part.colors && part.colors.length > 0) {
         part.colors.forEach(col => {
           const fil = filaments.find(f => f.id === col.filamentId);
-          const costPerKg = fil?.costPerKg || 0;
+          const costPerKg = fil ? fil.costPerKg : (col.isMysteryColor || col.filamentId === MYSTERY_PLA_ID ? avgPlaRate : 0);
           filamentCost += (col.grams / 1000) * costPerKg * part.quantity;
           totalFilamentGrams += col.grams;
         });
       } else {
         const filament = filaments.find(f => f.id === part.filamentId) || null;
-        const costPerKg = filament?.costPerKg || 0;
+        const costPerKg = filament ? filament.costPerKg : (part.isMysteryColor || part.filamentId === MYSTERY_PLA_ID ? avgPlaRate : 0);
         filamentCost = (part.filamentGrams / 1000) * costPerKg * part.quantity;
         totalFilamentGrams = part.filamentGrams;
       }

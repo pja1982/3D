@@ -3,6 +3,7 @@ import type { Quote, Filament, Printer } from '../types';
 import { calculateJobPartRows } from '../utils/partCostCalculator';
 import ImageModal from './ImageModal';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
+import { MYSTERY_PLA_ID } from '../utils/randomFilamentSelector';
 
 interface JobPartsTableProps {
   quote: Quote;
@@ -154,7 +155,17 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
 
                         {/* Specs & Material Badges */}
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {filament ? (
+                          {part.isMysteryColor || part.filamentId === MYSTERY_PLA_ID ? (
+                            <span className="inline-flex items-center gap-1.5 bg-purple-950/80 border border-purple-500/50 text-purple-200 text-[11px] px-2 py-0.5 rounded font-medium shadow-2xs">
+                              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 border border-purple-300 flex-shrink-0" />
+                              <span>🎨 Surprise / Maker's Choice PLA</span>
+                              {part.resolvedFilamentId && (
+                                <span className="text-[10px] text-purple-300 font-normal">
+                                  ({filaments.find(f => f.id === part.resolvedFilamentId)?.colorName || 'Spool assigned'})
+                                </span>
+                              )}
+                            </span>
+                          ) : filament ? (
                             <span className="inline-flex items-center gap-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] px-1.5 py-0.5 rounded">
                               {filament.colorHex && (
                                 <span
@@ -197,15 +208,20 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
                           <div className="pt-1 flex flex-wrap gap-1">
                             {part.colors.map((c, ci) => {
                               const fil = filaments.find((f) => f.id === c.filamentId);
+                              const isMysterySlot = c.isMysteryColor || c.filamentId === MYSTERY_PLA_ID;
                               return (
                                 <span key={c.id || ci} className="inline-flex items-center gap-1 text-[10px] bg-slate-800/80 text-slate-300 px-1 py-0.2 rounded border border-slate-700">
                                   <span
                                     className="w-2 h-2 rounded-full"
-                                    style={getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
+                                    style={isMysterySlot ? { backgroundColor: '#a855f7' } : getFilamentBackgroundStyle(fil?.colorHex, fil?.rgb)}
                                   />
                                   <span>
-                                    {fil?.masterCode && <strong className="font-mono text-cyan-300 mr-0.5">#{fil.masterCode}</strong>}
-                                    {fil?.brand ? `${fil.brand} ${fil.type}` : 'Filament'}: {c.grams}g
+                                    {isMysterySlot ? '🎲 Surprise PLA' : (
+                                      <>
+                                        {fil?.masterCode && <strong className="font-mono text-cyan-300 mr-0.5">#{fil.masterCode}</strong>}
+                                        {fil?.brand ? `${fil.brand} ${fil.type}` : 'Filament'}
+                                      </>
+                                    )}: {c.grams}g
                                   </span>
                                 </span>
                               );

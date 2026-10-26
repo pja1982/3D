@@ -256,9 +256,15 @@ tags:
     let materialDesc = '';
     if (part.colors && part.colors.length > 1) {
       materialDesc = `🎨 Multi-Color (${part.colors.length}): ` + part.colors.map(c => {
+        if (c.isMysteryColor || c.filamentId === 'mystery_pla_surprise') {
+          return `🎨 Surprise PLA [${c.grams}g]`;
+        }
         const fil = filaments.find(f => f.id === c.filamentId);
         return `${fil ? `${fil.brand} ${fil.type}` : 'Filament'}${fil?.colorName ? ` (${fil.colorName})` : ''} [${c.grams}g]`;
       }).join(', ');
+    } else if (part.isMysteryColor || part.filamentId === 'mystery_pla_surprise') {
+      const fil = filaments.find(f => f.id === (part.resolvedFilamentId || part.filamentId));
+      materialDesc = `🎨 Surprise / Maker's Choice PLA${part.resolvedFilamentId && fil ? ` (${fil.brand} ${fil.type} - ${fil.colorName})` : ''}`;
     } else {
       const fil = filaments.find(f => f.id === part.filamentId);
       materialDesc = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Standard Material';
@@ -422,8 +428,11 @@ tags:
     rows.forEach(r => {
       const part = r.part;
       const printer = r.printer;
-      const fil = filaments.find(f => f.id === part.filamentId);
-      const matStr = fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Material';
+      const fil = filaments.find(f => f.id === (part.resolvedFilamentId || part.filamentId));
+      const isMystery = part.isMysteryColor || part.filamentId === 'mystery_pla_surprise';
+      const matStr = isMystery
+        ? `🎨 Surprise PLA${part.resolvedFilamentId && fil ? ` (${fil.colorName || fil.type})` : ''}`
+        : (fil ? `${fil.brand} ${fil.type}${fil.colorName ? ` (${fil.colorName})` : ''}` : 'Material');
       const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Printer';
       // Link part directly into the Obsidian 'parts/' directory
       md += `| [[parts/${part.name}\\|${part.name}]] | ${r.qty} | ${r.qtyRequired} | ${formatCurrency(r.perUnitCost)} | ${formatCurrency(r.perUnitPrice)} | ${formatCurrency(r.lineTotalCost)} | ${formatCurrency(r.lineTotalPrice)} | ${matStr} | ${printerLabel} | ${formatHours(part.printHours)} | [ ] Complete |\n`;

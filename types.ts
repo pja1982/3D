@@ -37,6 +37,9 @@ export interface Filament {
 
   // Filament Master Code v0.1: 4-digit ID (Digit 1: Brand, Digit 2: Polymer, Digits 3-4: Color/Modifier)
   masterCode?: string;
+
+  // Randomized / Mystery Filament Pool (Maker's Choice)
+  isRandomEligible?: boolean;
 }
 
 export interface Printer {
@@ -60,6 +63,9 @@ export interface PartFilamentColor {
   id: string;
   filamentId: string | null;
   grams: number;
+  isMysteryColor?: boolean;
+  mysteryColorType?: 'pla_surprise';
+  resolvedFilamentId?: string | null;
 }
 
 export interface Part {
@@ -75,6 +81,9 @@ export interface Part {
   customUnitPrice?: number | null; // Optional default selling unit price ($)
   filamentId?: string | null; // Default / base material assigned to part
   printerId?: string | null;  // Default preferred printer
+  isMysteryColor?: boolean;
+  mysteryColorType?: 'pla_surprise';
+  resolvedFilamentId?: string | null;
 }
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
@@ -112,6 +121,7 @@ export interface GeneralSettings {
   complexHandlingFee?: number;
   differentPlatesHandlingFee?: number; // Handling fee per different build plate ($/plate, e.g. 2.50)
   defaultMultiColorBatchMode?: MultiColorBatchMode; // Default bed batching mode
+  defaultRandomColorMode?: 'instant' | 'placeholder'; // Default behavior for randomized filament selector
 
   // One-Off Fees Presets
   defaultOneOffFeeTemplates?: Array<{
@@ -197,6 +207,9 @@ export interface QuotePartConfig {
   imageUrl?: string; // Photo of this part
   customUnitPrice?: number | null; // User-adjusted manual unit price ($)
   failureRate?: number; // Technical failure rate applied for this part (%)
+  isMysteryColor?: boolean;
+  mysteryColorType?: 'pla_surprise';
+  resolvedFilamentId?: string | null;
 }
 
 export enum QuoteStatus {
