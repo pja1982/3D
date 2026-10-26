@@ -1,5 +1,6 @@
 services:
   print-tracker:
+    image: 3dcost-print-tracker:latest
     build:
       context: .
       dockerfile: Dockerfile

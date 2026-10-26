@@ -31,7 +31,10 @@ export const DockerSetupModal: React.FC<DockerSetupModalProps> = ({
 
   const dockerComposeYaml = `services:
   print-tracker:
-    build: .
+    image: 3dcost-print-tracker:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: 3d-print-tracker
     restart: unless-stopped
     ports:
@@ -155,6 +158,30 @@ export const DockerSetupModal: React.FC<DockerSetupModalProps> = ({
               {dockerRunCmd}
             </pre>
           </div>
+        </div>
+
+        {/* OpenMediaVault & Arcane Setup / Redeploy Troubleshooting */}
+        <div className="bg-rose-950/20 border border-rose-800/40 rounded-xl p-4 text-xs space-y-2">
+          <h4 className="font-semibold text-rose-300 flex items-center gap-1.5 text-sm">
+            <span>🔧</span> OpenMediaVault / Arcane: "No such image" or Stuck on Old Version
+          </h4>
+          <p className="text-slate-300 leading-relaxed">
+            In OpenMediaVault Compose &amp; Arcane, clicking <strong>"Redeploy"</strong> only restarts existing images; it does <em>not</em> re-compile your updated code. If an image is missing or you want to update from an older version (e.g. v2.9.0 → v2.11.0):
+          </p>
+          <div className="space-y-1.5 font-mono text-[11px] bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-slate-200">
+            <p className="text-cyan-400 font-sans font-semibold">Option A (OpenMediaVault Web GUI):</p>
+            <p className="text-slate-300 font-sans">
+              1. In OMV, go to <strong>Services → Compose → Files</strong>.<br />
+              2. Select your <code className="text-cyan-300">3dcost</code> file and click the <strong>🔨 Build</strong> button in the top toolbar.<br />
+              3. Once build finishes, click <strong>▶ Up</strong>.
+            </p>
+            <p className="text-cyan-400 font-sans font-semibold pt-2">Option B (SSH Terminal into OMV):</p>
+            <p className="text-emerald-300">docker compose build --no-cache</p>
+            <p className="text-emerald-300">docker compose up -d --force-recreate</p>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Your persistent data in <code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300">/Docker/3Dcost</code> is preserved across builds and updates.
+          </p>
         </div>
 
         {/* Accessing from other devices on LAN */}
