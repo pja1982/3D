@@ -39,6 +39,7 @@ interface CalculatorFormProps {
   onUpdateMultiColorFeeOverride?: (val: number | undefined) => void;
   differentPlatesRateOverride?: number;
   onUpdateDifferentPlatesRateOverride?: (val: number | undefined) => void;
+  onUpdatePartUnitPrice?: (partId: string, unitPrice: number | null) => void;
 }
 
 interface InputGroupProps {
@@ -92,6 +93,7 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
   onUpdateMultiColorFeeOverride,
   differentPlatesRateOverride = parameters.differentPlatesRateOverride,
   onUpdateDifferentPlatesRateOverride,
+  onUpdatePartUnitPrice,
 }) => {
   const [selectedPartId, setSelectedPartId] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
@@ -2018,7 +2020,11 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { ...p, customUnitPrice: undefined } : p));
+                  if (onUpdatePartUnitPrice) {
+                    onUpdatePartUnitPrice(activePart.id, null);
+                  } else {
+                    setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { ...p, customUnitPrice: undefined } : p));
+                  }
                 }}
                 className="text-xs text-amber-300 hover:text-amber-100 bg-amber-950/60 hover:bg-amber-900/80 border border-amber-700/50 px-2.5 py-1 rounded-md transition"
                 title="Reset this part to automatic markup formula"
@@ -2041,13 +2047,22 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                 onChange={(e) => {
                   const valStr = e.target.value.trim();
                   if (valStr === '') {
-                    setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { ...p, customUnitPrice: undefined } : p));
+                    if (onUpdatePartUnitPrice) {
+                      onUpdatePartUnitPrice(activePart.id, null);
+                    } else {
+                      setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { ...p, customUnitPrice: undefined } : p));
+                    }
                   } else {
                     const parsed = parseFloat(valStr);
-                    setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
-                      ...p,
-                      customUnitPrice: isNaN(parsed) ? undefined : Math.max(0, parsed),
-                    } : p));
+                    const cleanVal = isNaN(parsed) ? null : Math.max(0, parsed);
+                    if (onUpdatePartUnitPrice) {
+                      onUpdatePartUnitPrice(activePart.id, cleanVal);
+                    } else {
+                      setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+                        ...p,
+                        customUnitPrice: cleanVal === null ? undefined : cleanVal,
+                      } : p));
+                    }
                   }
                 }}
                 className={`w-full bg-slate-900 border rounded-lg py-2 pl-7 pr-3 text-sm font-mono font-bold focus:outline-none transition ${
@@ -2074,9 +2089,47 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-400">
-            Set or adjust the unit price for <strong>{activePart.name}</strong>. Entering a price overrides the formula; leaving blank uses the automatic markup.
-          </p>
+          {/* Catalog Sync Indicator & Action */}
+          {(() => {
+            const matchingCatalogPart = parts.find(p => 
+              p.name.trim().toLowerCase() === activePart.name.trim().toLowerCase() || p.id === activePart.id
+            );
+
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <p className="text-[11px] text-slate-400">
+                  Custom price overrides automatic markup formula and is used for quotes.
+                </p>
+
+                {matchingCatalogPart ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-emerald-300 bg-emerald-950/70 border border-emerald-700/60 px-2 py-0.5 rounded flex items-center gap-1 font-medium">
+                      <span>✓ Synced to &quot;{matchingCatalogPart.name}&quot;</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const priceToSave = typeof activePart.customUnitPrice === 'number' && activePart.customUnitPrice >= 0
+                          ? activePart.customUnitPrice
+                          : activePartSuggestedUnitPrice;
+                        if (onUpdatePartUnitPrice) {
+                          onUpdatePartUnitPrice(activePart.id, priceToSave);
+                        }
+                      }}
+                      className="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-600/40 px-2 py-0.5 rounded transition font-medium"
+                      title="Ensure this price is saved to the catalog part for Square POS export"
+                    >
+                      💾 Re-save to Parts Catalog
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-slate-500 italic">
+                    (Tip: Name matches catalog part to auto-save to Saved Parts)
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

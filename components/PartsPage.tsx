@@ -911,38 +911,58 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="customUnitPrice" className="block text-sm font-medium text-slate-300">
-                Default Selling Unit Price ($/unit, optional)
+          {/* Custom Selling Price Section */}
+          <div className="bg-slate-900/80 p-3.5 rounded-xl border border-amber-500/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <label htmlFor="customUnitPrice" className="block text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <span>💵 Custom Selling Price ($/unit)</span>
               </label>
               {typeof editingPart.customUnitPrice === 'number' && (
                 <button
                   type="button"
                   onClick={() => setEditingPart(prev => ({ ...prev, customUnitPrice: null }))}
-                  className="text-xs text-cyan-400 hover:text-cyan-200 underline"
+                  className="text-xs text-amber-400 hover:text-amber-200 underline"
                   title="Clear custom unit price and use automatic calculation"
                 >
                   ↺ Reset to Auto
                 </button>
               )}
             </div>
-            <div className="relative">
-              <span className="absolute left-3 top-2 text-slate-400">$</span>
-              <input
-                type="number"
-                id="customUnitPrice"
-                name="customUnitPrice"
-                value={editingPart.customUnitPrice !== undefined && editingPart.customUnitPrice !== null ? editingPart.customUnitPrice : ''}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
-                placeholder="Leave blank for auto cost + markup"
-                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 pl-7 pr-3 text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
-              />
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-2 text-slate-400 font-mono font-bold">$</span>
+                <input
+                  type="number"
+                  id="customUnitPrice"
+                  name="customUnitPrice"
+                  value={editingPart.customUnitPrice !== undefined && editingPart.customUnitPrice !== null ? editingPart.customUnitPrice : ''}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 21.40 (Leave blank for auto)"
+                  className="w-full bg-slate-800 border border-amber-500/60 rounded-lg py-2 pl-7 pr-3 text-amber-300 font-bold placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                />
+              </div>
+
+              {((editingPart.filamentGrams || 0) > 0 || (editingPart.printHours || 0) > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const estCost = ((editingPart.filamentGrams || 50) / 1000) * 22 + (editingPart.printHours || 2.5) * 0.75 + (editingPart.postProcessingHours || 0.25) * 25 + (editingPart.hardwareCost || 0);
+                    const suggested = parseFloat((estCost * 1.5).toFixed(2));
+                    setEditingPart(prev => ({ ...prev, customUnitPrice: suggested }));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-700/60 text-xs px-2.5 py-2 rounded-lg transition font-mono shrink-0"
+                  title="Auto-fill with recommended cost + 50% profit margin markup"
+                >
+                  ⚡ Auto Price
+                </button>
+              )}
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Optional fixed selling price per unit. Leave blank to calculate automatically from printer, filament, and labor costs.
+
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Set the exact price you charge customers for this part. Used when adding to quotes and exported directly to Square POS as the item price.
             </p>
           </div>
 
@@ -1205,11 +1225,40 @@ const PartsPage: React.FC<PartsPageProps> = ({
                             🔩 ${part.hardwareCost.toFixed(2)} h/w
                           </span>
                         )}
-                        {typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 && (
-                          <span className="bg-amber-950/70 border border-amber-600/50 px-2 py-0.5 rounded text-amber-300 font-mono font-semibold">
-                            🏷️ ${part.customUnitPrice.toFixed(2)}/unit (custom)
-                          </span>
-                        )}
+                        {/* Interactive Quick Selling Price Setter on card */}
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 bg-slate-900 border border-amber-600/60 rounded px-2 py-0.5 shadow-sm"
+                          title="Custom selling price for Quotes & Square POS export. Click to edit (Enter or click outside to save)"
+                        >
+                          <span className="text-[11px] text-amber-300 font-bold">💵 Price: $</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            key={`price-${part.id}-${part.customUnitPrice}`}
+                            defaultValue={typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : ''}
+                            placeholder="Auto"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const valStr = e.target.value.trim();
+                              const parsed = valStr === '' ? null : parseFloat(valStr);
+                              const cleanVal = (parsed === null || isNaN(parsed)) ? null : Math.max(0, parsed);
+                              if (cleanVal !== part.customUnitPrice) {
+                                onUpdate({
+                                  ...part,
+                                  customUnitPrice: cleanVal,
+                                });
+                              }
+                            }}
+                            className="w-16 bg-slate-950 text-amber-300 font-mono text-xs font-bold rounded px-1.5 py-0.5 border border-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            title="Directly edit selling price (auto-saves)"
+                          />
+                        </div>
                         {part.colors && part.colors.length > 1 && (
                           <span className="bg-purple-950/80 border border-purple-600/50 px-2 py-0.5 rounded text-purple-300 font-semibold flex items-center gap-1">
                             🎨 {part.colors.length} Colors

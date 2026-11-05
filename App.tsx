@@ -1123,16 +1123,48 @@ function App() {
   }, [activePartId]);
 
   const handleUpdatePartUnitPrice = useCallback((partId: string, unitPrice: number | null) => {
+    const validPrice = unitPrice !== null && !isNaN(unitPrice) && unitPrice >= 0 ? unitPrice : undefined;
+
+    // 1. Update active quote part
+    let targetPartName = '';
     setQuoteParts(prev => prev.map(p => {
       if (p.id === partId) {
+        targetPartName = p.name;
         return {
           ...p,
-          customUnitPrice: unitPrice !== null && !isNaN(unitPrice) && unitPrice >= 0 ? unitPrice : undefined,
+          customUnitPrice: validPrice,
         };
       }
       return p;
     }));
-  }, []);
+
+    // 2. Automatically sync to catalog part in parts library so it's permanently saved and exports to Square!
+    setAppData(prev => {
+      let matchedPart: Part | undefined;
+      const cleanTargetName = targetPartName.trim().toLowerCase();
+
+      const updatedParts = prev.parts.map(p => {
+        const isMatch = p.id === partId || (cleanTargetName && p.name.trim().toLowerCase() === cleanTargetName);
+        if (isMatch) {
+          matchedPart = {
+            ...p,
+            customUnitPrice: validPrice !== undefined ? validPrice : null,
+          };
+          return matchedPart;
+        }
+        return p;
+      });
+
+      if (matchedPart && user) {
+        savePartToRemote(user.uid, matchedPart).catch(console.error);
+      }
+
+      return {
+        ...prev,
+        parts: updatedParts,
+      };
+    });
+  }, [user]);
 
   const handleResetAllPartUnitPrices = useCallback(() => {
     setQuoteParts(prev => prev.map(p => ({
@@ -1499,6 +1531,7 @@ function App() {
                 onUpdateMultiColorFeeOverride={setMultiColorFeeOverride}
                 differentPlatesRateOverride={differentPlatesRateOverride}
                 onUpdateDifferentPlatesRateOverride={setDifferentPlatesRateOverride}
+                onUpdatePartUnitPrice={handleUpdatePartUnitPrice}
               />
             </div>
             <div className="lg:col-span-3">
