@@ -84,6 +84,10 @@ export interface Part {
   isMysteryColor?: boolean;
   mysteryColorType?: 'pla_surprise';
   resolvedFilamentId?: string | null;
+  isPrintOnDemand?: boolean;        // Customer-supplied 3D model file
+  licensingTermsAccepted?: boolean; // Customer has accepted licensing and conditions
+  sku?: string;                     // Stock Keeping Unit / Item code for Square
+  category?: string;                // Catalog category for Square
 }
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
@@ -218,6 +222,10 @@ export interface QuotePartConfig {
   isMysteryColor?: boolean;
   mysteryColorType?: 'pla_surprise';
   resolvedFilamentId?: string | null;
+  isPrintOnDemand?: boolean;
+  licensingTermsAccepted?: boolean;
+  sku?: string;
+  category?: string;
 }
 
 export enum QuoteStatus {

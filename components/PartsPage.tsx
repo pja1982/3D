@@ -14,6 +14,7 @@ import {
   downloadMarkdownFile,
 } from '../utils/markdownExport';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
+import { SquareExportModal } from './SquareExportModal';
 
 interface PartsPageProps {
   parts: Part[];
@@ -34,6 +35,10 @@ const emptyPart: Omit<Part, 'id'> = {
   imageUrl: '',
   customUnitPrice: null,
   filamentId: null,
+  isPrintOnDemand: false,
+  licensingTermsAccepted: false,
+  sku: '',
+  category: '',
 };
 
 const formatDuration = (hours: number) => {
@@ -58,6 +63,7 @@ const PartsPage: React.FC<PartsPageProps> = ({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
+  const [showSquareModal, setShowSquareModal] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,7 +74,19 @@ const PartsPage: React.FC<PartsPageProps> = ({
   }, [parts, isEditing, editingPart]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
+    const target = e.target;
+    const { name, value } = target;
+    const type = 'type' in target ? target.type : '';
+    const checked = 'checked' in target ? (target as HTMLInputElement).checked : false;
+
+    if (type === 'checkbox') {
+      setEditingPart(prev => ({
+        ...prev,
+        [name]: checked,
+      }));
+      return;
+    }
+
     if (name === 'customUnitPrice') {
       const trimmed = value.trim();
       const numVal = trimmed === '' ? null : parseFloat(trimmed);
@@ -928,6 +946,83 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </p>
           </div>
 
+          {/* Print on Demand & Customer Licensing Section */}
+          <div className="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="isPrintOnDemand"
+                  name="isPrintOnDemand"
+                  checked={Boolean(editingPart.isPrintOnDemand)}
+                  onChange={handleChange}
+                  className="w-4 h-4 rounded border-slate-600 text-cyan-600 focus:ring-cyan-500 bg-slate-800"
+                />
+                <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>🖨️ Print on Demand</span>
+                  <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-700/60 px-1.5 py-0.2 rounded font-medium">Customer Supplied Model</span>
+                </span>
+              </label>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Customer has provided their own 3D model files (.STL / .STEP / .3MF) for fabrication rather than purchasing an in-house model.
+            </p>
+
+            {editingPart.isPrintOnDemand && (
+              <div className="pt-2 border-t border-slate-800 space-y-2.5 animate-fade-in">
+                <label className="flex items-start gap-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="licensingTermsAccepted"
+                    name="licensingTermsAccepted"
+                    checked={Boolean(editingPart.licensingTermsAccepted)}
+                    onChange={handleChange}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-600 text-cyan-600 focus:ring-cyan-500 bg-slate-800 shrink-0"
+                  />
+                  <div className="text-[11px] text-slate-300 leading-snug">
+                    <strong className="text-white block font-semibold mb-0.5">
+                      Licensing &amp; IP Conditions Accepted
+                    </strong>
+                    Customer warrants they hold valid commercial fabrication rights, Creative Commons authorization, or original design ownership.
+                  </div>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label htmlFor="sku" className="block text-[11px] font-medium text-slate-300 mb-0.5">
+                      SKU / Item Code (for Square POS)
+                    </label>
+                    <input
+                      type="text"
+                      id="sku"
+                      name="sku"
+                      value={editingPart.sku || ''}
+                      onChange={handleChange}
+                      placeholder="e.g. POD-001"
+                      className="w-full bg-slate-800 border border-slate-600 rounded py-1 px-2 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="category" className="block text-[11px] font-medium text-slate-300 mb-0.5">
+                      Category (for Square POS)
+                    </label>
+                    <input
+                      type="text"
+                      id="category"
+                      name="category"
+                      value={editingPart.category || ''}
+                      onChange={handleChange}
+                      placeholder="Print on Demand"
+                      className="w-full bg-slate-800 border border-slate-600 rounded py-1 px-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {isEditing ? (
             <div className="flex flex-col gap-2 pt-2">
               <div className="flex flex-col sm:flex-row gap-2">
@@ -991,15 +1086,29 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </div>
 
             {parts.length > 0 && (
-              <button
-                type="button"
-                onClick={handleExportAllMarkdown}
-                className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg transition-colors text-xs shadow-sm"
-                title="Export all parts as Obsidian Markdown catalog notes (.md) linking to parts/ directory"
-              >
-                <MarkdownIcon className="w-3.5 h-3.5" />
-                <span>Export Parts to Markdown</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSquareModal(true)}
+                  className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-emerald-100 font-semibold py-1.5 px-3 rounded-lg transition-colors text-xs shadow-sm"
+                  title="Export parts to Square POS Item Library CSV format"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
+                    <rect x="7" y="7" width="10" height="10" rx="1" strokeWidth="2" />
+                  </svg>
+                  <span>Export to Square (CSV)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportAllMarkdown}
+                  className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-purple-100 font-semibold py-1.5 px-3 rounded-lg transition-colors text-xs shadow-sm"
+                  title="Export all parts as Obsidian Markdown catalog notes (.md) linking to parts/ directory"
+                >
+                  <MarkdownIcon className="w-3.5 h-3.5" />
+                  <span>Export Parts to Markdown</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -1050,8 +1159,27 @@ const PartsPage: React.FC<PartsPageProps> = ({
                     )}
 
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-slate-100 text-base truncate flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-100 text-base truncate flex flex-wrap items-center gap-2">
                         <span>{part.name}</span>
+                        {part.isPrintOnDemand && (
+                          <span
+                            className="text-[10px] text-emerald-300 bg-emerald-950/80 border border-emerald-600/70 px-2 py-0.5 rounded font-medium flex items-center gap-1 shadow-sm"
+                            title="Print on Demand: Customer supplied 3D model with licensing terms accepted"
+                          >
+                            <span>🖨️ POD</span>
+                            {part.licensingTermsAccepted && <span className="text-emerald-400 font-bold">✓ License</span>}
+                          </span>
+                        )}
+                        {part.sku && (
+                          <span className="text-[10px] text-slate-300 bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded font-mono">
+                            SKU: {part.sku}
+                          </span>
+                        )}
+                        {part.category && (
+                          <span className="text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded">
+                            📁 {part.category}
+                          </span>
+                        )}
                         {part.imageUrl && (
                           <span className="text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                             <PhotoIcon className="w-3 h-3" />
@@ -1166,6 +1294,15 @@ const PartsPage: React.FC<PartsPageProps> = ({
           subtitle="Part catalog model & prototype photo"
         />
       )}
+
+      {/* Square Catalog Export Modal */}
+      <SquareExportModal
+        isOpen={showSquareModal}
+        onClose={() => setShowSquareModal(false)}
+        parts={parts}
+        filaments={filaments}
+        printers={printers}
+      />
     </div>
   );
 };

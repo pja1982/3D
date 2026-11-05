@@ -128,6 +128,8 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
         customUnitPrice: part.customUnitPrice,
         imageUrl: part.imageUrl,
         colors: mappedColors,
+        isPrintOnDemand: part.isPrintOnDemand,
+        licensingTermsAccepted: part.licensingTermsAccepted,
       };
     });
 
@@ -768,6 +770,14 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                       title="Click to rename"
                       onClick={(e) => e.stopPropagation()}
                     />
+                    {part.isPrintOnDemand && (
+                      <span
+                        className="text-[10px] text-emerald-300 bg-emerald-950/80 border border-emerald-600/70 px-1.5 py-0.2 rounded font-medium flex items-center gap-1 shadow-xs shrink-0"
+                        title="Print on Demand • Customer supplied 3D model with license accepted"
+                      >
+                        🖨️ POD
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-slate-400 mt-1 px-1 flex items-center gap-1.5 flex-wrap">
                     {partHasMultiColor && part.colors ? (
@@ -1030,6 +1040,49 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Active Part Print on Demand & Licensing Settings */}
+      <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={Boolean(activePart.isPrintOnDemand)}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { 
+                ...p, 
+                isPrintOnDemand: checked,
+                licensingTermsAccepted: checked ? p.licensingTermsAccepted : false
+              } : p));
+            }}
+            className="w-4 h-4 rounded border-slate-600 text-cyan-600 focus:ring-cyan-500 bg-slate-900"
+          />
+          <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <span>🖨️ Print on Demand</span>
+            <span className="text-[10px] text-slate-400 font-normal">(Customer supplied 3D model files)</span>
+          </span>
+        </label>
+
+        {activePart.isPrintOnDemand && (
+          <label className="flex items-center gap-2 bg-slate-900/80 px-2.5 py-1.5 rounded border border-emerald-800/60 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={Boolean(activePart.licensingTermsAccepted)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setQuoteParts(prev => prev.map(p => p.id === activePart.id ? { 
+                  ...p, 
+                  licensingTermsAccepted: checked
+                } : p));
+              }}
+              className="w-3.5 h-3.5 rounded border-slate-600 text-emerald-600 focus:ring-emerald-500 bg-slate-950"
+            />
+            <span className="text-[11px] font-medium text-emerald-300">
+              ✓ Customer accepts licensing conditions &amp; fabrication rights
+            </span>
+          </label>
+        )}
       </div>
 
       {/* Active Part Material & Colors Section */}

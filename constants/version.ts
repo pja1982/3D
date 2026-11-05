@@ -13,16 +13,52 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.12.0';
+export const APP_VERSION = '2.13.0';
 export const APP_RELEASE_DATE = 'November 5, 2026';
-export const APP_CODENAME = 'Build Plate Multi-Color Rates & Per-Model Print Time Visibility';
+export const APP_CODENAME = 'Square POS Catalog CSV Export & Print on Demand Licensing Verification';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.13.0',
+    releaseDate: 'November 5, 2026',
+    title: 'Square POS Catalog CSV Bulk Export & Print on Demand Licensing Verification',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Square POS bulk item catalog CSV exporter: export catalog parts directly into Square Item Library format for instant terminal syncing',
+      'Upload & match custom Square CSV templates: upload your existing Square Items CSV to automatically preserve your location names and tax rules',
+      'Dedicated Print on Demand (POD) verification: checkbox for client-supplied 3D model files (.STL / .STEP / .3MF)',
+      'Client licensing condition agreement check: warrants commercial fabrication rights or Creative Commons compliance',
+      'Export filters & options: filter by All Parts, POD Only, or Standard Catalog, with optional COGS cost mapping and category overrides',
+      'Instant visual badges: [🖨️ POD] indicators on saved parts cards, quote line items, workshop travelers, and printable PDF documents'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '📤 "Export to Square (CSV)" tool in Saved Parts library with interactive preview table and direct CSV download',
+          '📋 Smart Square CSV parser: upload any CSV exported from your Square dashboard to auto-map tax rules (Tax - Sales Tax) and enabled locations (Enabled [Store Name])',
+          '🖨️ "Print on Demand" checkbox in Part catalog and Quote builder for client-supplied model files',
+          '📜 "Licensing & IP Conditions Accepted" verification checkbox confirming customer authorization to fabricate the supplied design',
+          '🏷️ Dedicated SKU / Item Code and Category fields tailored for Square POS inventory synchronization',
+          '📄 Automatic Print on Demand indicator badges on Customer Quotes, Invoices, Workshop Travelers, and Saved Parts lists',
+          '🗂️ Square export modal with category filters, COGS cost inclusion toggle, custom fallback category, and live table preview'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Square POS exports include accurate unit selling price, estimated material/machine cost (COGS), SKU, description, and specs',
+          'Quotes and workshop travelers clearly flag customer-supplied STLs so workshop technicians know they are printing client models'
+        ]
+      }
+    ]
+  },
   {
     version: '2.12.0',
     releaseDate: 'November 5, 2026',
     title: 'Build Plate Multi-Color Rates, Job Overrides & Per-Model Print Time Visibility',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Clean separation of Different Build Plates (one color per plate) pricing from AMS multi-material formulas',

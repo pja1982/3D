@@ -1113,6 +1113,8 @@ function App() {
                       colors: part.colors ? [...part.colors] : undefined,
                       imageUrl: part.imageUrl,
                       customUnitPrice: typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : undefined,
+                      isPrintOnDemand: part.isPrintOnDemand,
+                      licensingTermsAccepted: part.licensingTermsAccepted,
                   };
               }
               return p;

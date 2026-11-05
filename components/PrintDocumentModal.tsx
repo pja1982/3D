@@ -638,7 +638,14 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                           <tr key={row.part.id || idx} className="hover:bg-slate-50/50 print-avoid-break">
                             <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px] align-top">{idx + 1}</td>
                             <td className="py-2.5 px-3 font-medium text-slate-900 align-top">
-                              <div className="font-semibold text-slate-900">{row.part.name || `Part ${idx + 1}`}</div>
+                              <div className="font-semibold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                <span>{row.part.name || `Part ${idx + 1}`}</span>
+                                {row.part.isPrintOnDemand && (
+                                  <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.2 rounded">
+                                    🖨️ Print on Demand {row.part.licensingTermsAccepted ? '• License Verified' : '• Customer Model'}
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[10px] text-slate-500 font-normal mt-0.5">
                                 {row.qty > 1 ? (
                                   <>
@@ -1147,7 +1154,14 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                                 <span className="inline-block w-4 h-4 border-2 border-slate-400 rounded-sm"></span>
                               </td>
                               <td className="py-2.5 px-3 font-semibold text-slate-900 align-top">
-                                {row.part.name}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span>{row.part.name}</span>
+                                  {row.part.isPrintOnDemand && (
+                                    <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded">
+                                      🖨️ Customer STL (POD) {row.part.licensingTermsAccepted ? '• License OK' : ''}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-[10px] text-slate-500 font-normal mt-0.5">
                                   {row.qty > 1 ? (
                                     <>
