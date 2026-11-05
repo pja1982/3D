@@ -191,10 +191,10 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
 
                           {/* Print Specs */}
                           <span className="text-[11px] text-slate-400">
-                            ⚖️ {part.filamentGrams}g
+                            ⚖️ {qty > 1 ? `${part.filamentGrams}g / model (${(part.filamentGrams * qty).toFixed(0)}g total)` : `${part.filamentGrams}g`}
                           </span>
-                          <span className="text-[11px] text-slate-400">
-                            ⏱️ {formatHours(part.printHours)}
+                          <span className="text-[11px] text-slate-300 font-medium" title={qty > 1 ? `Print time: ${formatHours(part.printHours)} per model (${formatHours(part.printHours * qty)} total)` : `Print time: ${formatHours(part.printHours)}`}>
+                            ⏱️ {qty > 1 ? `${formatHours(part.printHours)} / model (${formatHours(part.printHours * qty)} total)` : formatHours(part.printHours)}
                           </span>
                           {part.postProcessingHours > 0 && (
                             <span className="text-[11px] text-slate-400">

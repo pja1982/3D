@@ -251,7 +251,9 @@ tags:
     const part = r.part;
     const printer = r.printer;
     const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Default Printer';
-    const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * r.qty)} tot)`;
+    const printTimeStr = r.qty > 1
+      ? `${formatHours(part.printHours)}/model (${formatHours(part.printHours * r.qty)} total)`
+      : `${formatHours(part.printHours)} print time`;
 
     let materialDesc = '';
     if (part.colors && part.colors.length > 1) {
@@ -586,7 +588,9 @@ ${order ? `> - **Production Order:** [[orders/Order_${order.orderNumber}_${quote
     const part = r.part;
     const printer = r.printer;
     const printerLabel = printer ? `${printer.brand} ${printer.name}` : 'Industrial 3D Printer';
-    const printTimeStr = `${formatHours(part.printHours)} (${formatHours(part.printHours * r.qty)} total)`;
+    const printTimeStr = r.qty > 1
+      ? `${formatHours(part.printHours)}/model (${formatHours(part.printHours * r.qty)} total)`
+      : `${formatHours(part.printHours)} print time`;
 
     let materialDesc = '';
     if (part.colors && part.colors.length > 1) {

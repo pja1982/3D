@@ -53,6 +53,14 @@ const formatDate = (dateString?: string) => {
   return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const formatHours = (hours: number) => {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+};
+
 const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   isOpen,
   onClose,
@@ -632,7 +640,20 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                             <td className="py-2.5 px-3 font-medium text-slate-900 align-top">
                               <div className="font-semibold text-slate-900">{row.part.name || `Part ${idx + 1}`}</div>
                               <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                ⚖️ {row.part.filamentGrams}g total • ⏱️ {row.part.printHours}h print
+                                {row.qty > 1 ? (
+                                  <>
+                                    <span>⚖️ {row.part.filamentGrams}g / model ({(row.part.filamentGrams * row.qty).toFixed(0)}g total)</span>
+                                    <span className="mx-1">•</span>
+                                    <span className="font-semibold text-slate-800">⏱️ {formatHours(row.part.printHours)} / model</span>
+                                    <span className="text-slate-600"> ({formatHours(row.part.printHours * row.qty)} total print)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>⚖️ {row.part.filamentGrams}g</span>
+                                    <span className="mx-1">•</span>
+                                    <span className="font-semibold text-slate-800">⏱️ {formatHours(row.part.printHours)} print time</span>
+                                  </>
+                                )}
                                 {isMulti && row.part.colors && (
                                   <span className="ml-1.5 font-semibold text-purple-700">
                                     • {isDifferentPlates 
@@ -1128,7 +1149,20 @@ const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                               <td className="py-2.5 px-3 font-semibold text-slate-900 align-top">
                                 {row.part.name}
                                 <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                  ⚖️ {row.part.filamentGrams}g • ⏱️ {row.part.printHours}h print
+                                  {row.qty > 1 ? (
+                                    <>
+                                      <span>⚖️ {row.part.filamentGrams}g / model ({(row.part.filamentGrams * row.qty).toFixed(0)}g batch)</span>
+                                      <span className="mx-1">•</span>
+                                      <span className="font-semibold text-slate-800">⏱️ {formatHours(row.part.printHours)} / model</span>
+                                      <span className="text-slate-600"> ({formatHours(row.part.printHours * row.qty)} batch)</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>⚖️ {row.part.filamentGrams}g</span>
+                                      <span className="mx-1">•</span>
+                                      <span className="font-semibold text-slate-800">⏱️ {formatHours(row.part.printHours)} print</span>
+                                    </>
+                                  )}
                                   {isMulti && row.part.colors && (
                                     <span className="ml-1 text-purple-800 font-semibold">
                                       • 🎨 {row.part.colors.length}-Color

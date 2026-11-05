@@ -168,8 +168,10 @@ export interface PrintParameters {
   hardwareCost: number;
   colors?: PartFilamentColor[];
   colorChanges?: number;
-  multiColorBatchMode?: MultiColorBatchMode; // 'single_batch_per_bed' | 'per_copy'
+  multiColorBatchMode?: MultiColorBatchMode; // 'single_batch_per_bed' | 'different_plates' | 'per_copy'
   multiColorBedCount?: number;               // Number of beds/plates needed (default 1)
+  multiColorFeeOverride?: number;            // Per-job custom total fee override for multicolor
+  differentPlatesRateOverride?: number;      // Per-job custom rate per plate ($/plate) for Different Build Plates
 }
 
 export interface CostBreakdown {
@@ -184,6 +186,9 @@ export interface CostBreakdown {
   multiColorBatchMode?: MultiColorBatchMode;
   multiColorBedCount?: number;
   multiColorSavedFee?: number; // Amount saved by batching on 1 bed
+  multiColorFeeOverride?: number;            // Saved custom job fee override
+  differentPlatesRateOverride?: number;      // Saved custom per-plate rate override
+  isMultiColorOverridden?: boolean;          // Flag indicating job has a custom fee/rate override
   subtotal: number;
   costWithFailureRate: number;
   profit: number;

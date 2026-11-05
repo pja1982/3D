@@ -974,6 +974,38 @@ const GeneralConfigurationPage: React.FC<GeneralConfigurationPageProps> = ({
                     </span>
                   </button>
                 </div>
+
+                {/* Different Build Plates Dedicated Rate Setting */}
+                <div className="mt-4 p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <label htmlFor="differentPlatesHandlingFeeGlobal" className="block text-sm font-semibold text-cyan-300">
+                        🥞 Different Build Plates Handling Rate ($ per build plate)
+                      </label>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Charged <strong>only</strong> when printing one color per build plate. Replaces all AMS purge tower waste &amp; toolhead swap fees with this simple per-plate rate.
+                      </p>
+                    </div>
+                    <div className="w-full sm:w-44 shrink-0">
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-sm text-slate-400">$</span>
+                        <input
+                          type="number"
+                          id="differentPlatesHandlingFeeGlobal"
+                          name="differentPlatesHandlingFee"
+                          value={currentSettings.differentPlatesHandlingFee ?? 2.50}
+                          onChange={handleChange}
+                          min="0"
+                          step="0.25"
+                          className="w-full bg-slate-700 border border-slate-600 rounded-md py-1.5 pl-7 pr-3 text-slate-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-400 pt-1 border-t border-cyan-900/40">
+                    💡 <strong>Pro Tip:</strong> You can also override this rate on a per-job basis directly in the Quote Calculator for individual jobs.
+                  </div>
+                </div>
               </div>
             )}
           </div>

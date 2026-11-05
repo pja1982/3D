@@ -35,6 +35,10 @@ interface CalculatorFormProps {
   setMultiColorBedCount?: (count: number) => void;
   multiColorSavedFee?: number;
   totalMultiColorFee?: number;
+  multiColorFeeOverride?: number;
+  onUpdateMultiColorFeeOverride?: (val: number | undefined) => void;
+  differentPlatesRateOverride?: number;
+  onUpdateDifferentPlatesRateOverride?: (val: number | undefined) => void;
 }
 
 interface InputGroupProps {
@@ -84,6 +88,10 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
   setMultiColorBedCount,
   multiColorSavedFee = 0,
   totalMultiColorFee = 0,
+  multiColorFeeOverride = parameters.multiColorFeeOverride,
+  onUpdateMultiColorFeeOverride,
+  differentPlatesRateOverride = parameters.differentPlatesRateOverride,
+  onUpdateDifferentPlatesRateOverride,
 }) => {
   const [selectedPartId, setSelectedPartId] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
@@ -1621,6 +1629,125 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   )}
                 </div>
               )}
+
+              {/* Job Multi-Color Override Card (Tailored for each type of multicolor printing) */}
+              <div className="mt-3 p-3 bg-slate-900/80 rounded-xl border border-slate-700/80 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-slate-200">
+                      ⚡ Job Multi-Color Rate Override:
+                    </span>
+                    {multiColorBatchMode === 'different_plates' ? (
+                      <span className="text-[11px] text-cyan-300">
+                        Configured Default: ${(generalSettings?.differentPlatesHandlingFee ?? 2.50).toFixed(2)} / build plate
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-purple-300">
+                        Calculated AMS Fee: ${totalMultiColorFee.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+
+                  {(multiColorFeeOverride !== undefined || (multiColorBatchMode === 'different_plates' && differentPlatesRateOverride !== undefined)) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onUpdateMultiColorFeeOverride) onUpdateMultiColorFeeOverride(undefined);
+                        if (onUpdateDifferentPlatesRateOverride) onUpdateDifferentPlatesRateOverride(undefined);
+                        setParameters(prev => ({
+                          ...prev,
+                          multiColorFeeOverride: undefined,
+                          differentPlatesRateOverride: undefined,
+                        }));
+                      }}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
+                    >
+                      ↺ Reset to Default
+                    </button>
+                  )}
+                </div>
+
+                {multiColorBatchMode === 'different_plates' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1">
+                        Override Rate per Build Plate ($/plate):
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.25"
+                          placeholder={(generalSettings?.differentPlatesHandlingFee ?? 2.50).toFixed(2)}
+                          value={differentPlatesRateOverride !== undefined ? differentPlatesRateOverride : ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : Math.max(0, parseFloat(e.target.value) || 0);
+                            if (onUpdateDifferentPlatesRateOverride) onUpdateDifferentPlatesRateOverride(val);
+                            setParameters(prev => ({ ...prev, differentPlatesRateOverride: val }));
+                          }}
+                          className="w-full bg-slate-800 border border-slate-600 rounded-lg py-1 pl-6 pr-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Will charge ${(differentPlatesRateOverride !== undefined ? differentPlatesRateOverride : (generalSettings?.differentPlatesHandlingFee ?? 2.50)).toFixed(2)} × {multiColorBedCount} {multiColorBedCount === 1 ? 'plate' : 'plates'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1">
+                        OR Override Total Multi-Plate Fee ($):
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          placeholder={totalMultiColorFee.toFixed(2)}
+                          value={multiColorFeeOverride !== undefined ? multiColorFeeOverride : ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : Math.max(0, parseFloat(e.target.value) || 0);
+                            if (onUpdateMultiColorFeeOverride) onUpdateMultiColorFeeOverride(val);
+                            setParameters(prev => ({ ...prev, multiColorFeeOverride: val }));
+                          }}
+                          className="w-full bg-slate-800 border border-slate-600 rounded-lg py-1 pl-6 pr-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Lump-sum fee for all build plates in this job
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1">
+                        Override AMS Multi-Color Fee for this Job ($):
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          placeholder={totalMultiColorFee.toFixed(2)}
+                          value={multiColorFeeOverride !== undefined ? multiColorFeeOverride : ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : Math.max(0, parseFloat(e.target.value) || 0);
+                            if (onUpdateMultiColorFeeOverride) onUpdateMultiColorFeeOverride(val);
+                            setParameters(prev => ({ ...prev, multiColorFeeOverride: val }));
+                          }}
+                          className="w-full bg-slate-800 border border-slate-600 rounded-lg py-1 pl-6 pr-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Replaces calculated AMS purge and toolhead swap fee for this job
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

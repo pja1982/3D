@@ -365,6 +365,8 @@ function App() {
     generalSettings.defaultMultiColorBatchMode || 'single_batch_per_bed'
   );
   const [multiColorBedCount, setMultiColorBedCount] = useState<number>(1);
+  const [multiColorFeeOverride, setMultiColorFeeOverride] = useState<number | undefined>(undefined);
+  const [differentPlatesRateOverride, setDifferentPlatesRateOverride] = useState<number | undefined>(undefined);
 
   const activePart = useMemo(() => {
     const defaultFil = filaments.find(f => f.isDefault) || (filaments.length > 0 ? filaments[0] : null);
@@ -471,6 +473,8 @@ function App() {
             hardwareCost: p.hardwareCost,
             multiColorBatchMode,
             multiColorBedCount,
+            multiColorFeeOverride,
+            differentPlatesRateOverride,
             ...generalSettings,
           };
           const nextParams = typeof value === 'function' ? value(currentParams) : value;
@@ -479,6 +483,12 @@ function App() {
           }
           if (nextParams.multiColorBedCount !== undefined) {
             setMultiColorBedCount(nextParams.multiColorBedCount);
+          }
+          if ('multiColorFeeOverride' in nextParams) {
+            setMultiColorFeeOverride(nextParams.multiColorFeeOverride);
+          }
+          if ('differentPlatesRateOverride' in nextParams) {
+            setDifferentPlatesRateOverride(nextParams.differentPlatesRateOverride);
           }
           return {
             ...p,
@@ -612,14 +622,10 @@ function App() {
         const feeRate = generalSettings.simpleMultiColorFee ?? 3.00;
         if (simpleType === 'flat_per_part') {
           totalBatchedFee = feeRate * beds;
-          totalDifferentPlatesFee = feeRate * beds;
         } else if (simpleType === 'percentage') {
           totalBatchedFee = totalMulticolorFilamentCost * (feeRate / 100);
-          // Different plates has zero purge tower overhead, half the percentage fee
-          totalDifferentPlatesFee = totalMulticolorFilamentCost * ((feeRate / 100) * 0.5);
         } else {
           totalBatchedFee = extraBedColors * feeRate * beds;
-          totalDifferentPlatesFee = extraBedColors * feeRate;
         }
       } else if (pricingMode === 'complex') {
         const spoolFee = bedColorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50) * beds;
@@ -628,13 +634,14 @@ function App() {
         const swapFee = maxSwaps * (generalSettings.complexCostPerColorChange ?? 0.05) * beds;
         const handlingFee = (generalSettings.complexHandlingFee ?? 4.00) * beds;
         totalBatchedFee = spoolFee + purgeBuffer + swapFee + handlingFee;
-
-        // Different Build Plates: printed plate-by-plate in solid colors with ZERO purge waste and ZERO color swaps!
-        const plateHandlingRate = generalSettings.differentPlatesHandlingFee ?? generalSettings.complexHandlingFee ?? 3.00;
-        const diffSpoolFee = bedColorsCount * (generalSettings.complexSpoolSetupFee ?? 2.50);
-        const diffHandlingFee = plateHandlingRate * beds;
-        totalDifferentPlatesFee = diffSpoolFee + diffHandlingFee;
       }
+
+      // Different Build Plates (One Color per Build Plate):
+      // Only charged at a different rate to multicolor AMS printing (zero purge waste, zero toolhead swaps).
+      const effectivePlateRate = differentPlatesRateOverride !== undefined
+        ? differentPlatesRateOverride
+        : (generalSettings.differentPlatesHandlingFee ?? 2.50);
+      totalDifferentPlatesFee = effectivePlateRate * beds;
     }
 
     let finalMultiColorFee = 0;
@@ -642,13 +649,19 @@ function App() {
 
     if (hasMultiColor) {
       if (multiColorBatchMode === 'different_plates') {
-        finalMultiColorFee = totalDifferentPlatesFee;
-        multiColorSavedFee = Math.max(0, totalUnbatchedFee - totalDifferentPlatesFee);
+        finalMultiColorFee = multiColorFeeOverride !== undefined
+          ? multiColorFeeOverride
+          : totalDifferentPlatesFee;
+        multiColorSavedFee = Math.max(0, totalUnbatchedFee - finalMultiColorFee);
       } else if (multiColorBatchMode === 'single_batch_per_bed') {
-        finalMultiColorFee = totalBatchedFee;
-        multiColorSavedFee = Math.max(0, totalUnbatchedFee - totalBatchedFee);
+        finalMultiColorFee = multiColorFeeOverride !== undefined
+          ? multiColorFeeOverride
+          : totalBatchedFee;
+        multiColorSavedFee = Math.max(0, totalUnbatchedFee - finalMultiColorFee);
       } else {
-        finalMultiColorFee = totalUnbatchedFee;
+        finalMultiColorFee = multiColorFeeOverride !== undefined
+          ? multiColorFeeOverride
+          : totalUnbatchedFee;
         multiColorSavedFee = 0;
       }
     }
@@ -706,7 +719,7 @@ function App() {
       totalMultiColorFee: finalMultiColorFee,
       multiColorSavedFee,
     };
-  }, [quoteParts, filaments, printers, generalSettings, multiColorBatchMode, multiColorBedCount]);
+  }, [quoteParts, filaments, printers, generalSettings, multiColorBatchMode, multiColorBedCount, multiColorFeeOverride, differentPlatesRateOverride]);
 
   const costBreakdown = useMemo<CostBreakdown & { quotePrice: number }>(() => {
     let filamentCost = 0;
@@ -742,6 +755,9 @@ function App() {
     const techPart = partsBreakdowns.find(pb => pb.isTechnical);
     const materialRiskReason = techPart ? techPart.riskReason : undefined;
 
+    const isMultiColorOverridden = multiColorFeeOverride !== undefined || 
+      (multiColorBatchMode === 'different_plates' && differentPlatesRateOverride !== undefined);
+
     return {
       filamentCost,
       electricityCost,
@@ -754,6 +770,9 @@ function App() {
       multiColorBatchMode,
       multiColorBedCount,
       multiColorSavedFee,
+      multiColorFeeOverride,
+      differentPlatesRateOverride,
+      isMultiColorOverridden,
       subtotal,
       costWithFailureRate,
       profit,
@@ -762,7 +781,7 @@ function App() {
       materialRiskApplied,
       materialRiskReason,
     };
-  }, [partsBreakdowns, totalMultiColorFee, multiColorBatchMode, multiColorBedCount, multiColorSavedFee, generalSettings]);
+  }, [partsBreakdowns, totalMultiColorFee, multiColorBatchMode, multiColorBedCount, multiColorSavedFee, multiColorFeeOverride, differentPlatesRateOverride, generalSettings]);
 
   const nextJobNumber = useMemo(() => {
     if (quotes.length === 0) {
@@ -813,6 +832,8 @@ function App() {
           ...params,
           multiColorBatchMode,
           multiColorBedCount,
+          multiColorFeeOverride,
+          differentPlatesRateOverride,
           profitMargin: effectiveMargin,
         },
         costBreakdown: {
@@ -820,6 +841,9 @@ function App() {
           multiColorBatchMode,
           multiColorBedCount,
           multiColorSavedFee,
+          multiColorFeeOverride,
+          differentPlatesRateOverride,
+          isMultiColorOverridden: breakdown.isMultiColorOverridden,
           profit: effectiveProfit,
         },
         parts: quoteParts,
@@ -844,6 +868,8 @@ function App() {
           ...params,
           multiColorBatchMode,
           multiColorBedCount,
+          multiColorFeeOverride,
+          differentPlatesRateOverride,
           profitMargin: effectiveMargin,
         },
         costBreakdown: {
@@ -851,6 +877,9 @@ function App() {
           multiColorBatchMode,
           multiColorBedCount,
           multiColorSavedFee,
+          multiColorFeeOverride,
+          differentPlatesRateOverride,
+          isMultiColorOverridden: breakdown.isMultiColorOverridden,
           profit: effectiveProfit,
         },
         parts: quoteParts,
@@ -896,6 +925,8 @@ function App() {
     } else if (quote.costBreakdown?.multiColorBedCount) {
       setMultiColorBedCount(quote.costBreakdown.multiColorBedCount);
     }
+    setMultiColorFeeOverride(quote.parameters?.multiColorFeeOverride ?? quote.costBreakdown?.multiColorFeeOverride ?? undefined);
+    setDifferentPlatesRateOverride(quote.parameters?.differentPlatesRateOverride ?? quote.costBreakdown?.differentPlatesRateOverride ?? undefined);
 
     if (quote.parts && quote.parts.length > 0) {
       setQuoteParts(quote.parts);
@@ -931,6 +962,8 @@ function App() {
     } else if (quote.costBreakdown?.multiColorBedCount) {
       setMultiColorBedCount(quote.costBreakdown.multiColorBedCount);
     }
+    setMultiColorFeeOverride(quote.parameters?.multiColorFeeOverride ?? quote.costBreakdown?.multiColorFeeOverride ?? undefined);
+    setDifferentPlatesRateOverride(quote.parameters?.differentPlatesRateOverride ?? quote.costBreakdown?.differentPlatesRateOverride ?? undefined);
 
     if (quote.parts && quote.parts.length > 0) {
       setQuoteParts(quote.parts.map(p => ({
@@ -960,6 +993,8 @@ function App() {
 
   const handleCancelRevision = useCallback(() => {
     setRevisingQuote(null);
+    setMultiColorFeeOverride(undefined);
+    setDifferentPlatesRateOverride(undefined);
   }, []);
 
   const handleUpdateQuotePrice = useCallback((id: string, newPrice: number) => {
@@ -1458,6 +1493,10 @@ function App() {
                 setMultiColorBedCount={setMultiColorBedCount}
                 multiColorSavedFee={costBreakdown.multiColorSavedFee}
                 totalMultiColorFee={costBreakdown.multiColorFee}
+                multiColorFeeOverride={multiColorFeeOverride}
+                onUpdateMultiColorFeeOverride={setMultiColorFeeOverride}
+                differentPlatesRateOverride={differentPlatesRateOverride}
+                onUpdateDifferentPlatesRateOverride={setDifferentPlatesRateOverride}
               />
             </div>
             <div className="lg:col-span-3">

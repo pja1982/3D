@@ -13,16 +13,50 @@ export interface ChangeLogEntry {
   sections: ChangeLogSection[];
 }
 
-export const APP_VERSION = '2.11.0';
-export const APP_RELEASE_DATE = 'October 26, 2026';
-export const APP_CODENAME = 'Light & Dark Theme Support (Workshop & Office Modes)';
+export const APP_VERSION = '2.12.0';
+export const APP_RELEASE_DATE = 'November 5, 2026';
+export const APP_CODENAME = 'Build Plate Multi-Color Rates & Per-Model Print Time Visibility';
 
 export const CHANGELOG_DATA: ChangeLogEntry[] = [
+  {
+    version: '2.12.0',
+    releaseDate: 'November 5, 2026',
+    title: 'Build Plate Multi-Color Rates, Job Overrides & Per-Model Print Time Visibility',
+    isLatest: true,
+    tag: 'minor',
+    highlights: [
+      'Clean separation of Different Build Plates (one color per plate) pricing from AMS multi-material formulas',
+      'Configurable default Different Build Plates Handling Rate ($/plate) in Settings with zero purge waste and zero swap fees',
+      'Interactive per-job multi-color rate & fee override controls tailored for each multi-color printing mode',
+      'Per-model print time visibility explicitly shown across Customer Quotes, Invoices, Workshop Travelers, and Parts Tables',
+      'Dual unit & batch spec formatting: displays both individual model duration (e.g. 2h 15m / model) and total batch hours'
+    ],
+    sections: [
+      {
+        category: 'Added',
+        items: [
+          '🥞 Independent build plate pricing engine for prints where parts/colors are separated across build plates',
+          '⚙️ Dedicated "Different Build Plates Handling Rate ($ per build plate)" setting in General Configuration',
+          '⚡ Interactive Job Multi-Color Override card in Quote Calculator with quick "Reset to Default" shortcut',
+          '⏱️ Explicit "Print Time per Model" subtitle on Customer Quotes & Invoices (e.g. ⏱️ 2h 30m / model • 10h total print time for 4 units)',
+          '📋 Workshop Job Traveler and Fabrication Checklists displaying both individual model print time and total batch duration',
+          '📦 Part catalog and quote tables displaying unit weight/time alongside total batch quantity calculations'
+        ]
+      },
+      {
+        category: 'Improved',
+        items: [
+          'Different Build Plates mode is strictly insulated from AMS toolhead swap costs and purge tower filament buffers',
+          'Customer invoices prevent client confusion by clearly distinguishing single-unit print duration from bulk multi-copy jobs'
+        ]
+      }
+    ]
+  },
   {
     version: '2.11.0',
     releaseDate: 'October 26, 2026',
     title: 'Light & Dark Theme Support (Workshop & Office Modes)',
-    isLatest: true,
+    isLatest: false,
     tag: 'minor',
     highlights: [
       'Dual-theme system with ☀️ Light Mode, 🌙 Dark Mode (workshop default), and 💻 System auto-preference',

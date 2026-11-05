@@ -22,6 +22,10 @@ export interface ComputedPartRow {
   suggestedUnitPrice?: number;
   suggestedTotalPrice?: number;
   isCustomPrice?: boolean;
+  unitPrintHours: number;
+  totalPrintHours: number;
+  unitGrams: number;
+  totalGrams: number;
 }
 
 export interface ComputedJobPartsSummary {
@@ -161,6 +165,11 @@ export function calculateJobPartRows(
       isCustomPrice = true;
     }
 
+    const unitPrintHours = item.part.printHours || 0;
+    const totalPrintHours = parseFloat((unitPrintHours * item.qty).toFixed(2));
+    const unitGrams = item.part.filamentGrams || 0;
+    const totalGrams = parseFloat((unitGrams * item.qty).toFixed(1));
+
     return {
       ...item,
       perUnitCost,
@@ -170,6 +179,10 @@ export function calculateJobPartRows(
       suggestedUnitPrice,
       suggestedTotalPrice,
       isCustomPrice,
+      unitPrintHours,
+      totalPrintHours,
+      unitGrams,
+      totalGrams,
     };
   });
 
