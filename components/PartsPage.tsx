@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Part, Filament, Printer } from '../types';
+import type { Part, Filament, Printer, GeneralSettings } from '../types';
 import TrashIcon from './icons/TrashIcon';
 import PencilIcon from './icons/PencilIcon';
 import CubeIcon from './icons/CubeIcon';
@@ -15,11 +15,13 @@ import {
 } from '../utils/markdownExport';
 import { getFilamentBackgroundStyle } from '../utils/filamentProfilesSync';
 import { SquareExportModal } from './SquareExportModal';
+import { calculatePartPricing } from '../utils/partPricing';
 
 interface PartsPageProps {
   parts: Part[];
   filaments?: Filament[];
   printers?: Printer[];
+  generalSettings?: GeneralSettings;
   onAdd: (part: Omit<Part, 'id'>) => void;
   onUpdate: (part: Part) => void;
   onDelete: (id: string) => void;
@@ -53,6 +55,7 @@ const PartsPage: React.FC<PartsPageProps> = ({
   parts,
   filaments = [],
   printers = [],
+  generalSettings,
   onAdd,
   onUpdate,
   onDelete,
@@ -911,60 +914,87 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </div>
           </div>
 
-          {/* Custom Selling Price Section */}
-          <div className="bg-slate-900/80 p-3.5 rounded-xl border border-amber-500/50 space-y-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="customUnitPrice" className="block text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <span>💵 Custom Selling Price ($/unit)</span>
-              </label>
-              {typeof editingPart.customUnitPrice === 'number' && (
-                <button
-                  type="button"
-                  onClick={() => setEditingPart(prev => ({ ...prev, customUnitPrice: null }))}
-                  className="text-xs text-amber-400 hover:text-amber-200 underline"
-                  title="Clear custom unit price and use automatic calculation"
-                >
-                  ↺ Reset to Auto
-                </button>
-              )}
-            </div>
+          {/* Custom Selling Price Section with Cal Price & Markup % */}
+          {(() => {
+            const formPricing = calculatePartPricing(editingPart, filaments, printers, generalSettings);
 
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-2 text-slate-400 font-mono font-bold">$</span>
-                <input
-                  type="number"
-                  id="customUnitPrice"
-                  name="customUnitPrice"
-                  value={editingPart.customUnitPrice !== undefined && editingPart.customUnitPrice !== null ? editingPart.customUnitPrice : ''}
-                  onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  placeholder="e.g. 21.40 (Leave blank for auto)"
-                  className="w-full bg-slate-800 border border-amber-500/60 rounded-lg py-2 pl-7 pr-3 text-amber-300 font-bold placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                />
+            return (
+              <div className="bg-slate-900/80 p-3.5 rounded-xl border border-amber-500/50 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="customUnitPrice" className="block text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <span>💵 Custom Selling Price ($/unit)</span>
+                  </label>
+                  {typeof editingPart.customUnitPrice === 'number' && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingPart(prev => ({ ...prev, customUnitPrice: null }))}
+                      className="text-xs text-amber-400 hover:text-amber-200 underline"
+                      title="Clear custom unit price and use automatic calculation"
+                    >
+                      ↺ Reset to Auto
+                    </button>
+                  )}
+                </div>
+
+                {/* Real-time Cost, Cal Price & Markup % Display */}
+                <div className="grid grid-cols-3 gap-2 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Est. Cost</span>
+                    <span className="font-mono font-semibold text-slate-300">${formPricing.costWithFailureRate.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-cyan-400 block font-semibold flex items-center gap-1">
+                      <span>Cal Price</span>
+                      <span className="text-[9px] text-cyan-500 font-normal">({generalSettings?.profitMargin ?? 30}%)</span>
+                    </span>
+                    <span className="font-mono font-bold text-cyan-300">${formPricing.calculatedPrice.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Markup %</span>
+                    <span className={`font-mono font-bold ${
+                      formPricing.markupPercent >= 50 ? 'text-emerald-400' :
+                      formPricing.markupPercent >= 20 ? 'text-cyan-400' :
+                      formPricing.markupPercent >= 0 ? 'text-amber-400' : 'text-rose-400'
+                    }`}>
+                      {formPricing.markupPercent >= 0 ? `+${formPricing.markupPercent.toFixed(1)}%` : `${formPricing.markupPercent.toFixed(1)}%`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-2 text-slate-400 font-mono font-bold">$</span>
+                    <input
+                      type="number"
+                      id="customUnitPrice"
+                      name="customUnitPrice"
+                      value={editingPart.customUnitPrice !== undefined && editingPart.customUnitPrice !== null ? editingPart.customUnitPrice : ''}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.01"
+                      placeholder={`Auto: $${formPricing.calculatedPrice.toFixed(2)}`}
+                      className="w-full bg-slate-800 border border-amber-500/60 rounded-lg py-2 pl-7 pr-3 text-amber-300 font-bold placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                    />
+                  </div>
+
+                  {formPricing.calculatedPrice > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingPart(prev => ({ ...prev, customUnitPrice: formPricing.calculatedPrice }))}
+                      className="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-700/60 text-xs px-2.5 py-2 rounded-lg transition font-mono shrink-0 flex items-center gap-1"
+                      title="Set custom price to calculated formula price"
+                    >
+                      <span>⚡ Cal Price</span>
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Set the price charged for this part. Used on customer quotes and exported directly to Square POS as the item price.
+                </p>
               </div>
-
-              {((editingPart.filamentGrams || 0) > 0 || (editingPart.printHours || 0) > 0) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const estCost = ((editingPart.filamentGrams || 50) / 1000) * 22 + (editingPart.printHours || 2.5) * 0.75 + (editingPart.postProcessingHours || 0.25) * 25 + (editingPart.hardwareCost || 0);
-                    const suggested = parseFloat((estCost * 1.5).toFixed(2));
-                    setEditingPart(prev => ({ ...prev, customUnitPrice: suggested }));
-                  }}
-                  className="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-700/60 text-xs px-2.5 py-2 rounded-lg transition font-mono shrink-0"
-                  title="Auto-fill with recommended cost + 50% profit margin markup"
-                >
-                  ⚡ Auto Price
-                </button>
-              )}
-            </div>
-
-            <p className="text-[11px] text-slate-400 leading-snug">
-              Set the exact price you charge customers for this part. Used when adding to quotes and exported directly to Square POS as the item price.
-            </p>
-          </div>
+            );
+          })()}
 
           {/* Print on Demand & Customer Licensing Section */}
           <div className="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/80 space-y-3">
@@ -1225,40 +1255,81 @@ const PartsPage: React.FC<PartsPageProps> = ({
                             🔩 ${part.hardwareCost.toFixed(2)} h/w
                           </span>
                         )}
-                        {/* Interactive Quick Selling Price Setter on card */}
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 bg-slate-900 border border-amber-600/60 rounded px-2 py-0.5 shadow-sm"
-                          title="Custom selling price for Quotes & Square POS export. Click to edit (Enter or click outside to save)"
-                        >
-                          <span className="text-[11px] text-amber-300 font-bold">💵 Price: $</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            key={`price-${part.id}-${part.customUnitPrice}`}
-                            defaultValue={typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : ''}
-                            placeholder="Auto"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const valStr = e.target.value.trim();
-                              const parsed = valStr === '' ? null : parseFloat(valStr);
-                              const cleanVal = (parsed === null || isNaN(parsed)) ? null : Math.max(0, parsed);
-                              if (cleanVal !== part.customUnitPrice) {
-                                onUpdate({
-                                  ...part,
-                                  customUnitPrice: cleanVal,
-                                });
-                              }
-                            }}
-                            className="w-16 bg-slate-950 text-amber-300 font-mono text-xs font-bold rounded px-1.5 py-0.5 border border-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                            title="Directly edit selling price (auto-saves)"
-                          />
-                        </div>
+                        {/* Pricing Metrics: Cost, Cal Price, Selling Price, and Markup % */}
+                        {(() => {
+                          const cardPricing = calculatePartPricing(part, filaments, printers, generalSettings);
+
+                          return (
+                            <>
+                              <span 
+                                className="bg-slate-900/60 border border-slate-700 px-2 py-0.5 rounded text-slate-400 text-xs font-mono"
+                                title="Estimated manufacturing unit cost (material + energy + wear + labor + failure buffer)"
+                              >
+                                Cost: ${cardPricing.costWithFailureRate.toFixed(2)}
+                              </span>
+
+                              <span
+                                className="inline-flex items-center gap-1 bg-cyan-950/70 border border-cyan-700/60 px-2 py-0.5 rounded text-cyan-300 font-mono text-xs shadow-xs"
+                                title={`Calculated formula price based on cost ($${cardPricing.costWithFailureRate.toFixed(2)}) + standard profit margin (${generalSettings?.profitMargin ?? 30}%)`}
+                              >
+                                <span className="text-[10px] text-cyan-400 font-sans font-medium">Cal Price:</span>
+                                <span className="font-bold">${cardPricing.calculatedPrice.toFixed(2)}</span>
+                              </span>
+
+                              {/* Interactive Quick Selling Price Setter on card */}
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 bg-slate-900 border border-amber-600/60 rounded px-2 py-0.5 shadow-sm"
+                                title="Custom selling price for Quotes & Square POS export. Click to edit (Enter or click outside to save)"
+                              >
+                                <span className="text-[11px] text-amber-300 font-bold">💵 Price: $</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  key={`price-${part.id}-${part.customUnitPrice}`}
+                                  defaultValue={typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : ''}
+                                  placeholder={`Auto ($${cardPricing.calculatedPrice.toFixed(2)})`}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const valStr = e.target.value.trim();
+                                    const parsed = valStr === '' ? null : parseFloat(valStr);
+                                    const cleanVal = (parsed === null || isNaN(parsed)) ? null : Math.max(0, parsed);
+                                    if (cleanVal !== part.customUnitPrice) {
+                                      onUpdate({
+                                        ...part,
+                                        customUnitPrice: cleanVal,
+                                      });
+                                    }
+                                  }}
+                                  className="w-16 bg-slate-950 text-amber-300 font-mono text-xs font-bold rounded px-1.5 py-0.5 border border-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                  title="Directly edit selling price (auto-saves)"
+                                />
+                              </div>
+
+                              {/* Markup % Badge */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-xs font-bold border ${
+                                  cardPricing.markupPercent >= 50
+                                    ? 'bg-emerald-950/70 border-emerald-600/60 text-emerald-300'
+                                    : cardPricing.markupPercent >= 20
+                                    ? 'bg-cyan-950/70 border-cyan-600/60 text-cyan-300'
+                                    : cardPricing.markupPercent >= 0
+                                    ? 'bg-amber-950/70 border-amber-600/60 text-amber-300'
+                                    : 'bg-rose-950/80 border-rose-600/70 text-rose-300'
+                                }`}
+                                title={`Effective Markup over estimated cost ($${cardPricing.costWithFailureRate.toFixed(2)}): ${cardPricing.markupPercent >= 0 ? '+' : ''}${cardPricing.markupPercent.toFixed(1)}% (Profit: $${cardPricing.profitAmount.toFixed(2)} / unit)`}
+                              >
+                                <span className="text-[10px] font-sans font-medium text-slate-300">Markup:</span>
+                                <span>{cardPricing.markupPercent >= 0 ? `+${cardPricing.markupPercent.toFixed(1)}%` : `${cardPricing.markupPercent.toFixed(1)}%`}</span>
+                              </span>
+                            </>
+                          );
+                        })()}
                         {part.colors && part.colors.length > 1 && (
                           <span className="bg-purple-950/80 border border-purple-600/50 px-2 py-0.5 rounded text-purple-300 font-semibold flex items-center gap-1">
                             🎨 {part.colors.length} Colors

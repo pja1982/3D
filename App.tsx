@@ -1603,6 +1603,7 @@ function App() {
             parts={parts}
             filaments={filaments}
             printers={printers}
+            generalSettings={generalSettings}
             onAdd={handleAddPart}
             onUpdate={handleUpdatePart}
             onDelete={handleDeletePart}
