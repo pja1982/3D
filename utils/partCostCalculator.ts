@@ -13,6 +13,7 @@ export interface ComputedPartRow {
   unitLaborCost?: number;
   unitHardwareCost?: number;
   unitMultiColorCost?: number;
+  unitLicenseCost?: number;
   unitDirectCost: number;
   totalDirectCost: number;
   perUnitCost: number;
@@ -107,13 +108,19 @@ export function calculateJobPartRows(
       }
     }
 
+    // 5. Commercial subscription license overhead
+    const unitLicense = (part.licenseFeePerUnit !== undefined && part.licenseFeePerUnit !== null && !isNaN(part.licenseFeePerUnit))
+      ? Math.max(0, part.licenseFeePerUnit)
+      : 0;
+
     const unitDirectCost =
       unitMaterialCost +
       unitElectricity +
       unitMachineDepreciation +
       unitLabor +
       unitHardware +
-      unitMultiColor;
+      unitMultiColor +
+      unitLicense;
 
     const totalDirectCost = unitDirectCost * qty;
 
@@ -128,6 +135,7 @@ export function calculateJobPartRows(
       unitLaborCost: unitLabor,
       unitHardwareCost: unitHardware,
       unitMultiColorCost: unitMultiColor,
+      unitLicenseCost: unitLicense,
       unitDirectCost,
       totalDirectCost,
     };

@@ -88,6 +88,11 @@ export interface Part {
   licensingTermsAccepted?: boolean; // Customer has accepted licensing and conditions
   sku?: string;                     // Stock Keeping Unit / Item code for Square
   category?: string;                // Catalog category for Square
+  isCommercialLicense?: boolean;    // Model is from a commercial creator subscription tier (Patreon, Thangs, etc.)
+  licenseTierName?: string;         // Designer / Commercial tier name (e.g., "FlexiFactory Patreon", "Zou3D")
+  licenseFeePerUnit?: number | null;// Allocated commercial subscription license overhead per unit ($/print)
+  licenseMonthlyCost?: number | null; // Monthly creator subscription cost ($/mo, for auto-allocation formula)
+  licenseEstimatedUnitsPerMonth?: number | null; // Expected monthly prints sold (for auto-allocation formula)
 }
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
@@ -199,6 +204,7 @@ export interface CostBreakdown {
   effectiveFailureRate?: number;
   materialRiskApplied?: boolean;
   materialRiskReason?: string;
+  licenseCost?: number; // Total allocated commercial creator subscription overhead ($)
   oneOffFeesTotal?: number;
   oneOffFees?: OneOffFee[];
 }
@@ -226,6 +232,11 @@ export interface QuotePartConfig {
   licensingTermsAccepted?: boolean;
   sku?: string;
   category?: string;
+  isCommercialLicense?: boolean;
+  licenseTierName?: string;
+  licenseFeePerUnit?: number | null;
+  licenseMonthlyCost?: number | null;
+  licenseEstimatedUnitsPerMonth?: number | null;
 }
 
 export enum QuoteStatus {

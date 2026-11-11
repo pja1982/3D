@@ -89,7 +89,7 @@ tags:
 > - **Filament Weight:** **${part.filamentGrams}g**
 > - **Estimated Print Time:** **${formatHours(part.printHours)}**
 > - **Post-Processing Time:** **${formatHours(part.postProcessingHours)}**
-> - **Additional Hardware Cost:** **${formatCurrency(part.hardwareCost)}**
+> - **Additional Hardware Cost:** **${formatCurrency(part.hardwareCost)}**${(part.isCommercialLicense || (typeof part.licenseFeePerUnit === 'number' && part.licenseFeePerUnit > 0)) ? `\n> - **Commercial License Tier:** **${part.licenseTierName || 'Creator Commercial Subscription'}** (+${formatCurrency(part.licenseFeePerUnit || 0)}/unit allocated overhead)` : ''}
 `;
 
   if (part.description) {

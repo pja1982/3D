@@ -146,6 +146,8 @@ export function buildSquareDescription(part: Part, filaments: Filament[] = []): 
 
   if (part.isPrintOnDemand) {
     parts.push(`[PRINT ON DEMAND: Customer supplied 3D model files (.STL/.STEP/.3MF) with verified commercial/fabrication licensing terms.]`);
+  } else if (part.isCommercialLicense && part.licenseTierName) {
+    parts.push(`[Authorized Commercial Print: ${part.licenseTierName}]`);
   }
 
   return parts.join('\n\n');

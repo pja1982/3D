@@ -132,6 +132,11 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
         colors: mappedColors,
         isPrintOnDemand: part.isPrintOnDemand,
         licensingTermsAccepted: part.licensingTermsAccepted,
+        isCommercialLicense: part.isCommercialLicense,
+        licenseTierName: part.licenseTierName,
+        licenseFeePerUnit: part.licenseFeePerUnit,
+        licenseMonthlyCost: part.licenseMonthlyCost,
+        licenseEstimatedUnitsPerMonth: part.licenseEstimatedUnitsPerMonth,
       };
     });
 
@@ -673,9 +678,12 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
   const laborRate = generalSettings?.laborCostPerHour ?? 20;
   const activePartLabor = (activePart.postProcessingHours || 0) * laborRate;
   const activePartHardware = activePart.hardwareCost || 0;
+  const activePartLicense = (activePart.licenseFeePerUnit !== undefined && activePart.licenseFeePerUnit !== null && !isNaN(activePart.licenseFeePerUnit))
+    ? Math.max(0, activePart.licenseFeePerUnit)
+    : 0;
   const activePartMultiColorFee = isMultiColor && activePartColors.length > 1 ? 3.0 * (activePartColors.length - 1) : 0;
 
-  const activePartDirectUnitCost = totalPartMaterialCost + activePartElectricity + activePartDepreciation + activePartLabor + activePartHardware + activePartMultiColorFee;
+  const activePartDirectUnitCost = totalPartMaterialCost + activePartElectricity + activePartDepreciation + activePartLabor + activePartHardware + activePartMultiColorFee + activePartLicense;
   const failureRate = generalSettings?.failureRate ?? 5;
   const failureMultiplier = failureRate < 100 ? 1 / (1 - failureRate / 100) : 1;
   const activePartEstimatedUnitCost = activePartDirectUnitCost * failureMultiplier;
@@ -1949,6 +1957,51 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
         </div>
 
         <InputGroup label="Hardware & Consumables Cost" id="hardwareCost" value={parameters.hardwareCost} onChange={handleInputChange} unit="$" />
+
+        {/* Commercial Subscription License Overhead for Active Part */}
+        <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-700/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">📜</span>
+              <span className="text-xs font-bold text-slate-200">Commercial License Overhead</span>
+              {(activePart.isCommercialLicense || (typeof activePart.licenseFeePerUnit === 'number' && activePart.licenseFeePerUnit > 0)) && (
+                <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-700/60 px-1.5 py-0.2 rounded font-medium">
+                  {activePart.licenseTierName || 'Creator Tier'}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] text-purple-300 font-mono font-bold">
+              ${(activePart.licenseFeePerUnit || 0).toFixed(2)} / unit
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 pt-0.5">
+            <div className="relative flex-1">
+              <span className="absolute left-2.5 top-1.5 text-slate-400 font-mono text-xs">$</span>
+              <input
+                type="number"
+                step="0.05"
+                min="0"
+                value={typeof activePart.licenseFeePerUnit === 'number' && activePart.licenseFeePerUnit >= 0 ? activePart.licenseFeePerUnit : ''}
+                placeholder="0.00 (Allocated license fee per print)"
+                onChange={(e) => {
+                  const valStr = e.target.value.trim();
+                  const parsed = valStr === '' ? null : parseFloat(valStr);
+                  const cleanVal = (parsed === null || isNaN(parsed)) ? null : Math.max(0, parsed);
+                  setQuoteParts(prev => prev.map(p => p.id === activePart.id ? {
+                    ...p,
+                    licenseFeePerUnit: cleanVal,
+                    isCommercialLicense: cleanVal !== null && cleanVal > 0 ? true : p.isCommercialLicense,
+                  } : p));
+                }}
+                className="w-full bg-slate-800 border border-slate-600 rounded py-1 pl-6 pr-2 text-xs text-purple-200 font-mono font-medium focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <span className="text-[11px] text-slate-400">
+              Absorbed invisibly into unit cost
+            </span>
+          </div>
+        </div>
 
         {/* Quantity and Quantity Required for Active Part */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-700/60">

@@ -377,6 +377,19 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
 
                           <span>⏱️ {formatHours(part.printHours)}</span>
                           <span>⚖️ {part.filamentGrams}g</span>
+
+                          {(part.isCommercialLicense || (typeof part.licenseFeePerUnit === 'number' && part.licenseFeePerUnit > 0)) && (
+                            <span
+                              className="inline-flex items-center gap-1 bg-purple-950/70 border border-purple-700/60 px-1.5 py-0.2 rounded text-purple-300 font-mono text-[11px]"
+                              title={`Commercial License Overhead: ${part.licenseTierName || 'Creator Tier'} (+$${(part.licenseFeePerUnit || 0).toFixed(2)}/u absorbed into unit price)`}
+                            >
+                              <span>📜</span>
+                              <span className="truncate max-w-[120px]">{part.licenseTierName ? part.licenseTierName : 'Commercial'}</span>
+                              {typeof part.licenseFeePerUnit === 'number' && part.licenseFeePerUnit > 0 && (
+                                <span className="font-bold">+${part.licenseFeePerUnit.toFixed(2)}/u</span>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -609,6 +622,18 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
           <span>Hardware & Fasteners:</span>
           <span className="font-mono">{formatCurrency(costBreakdown.hardwareCost)}</span>
         </div>
+
+        {costBreakdown.licenseCost !== undefined && costBreakdown.licenseCost > 0 && (
+          <div className="flex justify-between items-center bg-purple-950/40 p-2.5 rounded-lg border border-purple-800/50 text-slate-300">
+            <span className="flex items-center gap-1.5 text-purple-300 font-medium">
+              <span>📜 Commercial Subscription Overhead:</span>
+              <span className="text-[10px] bg-purple-900/60 text-purple-200 border border-purple-700/60 px-1.5 py-0.2 rounded font-semibold">
+                🔒 Absorbed in Unit Price
+              </span>
+            </span>
+            <span className="font-mono text-purple-300 font-bold">{formatCurrency(costBreakdown.licenseCost)}</span>
+          </div>
+        )}
 
         {costBreakdown.printerCost !== undefined && (
           <div className="flex flex-col bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/70">

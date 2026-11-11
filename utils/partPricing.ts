@@ -8,6 +8,7 @@ export interface PartPriceMetrics {
   machineCost: number;         // Depreciation & maintenance wear ($)
   laborCost: number;           // Post-processing manual labor ($)
   hardwareCost: number;        // Fasteners & hardware ($)
+  licenseCost: number;         // Commercial subscription license overhead ($)
   rawCost: number;             // Direct costs subtotal ($)
   effectiveFailureRate: number;// Failure buffer %
   costWithFailureRate: number; // Base manufacturing unit cost with failure buffer ($)
@@ -59,13 +60,16 @@ export function calculatePartPricing(
   const enableDeprec = settings?.enablePrinterDepreciation ?? true;
   const machineCost = enableDeprec ? (part.printHours || 0) * (rates.totalHourlyRate || 0.50) : 0;
 
-  // 3. Post-Processing Labor & Hardware
+  // 3. Post-Processing Labor, Hardware & Commercial License Overhead
   const laborRate = settings?.laborCostPerHour ?? 25.00;
   const laborCost = (part.postProcessingHours || 0) * laborRate;
   const hardwareCost = part.hardwareCost || 0;
+  const licenseCost = (part.licenseFeePerUnit !== undefined && part.licenseFeePerUnit !== null && !isNaN(part.licenseFeePerUnit))
+    ? Math.max(0, part.licenseFeePerUnit)
+    : 0;
 
   // 4. Raw Direct Costs Subtotal
-  const rawCost = materialCost + electricityCost + machineCost + laborCost + hardwareCost;
+  const rawCost = materialCost + electricityCost + machineCost + laborCost + hardwareCost + licenseCost;
 
   // 5. Failure Rate Buffer
   const effectiveFailureRate = highestRisk.rate;
@@ -104,6 +108,7 @@ export function calculatePartPricing(
     machineCost: parseFloat(machineCost.toFixed(2)),
     laborCost: parseFloat(laborCost.toFixed(2)),
     hardwareCost: parseFloat(hardwareCost.toFixed(2)),
+    licenseCost: parseFloat(licenseCost.toFixed(2)),
     rawCost: parseFloat(rawCost.toFixed(2)),
     effectiveFailureRate,
     costWithFailureRate: parseFloat(costWithFailureRate.toFixed(2)),

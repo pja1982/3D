@@ -41,6 +41,11 @@ const emptyPart: Omit<Part, 'id'> = {
   licensingTermsAccepted: false,
   sku: '',
   category: '',
+  isCommercialLicense: false,
+  licenseTierName: '',
+  licenseFeePerUnit: null,
+  licenseMonthlyCost: null,
+  licenseEstimatedUnitsPerMonth: null,
 };
 
 const formatDuration = (hours: number) => {
@@ -96,6 +101,13 @@ const PartsPage: React.FC<PartsPageProps> = ({
       setEditingPart(prev => ({
         ...prev,
         customUnitPrice: numVal === null || isNaN(numVal) ? null : Math.max(0, numVal),
+      }));
+    } else if (name === 'licenseFeePerUnit' || name === 'licenseMonthlyCost' || name === 'licenseEstimatedUnitsPerMonth') {
+      const trimmed = value.trim();
+      const numVal = trimmed === '' ? null : parseFloat(trimmed);
+      setEditingPart(prev => ({
+        ...prev,
+        [name]: numVal === null || isNaN(numVal) ? null : Math.max(0, numVal),
       }));
     } else {
       const isNumeric = ['filamentGrams', 'hardwareCost'].includes(name);
@@ -961,6 +973,18 @@ const PartsPage: React.FC<PartsPageProps> = ({
                   </div>
                 </div>
 
+                {formPricing.licenseCost > 0 && (
+                  <div className="flex items-center justify-between text-[11px] bg-purple-950/60 border border-purple-800/60 px-2.5 py-1 rounded text-purple-200">
+                    <span className="flex items-center gap-1">
+                      <span>📜</span>
+                      <span>Commercial License Overhead:</span>
+                    </span>
+                    <span className="font-mono font-bold text-purple-300">
+                      +${formPricing.licenseCost.toFixed(2)} / unit absorbed
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <span className="absolute left-3 top-2 text-slate-400 font-mono font-bold">$</span>
@@ -995,6 +1019,162 @@ const PartsPage: React.FC<PartsPageProps> = ({
               </div>
             );
           })()}
+
+          {/* Commercial Subscription License (Creator Tier Overhead) */}
+          <div className="bg-slate-900/75 p-3.5 rounded-xl border border-purple-500/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="isCommercialLicense"
+                  name="isCommercialLicense"
+                  checked={Boolean(editingPart.isCommercialLicense || (editingPart.licenseFeePerUnit && editingPart.licenseFeePerUnit > 0))}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setEditingPart(prev => ({
+                      ...prev,
+                      isCommercialLicense: checked,
+                      licenseFeePerUnit: checked ? (prev.licenseFeePerUnit ?? 1.50) : null,
+                    }));
+                  }}
+                  className="w-4 h-4 rounded border-slate-600 text-purple-600 focus:ring-purple-500 bg-slate-800"
+                />
+                <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>📜 Commercial Subscription License</span>
+                  <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-700/60 px-1.5 py-0.2 rounded font-medium">
+                    Creator Tier
+                  </span>
+                </span>
+              </label>
+              {(editingPart.isCommercialLicense || (editingPart.licenseFeePerUnit && editingPart.licenseFeePerUnit > 0)) && (
+                <span className="text-[11px] text-purple-300 font-mono font-bold">
+                  ${(editingPart.licenseFeePerUnit || 0).toFixed(2)} / print
+                </span>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Commercial rights from a recurring designer subscription (Patreon, Thangs, Printables Club). This overhead is <strong>invisibly absorbed into your unit cost and retail price</strong>—never itemized as a separate line item on customer invoices.
+            </p>
+
+            {(editingPart.isCommercialLicense || (editingPart.licenseFeePerUnit && editingPart.licenseFeePerUnit > 0)) && (
+              <div className="pt-2 border-t border-purple-900/60 space-y-3 animate-fade-in">
+                {/* Designer / Tier Name */}
+                <div>
+                  <label htmlFor="licenseTierName" className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Designer / Commercial Tier Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="licenseTierName"
+                    name="licenseTierName"
+                    value={editingPart.licenseTierName || ''}
+                    onChange={handleChange}
+                    placeholder="e.g. FlexiFactory Patreon, Zou3D Commercial, Printables Club"
+                    className="w-full bg-slate-800 border border-slate-600 rounded py-1.5 px-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Direct Allocated Fee Per Unit */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="licenseFeePerUnit" className="block text-[11px] font-bold text-purple-300">
+                      Allocated License Fee Per Unit ($/print)
+                    </label>
+                    <span className="text-[10px] text-slate-400">Absorbed before markup</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-400 font-mono text-xs">$</span>
+                    <input
+                      type="number"
+                      id="licenseFeePerUnit"
+                      name="licenseFeePerUnit"
+                      value={editingPart.licenseFeePerUnit !== undefined && editingPart.licenseFeePerUnit !== null ? editingPart.licenseFeePerUnit : ''}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.05"
+                      placeholder="1.50"
+                      className="w-full bg-slate-800 border border-purple-500/70 rounded-md py-1.5 pl-7 pr-3 text-purple-200 font-mono text-xs font-bold focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Built-in Subscription Amortization Allocator (Quick Calculator) */}
+                <div className="bg-slate-950/80 p-3 rounded-lg border border-purple-950/80 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-purple-300 flex items-center gap-1">
+                      <span>⚡</span>
+                      <span>Quick Subscription Cost Allocator</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">Monthly Tier ÷ Expected Volume</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label htmlFor="licenseMonthlyCost" className="block text-[10px] text-slate-400 mb-0.5">
+                        Monthly Subscription ($/mo)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-slate-500 text-[11px]">$</span>
+                        <input
+                          type="number"
+                          id="licenseMonthlyCost"
+                          name="licenseMonthlyCost"
+                          value={editingPart.licenseMonthlyCost !== undefined && editingPart.licenseMonthlyCost !== null ? editingPart.licenseMonthlyCost : ''}
+                          onChange={handleChange}
+                          min="0"
+                          step="1"
+                          placeholder="30.00"
+                          className="w-full bg-slate-900 border border-slate-700 rounded py-1 pl-6 pr-2 text-xs text-slate-100 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="licenseEstimatedUnitsPerMonth" className="block text-[10px] text-slate-400 mb-0.5">
+                        Est. Prints Sold / Month
+                      </label>
+                      <input
+                        type="number"
+                        id="licenseEstimatedUnitsPerMonth"
+                        name="licenseEstimatedUnitsPerMonth"
+                        value={editingPart.licenseEstimatedUnitsPerMonth !== undefined && editingPart.licenseEstimatedUnitsPerMonth !== null ? editingPart.licenseEstimatedUnitsPerMonth : ''}
+                        onChange={handleChange}
+                        min="1"
+                        step="1"
+                        placeholder="20"
+                        className="w-full bg-slate-900 border border-slate-700 rounded py-1 px-2.5 text-xs text-slate-100 font-mono text-right"
+                      />
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const monthly = editingPart.licenseMonthlyCost || 0;
+                    const units = editingPart.licenseEstimatedUnitsPerMonth || 0;
+                    const calculatedPerUnit = (monthly > 0 && units > 0)
+                      ? parseFloat((monthly / units).toFixed(2))
+                      : null;
+
+                    return calculatedPerUnit !== null ? (
+                      <div className="flex items-center justify-between pt-1 border-t border-purple-950/60">
+                        <span className="text-[11px] text-slate-300">
+                          Formula: <strong className="text-white">${monthly.toFixed(2)}</strong> ÷ <strong className="text-white">{units} prints</strong> = <strong className="text-purple-300">${calculatedPerUnit.toFixed(2)} / print</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPart(prev => ({ ...prev, licenseFeePerUnit: calculatedPerUnit }))}
+                          className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                          title="Apply this calculated per-unit fee to the part"
+                        >
+                          <span>⚡ Apply ${calculatedPerUnit.toFixed(2)}/u</span>
+                        </button>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Print on Demand & Customer Licensing Section */}
           <div className="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/80 space-y-3">
@@ -1220,6 +1400,17 @@ const PartsPage: React.FC<PartsPageProps> = ({
                             {part.licensingTermsAccepted && <span className="text-emerald-400 font-bold">✓ License</span>}
                           </span>
                         )}
+                        {(part.isCommercialLicense || (typeof part.licenseFeePerUnit === 'number' && part.licenseFeePerUnit > 0)) && (
+                          <span
+                            className="text-[10px] text-purple-300 bg-purple-950/80 border border-purple-600/70 px-2 py-0.5 rounded font-medium flex items-center gap-1 shadow-sm"
+                            title={`Commercial Creator Subscription License: ${part.licenseTierName || 'Creator Tier'} (+$${(part.licenseFeePerUnit || 0).toFixed(2)}/u allocated overhead absorbed into price)`}
+                          >
+                            <span>📜 {part.licenseTierName ? part.licenseTierName : 'Commercial License'}</span>
+                            {typeof part.licenseFeePerUnit === 'number' && part.licenseFeePerUnit > 0 && (
+                              <span className="text-purple-400 font-mono font-bold">+${part.licenseFeePerUnit.toFixed(2)}/u</span>
+                            )}
+                          </span>
+                        )}
                         {part.sku && (
                           <span className="text-[10px] text-slate-300 bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded font-mono">
                             SKU: {part.sku}
@@ -1253,6 +1444,14 @@ const PartsPage: React.FC<PartsPageProps> = ({
                         {part.hardwareCost > 0 && (
                           <span className="bg-slate-900/60 border border-slate-700 px-2 py-0.5 rounded text-slate-300 font-mono">
                             🔩 ${part.hardwareCost.toFixed(2)} h/w
+                          </span>
+                        )}
+                        {(typeof part.licenseFeePerUnit === 'number' && part.licenseFeePerUnit > 0) && (
+                          <span 
+                            className="bg-purple-950/70 border border-purple-700/60 px-2 py-0.5 rounded text-purple-300 font-mono text-xs"
+                            title={`Allocated commercial creator subscription overhead: $${part.licenseFeePerUnit.toFixed(2)} per unit (absorbed into cost & price)`}
+                          >
+                            📜 +${part.licenseFeePerUnit.toFixed(2)} lic
                           </span>
                         )}
                         {/* Pricing Metrics: Cost, Cal Price, Selling Price, and Markup % */}

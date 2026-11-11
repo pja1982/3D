@@ -573,6 +573,9 @@ function App() {
       const electricityCost = (part.printHours * (printerWatts / 1000)) * generalSettings.electricityCostKwh * part.quantity;
       const laborCost = part.postProcessingHours * generalSettings.laborCostPerHour * part.quantity;
       const hardwareCost = part.hardwareCost * part.quantity;
+      const licenseCost = ((part.licenseFeePerUnit !== undefined && part.licenseFeePerUnit !== null && !isNaN(part.licenseFeePerUnit))
+        ? Math.max(0, part.licenseFeePerUnit)
+        : 0) * part.quantity;
 
       return {
         partId: part.id,
@@ -581,6 +584,7 @@ function App() {
         electricityCost,
         laborCost,
         hardwareCost,
+        licenseCost,
         printerCost,
         printerDepreciationCost,
         printerMaintenanceCost,
@@ -676,7 +680,7 @@ function App() {
           partMultiColorFee = finalMultiColorFee / multiColorParts.length;
         }
       }
-      const subtotal = ip.filamentCost + ip.electricityCost + ip.laborCost + ip.hardwareCost + partMultiColorFee + ip.printerCost;
+      const subtotal = ip.filamentCost + ip.electricityCost + ip.laborCost + ip.hardwareCost + (ip.licenseCost || 0) + partMultiColorFee + ip.printerCost;
 
       // Effective material failure rate calculation
       const rawPart = quoteParts.find(qp => qp.id === ip.partId);
@@ -726,6 +730,7 @@ function App() {
     let electricityCost = 0;
     let laborCost = 0;
     let hardwareCost = 0;
+    let licenseCost = 0;
     let printerCost = 0;
     let printerDepreciationCost = 0;
     let printerMaintenanceCost = 0;
@@ -737,6 +742,7 @@ function App() {
       electricityCost += pb.electricityCost;
       laborCost += pb.laborCost;
       hardwareCost += pb.hardwareCost;
+      licenseCost += (pb.licenseCost || 0);
       printerCost += (pb.printerCost || 0);
       printerDepreciationCost += (pb.printerDepreciationCost || 0);
       printerMaintenanceCost += (pb.printerMaintenanceCost || 0);
@@ -763,6 +769,7 @@ function App() {
       electricityCost,
       laborCost,
       hardwareCost,
+      licenseCost,
       printerCost,
       printerDepreciationCost,
       printerMaintenanceCost,
