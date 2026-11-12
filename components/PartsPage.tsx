@@ -46,6 +46,7 @@ const emptyPart: Omit<Part, 'id'> = {
   licenseFeePerUnit: null,
   licenseMonthlyCost: null,
   licenseEstimatedUnitsPerMonth: null,
+  maxPartsPerBuildPlate: null,
 };
 
 const formatDuration = (hours: number) => {
@@ -101,6 +102,13 @@ const PartsPage: React.FC<PartsPageProps> = ({
       setEditingPart(prev => ({
         ...prev,
         customUnitPrice: numVal === null || isNaN(numVal) ? null : Math.max(0, numVal),
+      }));
+    } else if (name === 'maxPartsPerBuildPlate') {
+      const trimmed = value.trim();
+      const numVal = trimmed === '' ? null : parseInt(trimmed, 10);
+      setEditingPart(prev => ({
+        ...prev,
+        maxPartsPerBuildPlate: numVal === null || isNaN(numVal) || numVal < 1 ? null : numVal,
       }));
     } else if (name === 'licenseFeePerUnit' || name === 'licenseMonthlyCost' || name === 'licenseEstimatedUnitsPerMonth') {
       const trimmed = value.trim();
@@ -926,6 +934,32 @@ const PartsPage: React.FC<PartsPageProps> = ({
             </div>
           </div>
 
+          {/* Max Parts per Build Plate / Bed */}
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/80">
+            <label htmlFor="maxPartsPerBuildPlate" className="block text-sm font-medium text-slate-200 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <span>🔲 Max Parts per Build Plate / Bed</span>
+              </span>
+              <span className="text-[11px] text-slate-400 font-normal">Optional</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                id="maxPartsPerBuildPlate"
+                name="maxPartsPerBuildPlate"
+                value={editingPart.maxPartsPerBuildPlate ?? ''}
+                onChange={handleChange}
+                min="1"
+                step="1"
+                placeholder="e.g. 4 (leave blank for unlimited)"
+                className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
+              />
+            </div>
+            <span className="text-[11px] text-slate-400 mt-1 block">
+              Maximum copies that fit on one build plate. Automatically calculates required bed batches in quotes.
+            </span>
+          </div>
+
           {/* Custom Selling Price Section with Cal Price & Markup % */}
           {(() => {
             const formPricing = calculatePartPricing(editingPart, filaments, printers, generalSettings);
@@ -1452,6 +1486,14 @@ const PartsPage: React.FC<PartsPageProps> = ({
                             title={`Allocated commercial creator subscription overhead: $${part.licenseFeePerUnit.toFixed(2)} per unit (absorbed into cost & price)`}
                           >
                             📜 +${part.licenseFeePerUnit.toFixed(2)} lic
+                          </span>
+                        )}
+                        {(typeof part.maxPartsPerBuildPlate === 'number' && part.maxPartsPerBuildPlate > 0) && (
+                          <span 
+                            className="bg-slate-900/60 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-mono text-xs"
+                            title={`Maximum copies that fit on one build plate / bed: ${part.maxPartsPerBuildPlate}`}
+                          >
+                            🔲 Max {part.maxPartsPerBuildPlate}/bed
                           </span>
                         )}
                         {/* Pricing Metrics: Cost, Cal Price, Selling Price, and Markup % */}

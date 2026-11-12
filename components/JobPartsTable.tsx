@@ -155,7 +155,30 @@ export const JobPartsTable: React.FC<JobPartsTableProps> = ({
 
                         {/* Specs & Material Badges */}
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {part.isMysteryColor || part.filamentId === MYSTERY_PLA_ID ? (
+                          {part.colors && part.colors.length > 1 ? (
+                            <span className="inline-flex items-center gap-1.5 bg-slate-800 border border-purple-500/50 text-purple-200 text-[11px] px-2 py-0.5 rounded font-medium shadow-2xs">
+                              <span className="flex -space-x-1 items-center">
+                                {part.colors.map((c, cIdx) => {
+                                  const fil = filaments.find(f => f.id === c.filamentId);
+                                  return (
+                                    <span
+                                      key={c.id || cIdx}
+                                      className="w-2.5 h-2.5 rounded-full border border-slate-700 ring-1 ring-slate-900"
+                                      style={fil ? getFilamentBackgroundStyle(fil.colorHex, fil.rgb) : { backgroundColor: '#888' }}
+                                      title={fil ? `${fil.colorName || fil.colorHex} (${fil.brand} ${fil.type}) - ${c.grams}g` : `Color ${cIdx + 1}`}
+                                    />
+                                  );
+                                })}
+                              </span>
+                              <span className="font-semibold text-purple-300">{part.colors.length} Colors</span>
+                              <span className="text-[10px] text-slate-400 font-normal hidden sm:inline max-w-[140px] truncate">
+                                ({part.colors.map(c => {
+                                  const fil = filaments.find(f => f.id === c.filamentId);
+                                  return fil?.colorName || fil?.brand || 'Filament';
+                                }).join(', ')})
+                              </span>
+                            </span>
+                          ) : part.isMysteryColor || part.filamentId === MYSTERY_PLA_ID ? (
                             <span className="inline-flex items-center gap-1.5 bg-purple-950/80 border border-purple-500/50 text-purple-200 text-[11px] px-2 py-0.5 rounded font-medium shadow-2xs">
                               <span className="w-2.5 h-2.5 rounded-full bg-purple-500 border border-purple-300 flex-shrink-0" />
                               <span>🎨 Surprise / Maker's Choice PLA</span>

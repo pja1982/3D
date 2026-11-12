@@ -454,11 +454,15 @@ function App() {
       printerId: activePart.printerId,
       postProcessingHours: activePart.postProcessingHours,
       hardwareCost: activePart.hardwareCost,
+      colors: activePart.colors,
+      colorChanges: activePart.colorChanges,
       multiColorBatchMode,
       multiColorBedCount,
+      multiColorFeeOverride,
+      differentPlatesRateOverride,
       ...generalSettings,
     };
-  }, [activePart, generalSettings, multiColorBatchMode, multiColorBedCount]);
+  }, [activePart, generalSettings, multiColorBatchMode, multiColorBedCount, multiColorFeeOverride, differentPlatesRateOverride]);
 
   const setParameters = useCallback((value: React.SetStateAction<PrintParameters>) => {
     setQuoteParts(prev => {
@@ -471,6 +475,8 @@ function App() {
             printerId: p.printerId,
             postProcessingHours: p.postProcessingHours,
             hardwareCost: p.hardwareCost,
+            colors: p.colors,
+            colorChanges: p.colorChanges,
             multiColorBatchMode,
             multiColorBedCount,
             multiColorFeeOverride,
@@ -498,6 +504,8 @@ function App() {
             printerId: nextParams.printerId,
             postProcessingHours: nextParams.postProcessingHours,
             hardwareCost: nextParams.hardwareCost,
+            colors: nextParams.colors !== undefined ? nextParams.colors : p.colors,
+            colorChanges: nextParams.colorChanges !== undefined ? nextParams.colorChanges : p.colorChanges,
           };
         }
         return p;
@@ -1110,22 +1118,51 @@ function App() {
       if (part) {
           setQuoteParts(prev => prev.map(p => {
               if (p.id === activePartId) {
+                  const resolvedFilamentId = part.filamentId || (part.colors && part.colors.length > 0 ? part.colors[0].filamentId : p.filamentId);
+                  const mappedColors = part.colors && part.colors.length > 0
+                    ? part.colors.map((c, cIdx) => ({
+                        id: c.id || `color-${Date.now()}-${cIdx}`,
+                        filamentId: c.filamentId,
+                        grams: c.grams,
+                        isMysteryColor: c.isMysteryColor,
+                      }))
+                    : undefined;
+
                   return {
                       ...p,
                       name: part.name,
                       filamentGrams: part.filamentGrams,
+                      filamentId: resolvedFilamentId,
+                      printerId: part.printerId || p.printerId,
                       printHours: part.printHours,
                       postProcessingHours: part.postProcessingHours,
                       hardwareCost: part.hardwareCost,
-                      colors: part.colors ? [...part.colors] : undefined,
+                      colors: mappedColors,
+                      colorChanges: part.colorChanges,
                       imageUrl: part.imageUrl,
                       customUnitPrice: typeof part.customUnitPrice === 'number' && part.customUnitPrice >= 0 ? part.customUnitPrice : undefined,
                       isPrintOnDemand: part.isPrintOnDemand,
                       licensingTermsAccepted: part.licensingTermsAccepted,
+                      isCommercialLicense: part.isCommercialLicense,
+                      licenseTierName: part.licenseTierName,
+                      licenseFeePerUnit: part.licenseFeePerUnit,
+                      licenseMonthlyCost: part.licenseMonthlyCost,
+                      licenseEstimatedUnitsPerMonth: part.licenseEstimatedUnitsPerMonth,
+                      maxPartsPerBuildPlate: part.maxPartsPerBuildPlate,
                   };
               }
               return p;
           }));
+
+          if (typeof part.maxPartsPerBuildPlate === 'number' && part.maxPartsPerBuildPlate > 0) {
+            setQuoteParts(currentParts => {
+              const current = currentParts.find(p => p.id === activePartId);
+              const qty = current ? current.quantity : 1;
+              const autoBeds = Math.max(1, Math.ceil(qty / (part.maxPartsPerBuildPlate || 1)));
+              setMultiColorBedCount(autoBeds);
+              return currentParts;
+            });
+          }
       }
   }, [activePartId]);
 

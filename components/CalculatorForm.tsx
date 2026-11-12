@@ -137,6 +137,7 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
         licenseFeePerUnit: part.licenseFeePerUnit,
         licenseMonthlyCost: part.licenseMonthlyCost,
         licenseEstimatedUnitsPerMonth: part.licenseEstimatedUnitsPerMonth,
+        maxPartsPerBuildPlate: part.maxPartsPerBuildPlate,
       };
     });
 
@@ -887,7 +888,7 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   </div>
 
                   {/* Quantity controls */}
-                  <div className="flex items-center bg-slate-800/80 rounded-md border border-slate-700 px-1 py-0.5" title="Batch Quantity">
+                  <div className="flex items-center bg-slate-900 rounded-md border border-slate-700 shrink-0 shadow-xs" title="Batch Quantity">
                     <button
                       type="button"
                       onClick={() => {
@@ -898,13 +899,28 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                           quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? newQ : p.quantityRequired
                         } : p));
                       }}
-                      className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition text-sm font-bold"
+                      className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 active:scale-95 rounded-l transition text-sm font-bold shrink-0 cursor-pointer"
+                      title="Decrease quantity"
                     >
                       -
                     </button>
-                    <span className="w-6 text-center text-slate-200 text-xs font-semibold">
-                      {part.quantity}
-                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="9999"
+                      value={part.quantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        const newQ = isNaN(val) || val < 1 ? 1 : val;
+                        setQuoteParts(prev => prev.map(p => p.id === part.id ? { 
+                          ...p, 
+                          quantity: newQ,
+                          quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? newQ : p.quantityRequired
+                        } : p));
+                      }}
+                      className="w-10 h-6 text-center bg-transparent text-slate-100 font-mono text-xs font-bold focus:outline-none focus:bg-slate-800"
+                      title="Type or adjust part quantity"
+                    />
                     <button
                       type="button"
                       onClick={() => {
@@ -915,7 +931,8 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                           quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? newQ : p.quantityRequired
                         } : p));
                       }}
-                      className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition text-sm font-bold"
+                      className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 active:scale-95 rounded-r transition text-sm font-bold shrink-0 cursor-pointer"
+                      title="Increase quantity"
                     >
                       +
                     </button>
@@ -1638,16 +1655,16 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
 
               {/* Number of plates / beds selector & Savings alert */}
               {(multiColorBatchMode === 'single_batch_per_bed' || multiColorBatchMode === 'different_plates') && (
-                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-lg border text-xs ${
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border text-xs ${
                   multiColorBatchMode === 'different_plates'
                     ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-200'
                     : 'bg-purple-950/30 border-purple-500/20 text-purple-200'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="multiColorBedCount" className="font-medium whitespace-nowrap">
+                  <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+                    <label htmlFor="multiColorBedCount" className="font-semibold whitespace-nowrap text-slate-200 text-xs">
                       {multiColorBatchMode === 'different_plates' ? 'Different Build Plates:' : 'Build Plates / Beds:'}
                     </label>
-                    <div className="flex items-center border border-slate-600 rounded-lg overflow-hidden bg-slate-900">
+                    <div className="inline-flex items-center border border-slate-600 rounded-lg bg-slate-900 shrink-0 shadow-xs">
                       <button
                         type="button"
                         onClick={() => {
@@ -1655,14 +1672,26 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                           if (setMultiColorBedCount) setMultiColorBedCount(nextVal);
                           setParameters(prev => ({ ...prev, multiColorBedCount: nextVal }));
                         }}
-                        className="px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                        className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 transition cursor-pointer font-bold text-base shrink-0 rounded-l-lg border-r border-slate-700/80"
                         title="Decrease plate count"
                       >
                         -
                       </button>
-                      <span className="px-3 py-1 font-mono font-bold text-slate-100 min-w-[28px] text-center">
-                        {multiColorBedCount}
-                      </span>
+                      <input
+                        id="multiColorBedCount"
+                        type="number"
+                        min="1"
+                        max="999"
+                        value={multiColorBedCount}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          const nextVal = isNaN(val) || val < 1 ? 1 : val;
+                          if (setMultiColorBedCount) setMultiColorBedCount(nextVal);
+                          setParameters(prev => ({ ...prev, multiColorBedCount: nextVal }));
+                        }}
+                        className="w-12 h-8 bg-transparent text-center font-mono font-bold text-slate-100 text-sm focus:outline-none focus:bg-slate-800"
+                        title="Type or adjust number of beds / build plates"
+                      />
                       <button
                         type="button"
                         onClick={() => {
@@ -1670,7 +1699,7 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                           if (setMultiColorBedCount) setMultiColorBedCount(nextVal);
                           setParameters(prev => ({ ...prev, multiColorBedCount: nextVal }));
                         }}
-                        className="px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                        className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 transition cursor-pointer font-bold text-base shrink-0 rounded-r-lg border-l border-slate-700/80"
                         title="Increase plate count"
                       >
                         +
@@ -1681,10 +1710,32 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                         ? `(${multiColorBedCount} plates • 0 purge waste • plate-by-plate)`
                         : (multiColorBedCount === 1 ? '(all parts fit on 1 bed)' : `(${multiColorBedCount} beds required)`)}
                     </span>
+                    {typeof activePart.maxPartsPerBuildPlate === 'number' && activePart.maxPartsPerBuildPlate > 0 && (
+                      <span className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 px-2 py-0.5 rounded text-[11px] text-cyan-300 font-mono">
+                        <span>📐 Max {activePart.maxPartsPerBuildPlate}/bed</span>
+                        <span className="text-slate-400">
+                          ({activePart.quantity} units ÷ {activePart.maxPartsPerBuildPlate} = {Math.ceil(activePart.quantity / activePart.maxPartsPerBuildPlate)} {Math.ceil(activePart.quantity / activePart.maxPartsPerBuildPlate) === 1 ? 'bed' : 'beds'})
+                        </span>
+                        {multiColorBedCount !== Math.ceil(activePart.quantity / activePart.maxPartsPerBuildPlate) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const autoBeds = Math.max(1, Math.ceil(activePart.quantity / (activePart.maxPartsPerBuildPlate || 1)));
+                              if (setMultiColorBedCount) setMultiColorBedCount(autoBeds);
+                              setParameters(prev => ({ ...prev, multiColorBedCount: autoBeds }));
+                            }}
+                            className="text-[10px] text-cyan-400 hover:text-cyan-200 underline font-bold cursor-pointer font-sans"
+                            title="Sync bed count with maximum parts per bed calculation"
+                          >
+                            Set to {Math.ceil(activePart.quantity / activePart.maxPartsPerBuildPlate)}
+                          </button>
+                        )}
+                      </span>
+                    )}
                   </div>
 
                   {multiColorSavedFee > 0 && (
-                    <div className="flex items-center gap-1.5 text-emerald-300 font-semibold bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-md shrink-0">
+                    <div className="flex items-center gap-1.5 text-emerald-300 font-semibold bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1.5 rounded-md shrink-0 self-start sm:self-auto">
                       <span>
                         💰 Saved ${multiColorSavedFee.toFixed(2)} {multiColorBatchMode === 'different_plates' ? 'vs AMS purge waste' : 'by batching on 1 bed'}
                       </span>
@@ -2003,11 +2054,11 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
           </div>
         </div>
 
-        {/* Quantity and Quantity Required for Active Part */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-700/60">
+        {/* Quantity, Quantity Required and Max Parts Per Build Plate */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-700/60">
           <div>
-            <label htmlFor="activePartQuantity" className="block text-sm font-medium text-slate-300 mb-1">
-              Quantity to Print (Batch Size)
+            <label htmlFor="activePartQuantity" className="block text-xs font-semibold text-slate-300 mb-1">
+              Quantity to Print (Batch)
             </label>
             <input
               type="number"
@@ -2022,15 +2073,20 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   quantity: val,
                   quantityRequired: p.quantityRequired === undefined || p.quantityRequired === p.quantity ? val : p.quantityRequired
                 } : p));
+                if (activePart.maxPartsPerBuildPlate && setMultiColorBedCount) {
+                  const autoBeds = Math.max(1, Math.ceil(val / activePart.maxPartsPerBuildPlate));
+                  setMultiColorBedCount(autoBeds);
+                  setParameters(prev => ({ ...prev, multiColorBedCount: autoBeds }));
+                }
               }}
-              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
             />
-            <span className="text-[11px] text-slate-400 mt-1 block">Number of copies to produce in this job</span>
+            <span className="text-[10px] text-slate-400 mt-1 block">Copies produced in job</span>
           </div>
 
           <div>
-            <label htmlFor="activePartQuantityRequired" className="block text-sm font-medium text-slate-300 mb-1">
-              Quantity Required (Order Demand)
+            <label htmlFor="activePartQuantityRequired" className="block text-xs font-semibold text-slate-300 mb-1">
+              Order Demand (Required)
             </label>
             <input
               type="number"
@@ -2045,8 +2101,49 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({
                   quantityRequired: val
                 } : p));
               }}
-              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
             />
+            <span className="text-[10px] text-slate-400 mt-1 block">Customer order count</span>
+          </div>
+
+          <div>
+            <label htmlFor="activePartMaxPerBed" className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+              <span className="truncate">🔲 Max / Build Plate</span>
+              {typeof activePart.maxPartsPerBuildPlate === 'number' && activePart.maxPartsPerBuildPlate > 0 && (
+                <span className="text-[10px] text-cyan-300 font-mono font-bold shrink-0">
+                  {Math.ceil(activePart.quantity / activePart.maxPartsPerBuildPlate)} {Math.ceil(activePart.quantity / activePart.maxPartsPerBuildPlate) === 1 ? 'bed' : 'beds'}
+                </span>
+              )}
+            </label>
+            <input
+              type="number"
+              id="activePartMaxPerBed"
+              min="1"
+              step="1"
+              value={typeof activePart.maxPartsPerBuildPlate === 'number' && activePart.maxPartsPerBuildPlate > 0 ? activePart.maxPartsPerBuildPlate : ''}
+              placeholder="e.g. 4 (unlimited)"
+              onChange={(e) => {
+                const valStr = e.target.value.trim();
+                const parsed = valStr === '' ? null : parseInt(valStr, 10);
+                const cleanVal = (parsed === null || isNaN(parsed) || parsed < 1) ? undefined : parsed;
+                setQuoteParts(prev => prev.map(p => {
+                  if (p.id === activePart.id) {
+                    return {
+                      ...p,
+                      maxPartsPerBuildPlate: cleanVal,
+                    };
+                  }
+                  return p;
+                }));
+                if (cleanVal && setMultiColorBedCount) {
+                  const autoBeds = Math.max(1, Math.ceil(activePart.quantity / cleanVal));
+                  setMultiColorBedCount(autoBeds);
+                  setParameters(prev => ({ ...prev, multiColorBedCount: autoBeds }));
+                }
+              }}
+              className="w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm placeholder-slate-400"
+            />
+            <span className="text-[10px] text-slate-400 mt-1 block">Max copies per print bed</span>
           </div>
         </div>
 

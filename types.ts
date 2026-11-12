@@ -81,6 +81,7 @@ export interface Part {
   customUnitPrice?: number | null; // Optional default selling unit price ($)
   filamentId?: string | null; // Default / base material assigned to part
   printerId?: string | null;  // Default preferred printer
+  colorChanges?: number;      // Number of color swaps in multi-color print
   isMysteryColor?: boolean;
   mysteryColorType?: 'pla_surprise';
   resolvedFilamentId?: string | null;
@@ -93,6 +94,7 @@ export interface Part {
   licenseFeePerUnit?: number | null;// Allocated commercial subscription license overhead per unit ($/print)
   licenseMonthlyCost?: number | null; // Monthly creator subscription cost ($/mo, for auto-allocation formula)
   licenseEstimatedUnitsPerMonth?: number | null; // Expected monthly prints sold (for auto-allocation formula)
+  maxPartsPerBuildPlate?: number | null; // Maximum parts that can fit on one printer build plate / bed
 }
 
 export type MultiColorPricingMode = 'simple' | 'complex' | 'none';
@@ -237,6 +239,7 @@ export interface QuotePartConfig {
   licenseFeePerUnit?: number | null;
   licenseMonthlyCost?: number | null;
   licenseEstimatedUnitsPerMonth?: number | null;
+  maxPartsPerBuildPlate?: number | null;
 }
 
 export enum QuoteStatus {

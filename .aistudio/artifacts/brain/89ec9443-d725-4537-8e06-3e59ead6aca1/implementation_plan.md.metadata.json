@@ -1,6 +1,0 @@
-{
-  "summary": "Implementation plan for:\n1. Distinct rate pricing for 'Different Build Plates' (one print color per plate) vs AMS multi-color printing, with configurable defaults in Settings and job-level fee overrides for each printing mode.\n2. Displaying print time per model on customer quotes, invoices, travelers, and parts breakdowns, alongside total batch print hours for multi-quantity parts.",
-  "updatedAt": "2026-11-05T11:10:08.484418751Z",
-  "requestFeedback": true,
-  "userFacing": true
-}

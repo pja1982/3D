@@ -358,7 +358,30 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
 
                         {/* Specs badges */}
                         <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
-                          {assignedFilament && (
+                          {part.colors && part.colors.length > 1 ? (
+                            <span className="inline-flex items-center gap-1.5 bg-slate-900/90 px-2 py-0.5 rounded border border-purple-500/40 text-purple-200">
+                              <span className="flex -space-x-1 items-center">
+                                {part.colors.map((c, cIdx) => {
+                                  const fil = filaments.find(f => f.id === c.filamentId);
+                                  return (
+                                    <span
+                                      key={c.id || cIdx}
+                                      className="w-2.5 h-2.5 rounded-full border border-slate-800 ring-1 ring-slate-950"
+                                      style={fil ? getFilamentBackgroundStyle(fil.colorHex, fil.rgb) : { backgroundColor: '#888' }}
+                                      title={fil ? `${fil.colorName || fil.colorHex} (${fil.brand} ${fil.type}) - ${c.grams}g` : `Color ${cIdx + 1}`}
+                                    />
+                                  );
+                                })}
+                              </span>
+                              <span className="font-semibold text-purple-300">{part.colors.length} Colors</span>
+                              <span className="text-slate-400 font-normal hidden sm:inline max-w-[150px] truncate">
+                                ({part.colors.map(c => {
+                                  const fil = filaments.find(f => f.id === c.filamentId);
+                                  return fil?.colorName || fil?.brand || 'Filament';
+                                }).join(', ')})
+                              </span>
+                            </span>
+                          ) : assignedFilament ? (
                             <span className="inline-flex items-center gap-1 bg-slate-900/80 px-1.5 py-0.2 rounded border border-slate-700 text-slate-300">
                               <span
                                 className="w-2.5 h-2.5 rounded-full border border-slate-600"
@@ -366,7 +389,7 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
                               />
                               <span className="truncate max-w-[130px]">{assignedFilament.brand} {assignedFilament.type}</span>
                             </span>
-                          )}
+                          ) : null}
 
                           {assignedPrinter && (
                             <span className="inline-flex items-center gap-1 bg-slate-900/80 px-1.5 py-0.2 rounded border border-slate-700 text-slate-300">
@@ -482,23 +505,45 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
 
                   {/* Expanded Itemized Cost Sub-Breakdown for this Part */}
                   {isExpanded && (
-                    <div className="p-2.5 bg-slate-950/80 rounded-lg border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs animate-fadeIn">
-                      <div>
-                        <span className="text-slate-400 text-[10px] block">Material Cost</span>
-                        <span className="font-mono text-slate-200">{formatCurrency((row.unitMaterialCost || 0) * row.qty)}</span>
+                    <div className="p-2.5 bg-slate-950/80 rounded-lg border border-slate-800 space-y-2 text-xs animate-fadeIn">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Material Cost</span>
+                          <span className="font-mono text-slate-200">{formatCurrency((row.unitMaterialCost || 0) * row.qty)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Machine & Power</span>
+                          <span className="font-mono text-slate-200">{formatCurrency(((row.unitMachineCost || 0) + (row.unitElectricityCost || 0)) * row.qty)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Labor & Post-process</span>
+                          <span className="font-mono text-slate-200">{formatCurrency((row.unitLaborCost || 0) * row.qty)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Hardware & Extras</span>
+                          <span className="font-mono text-slate-200">{formatCurrency(((row.unitHardwareCost || 0) + (row.unitMultiColorCost || 0)) * row.qty)}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] block">Machine & Power</span>
-                        <span className="font-mono text-slate-200">{formatCurrency(((row.unitMachineCost || 0) + (row.unitElectricityCost || 0)) * row.qty)}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] block">Labor & Post-process</span>
-                        <span className="font-mono text-slate-200">{formatCurrency((row.unitLaborCost || 0) * row.qty)}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] block">Hardware & Extras</span>
-                        <span className="font-mono text-slate-200">{formatCurrency(((row.unitHardwareCost || 0) + (row.unitMultiColorCost || 0)) * row.qty)}</span>
-                      </div>
+
+                      {/* Itemized Filaments if multi-color */}
+                      {part.colors && part.colors.length > 1 && (
+                        <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-[11px]">
+                          <span className="text-slate-400 font-medium">Filaments ({part.colors.length}):</span>
+                          {part.colors.map((c, i) => {
+                            const fil = filaments.find(f => f.id === c.filamentId);
+                            return (
+                              <span key={c.id || i} className="inline-flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-300">
+                                <span
+                                  className="w-2 h-2 rounded-full border border-slate-700"
+                                  style={fil ? getFilamentBackgroundStyle(fil.colorHex, fil.rgb) : { backgroundColor: '#888' }}
+                                />
+                                <span>{fil ? `${fil.colorName || fil.colorHex} (${fil.brand} ${fil.type})` : `Color ${i + 1}`}</span>
+                                <span className="font-mono text-cyan-400 text-[10px] font-semibold">{c.grams}g</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -530,11 +575,37 @@ const CostBreakdownDisplay: React.FC<CostBreakdownDisplayProps> = ({
 
                   return (
                     <tr key={part.id || idx} className="hover:bg-slate-800/40 transition">
-                      <td className="py-2.5 px-3 font-semibold text-slate-100 truncate max-w-[150px]">
+                      <td className="py-2.5 px-3 font-semibold text-slate-100 truncate max-w-[170px]">
                         <div className="flex items-center gap-1.5">
+                          {part.colors && part.colors.length > 1 ? (
+                            <span className="flex -space-x-1 items-center shrink-0" title={`${part.colors.length} Colors: ${part.colors.map(c => filaments.find(f => f.id === c.filamentId)?.colorName || 'Filament').join(', ')}`}>
+                              {part.colors.slice(0, 3).map((c, cIdx) => {
+                                const fil = filaments.find(f => f.id === c.filamentId);
+                                return (
+                                  <span
+                                    key={c.id || cIdx}
+                                    className="w-2.5 h-2.5 rounded-full border border-slate-900"
+                                    style={fil ? getFilamentBackgroundStyle(fil.colorHex, fil.rgb) : { backgroundColor: '#888' }}
+                                  />
+                                );
+                              })}
+                              {part.colors.length > 3 && <span className="text-[9px] text-slate-400 pl-1.5">+{part.colors.length - 3}</span>}
+                            </span>
+                          ) : (
+                            (() => {
+                              const fil = filaments.find(f => f.id === part.filamentId);
+                              return fil ? (
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full border border-slate-700 shrink-0"
+                                  style={getFilamentBackgroundStyle(fil.colorHex, fil.rgb)}
+                                  title={`${fil.brand} ${fil.type}`}
+                                />
+                              ) : null;
+                            })()
+                          )}
                           <span className="truncate">{part.name}</span>
                           {hasCustomPrice && (
-                            <span className="text-[9px] bg-amber-950 text-amber-300 border border-amber-600/40 px-1 py-0.2 rounded font-mono">
+                            <span className="text-[9px] bg-amber-950 text-amber-300 border border-amber-600/40 px-1 py-0.2 rounded font-mono shrink-0">
                               custom
                             </span>
                           )}
